@@ -4,38 +4,6 @@
  *
  *  Power management cases:
  *
- *      full run mode:      - no power management used. main loop executed full time.
- *                            mode active in case:
- *                                  - SYSSTAT_CORE_BULK: core bulk calculation is needed
- *
- *      normal run mode:    - all clocks are on, main loop is processed once, and entering wait mode with core clock stopped only (core sleep),
- *                            wakeup is done at any IRQ, including the system's 250us tick.
- *                            mode active in case if one of these:
- *                                  - SYSSTAT_DISP_BUSY:        display busy
- *                                  - SYSSTAT_CORE_RUN_FULL:    core run with light or sound detection
- *                                  - SYSSTAT_UI_ON:            ui on, display on (full)
- *                            and not:
- *                                  - SYSSTAT_CORE_BULK
- *
- *      stopped state:      - all clocks off, button action and RTC 1sec. wakeup is monitorred only. All unneeded peripherals are off (core and dispHAL should disable stuff).
- *                            mode active in case if one of these:
- *                                  - SYSSTAT_CORE_RUN_LOW:     core run with low speed operations like long, periodic, timed expo
- *                                  - SYSSTAT_CORE_STOPPED:     no core operation
- *                                  - SYSSTAT_UI_STOPPED:       ui stopped (display off)
- *                            and not:
- *                                  - SYSSTAT_CORE_BULK
- *                                  - SYSSTAT_DISP_BUSY
- *                                  - SYSSTAT_CORE_RUN_FULL
- *                                  - SYSSTAT_UI_ON
- *
- *      power off:          - turn off the power for the whole device, restart is possible only by power button
- *                            mode active in case if all of these:
- *                                  - SYSSTAT_CORE_STOPPED
- *                                  - SYSSTAT_UI_PWROFF:        ui signalls power off. condition for it is - no user action in time + display off 
- *                              and not:
- *                                  - SYSSTAT_DISP_BUSY
- *                                                         
- *
  *
  *
  **/
@@ -47,7 +15,6 @@
 #include "core.h"
 #include "dispHAL.h"
 
-//dgb
 #include "graphic_lib.h"
 
 struct SCore *core;
@@ -168,7 +135,7 @@ void main_loop(void)
         event = Event_Poll( );
         if ( wake_up )
         {
-            event.key_event = 1;    // 
+            event.key_event = 1;    // forces display update
         }
 
         ProcessApplication( &event );

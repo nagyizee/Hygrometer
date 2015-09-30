@@ -7,7 +7,7 @@
 #include "events_ui.h"
 
 #define TIMER_INTERVAL          20       // 20ms
-#define TICKS_TO_SIMULATE       60      // timer tick is on 500us -> 2000 timer ticks in 1 sec.  => 40 ticks in 20ms
+#define TICKS_TO_SIMULATE       60       // timer tick is on 500us -> 2000 timer ticks in 1 sec.  => 40 ticks in 20ms
 
 
 mainw::mainw(QWidget *parent) :
@@ -54,7 +54,6 @@ mainw::~mainw()
 void mainw::setup_graphic( graph_disp *_graph )
 {
     graph   = _graph;
-    connect( this, SIGNAL(send_coords_to_graphic(int,int,int,int)), graph, SLOT(insert_tick(int,int,int,int)) );
 }
 
 
@@ -91,9 +90,6 @@ void mainw::TimerTick()
             send_tick = false;
         }
 
-
-        ADC_ISR_simulation();
-
         TimerSysIntrHandler();    // timer interval - 500us
         sec_ctr++;
         if ( sec_ctr == 2000 )
@@ -115,55 +111,29 @@ void mainw::TimerTick()
 /////////////////////////////////////////////////////////////
 // UI elements
 /////////////////////////////////////////////////////////////
-void mainw::on_btn_OK_pressed()
-{
-    buttons[0] = true;
-}
 
-void mainw::on_btn_OK_released()
-{
-    buttons[0] = false;
-}
+void mainw::on_btn_power_pressed()  { buttons[BTN_MODE] = true; }
+void mainw::on_btn_power_released() { buttons[BTN_MODE] = false; }
 
-void mainw::on_btn_esc_pressed()
-{
-    buttons[1] = true;
-}
+void mainw::on_btn_up_pressed()  { buttons[BTN_UP] = true; }
+void mainw::on_btn_up_released() { buttons[BTN_UP] = false; }
 
-void mainw::on_btn_esc_released()
-{
-    buttons[1] = false;
-}
+void mainw::on_btn_down_pressed()  { buttons[BTN_DOWN] = true; }
+void mainw::on_btn_down_released() { buttons[BTN_DOWN] = false; }
 
-void mainw::on_btn_power_pressed()
-{
-    buttons[2] = true;
-}
+void mainw::on_btn_left_pressed()  { buttons[BTN_LEFT] = true; }
+void mainw::on_btn_left_released() { buttons[BTN_LEFT] = false; }
 
-void mainw::on_btn_power_released()
-{
-    buttons[2] = false;
-}
+void mainw::on_btn_right_pressed()  { buttons[BTN_RIGHT] = true; }
+void mainw::on_btn_right_released() { buttons[BTN_RIGHT] = false; }
 
-void mainw::on_btn_startstop_pressed()
-{
-    buttons[3] = true;
-}
+void mainw::on_btn_ok_pressed()  { buttons[BTN_OK] = true; }
+void mainw::on_btn_ok_released() { buttons[BTN_OK] = false; }
 
-void mainw::on_btn_startstop_released()
-{
-    buttons[3] = false;
-}
+void mainw::on_btn_esc_pressed()  { buttons[BTN_ESC] = true; }
+void mainw::on_btn_esc_released() { buttons[BTN_ESC] = false; }
 
-void mainw::on_btn_menu_pressed()
-{
-    buttons[4] = true;
-}
 
-void mainw::on_btn_menu_released()
-{
-    buttons[4] = false;
-}
 
 
 

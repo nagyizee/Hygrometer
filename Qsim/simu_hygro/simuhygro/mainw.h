@@ -25,29 +25,28 @@ public:
 private slots:
     void TimerTick();
 
-    void on_btn_OK_pressed();
-
-    void on_btn_OK_released();
-
-    void on_btn_esc_pressed();
-
-    void on_btn_esc_released();
-
-    void on_btn_startstop_pressed();
-
-    void on_btn_startstop_released();
-
-    void on_btn_menu_pressed();
-
-    void on_btn_menu_released();
 
     void on_btn_power_pressed();
-
     void on_btn_power_released();
 
+    void on_btn_up_pressed();
+    void on_btn_up_released();
 
-signals:
-    void send_coords_to_graphic( int az, int el, int tl, int au );
+    void on_btn_down_pressed();
+    void on_btn_down_released();
+
+    void on_btn_left_pressed();
+    void on_btn_left_released();
+
+    void on_btn_right_pressed();
+    void on_btn_right_released();
+
+    void on_btn_ok_pressed();
+    void on_btn_ok_released();
+
+    void on_btn_esc_pressed();
+    void on_btn_esc_released();
+
 
 private:
     Ui::mainw *ui;
@@ -75,15 +74,9 @@ public:
     void dispsim_redraw_content();
     void HW_assertion(const char *reason);
     bool HW_wrapper_getButton(int index);
-    int HW_wrapper_getEncoder(void);
     int HW_wrapper_getHit(int index);
-    int HW_wrapper_shutter_pref( bool state );
-    int HW_wrapper_shutter_release( bool state );
     void HW_wrapper_set_disp_brt(int brt);
     int HW_wrapper_ADC_battery(void);
-    int HW_wrapper_ADC_light(void);
-    int HW_wrapper_ADC_sound(void);
-    void HW_wrapper_ADC_On_indicator(bool value);
 
 
     bool btn_pressed;

@@ -591,7 +591,7 @@ void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct t
     if ( large_border )
         Graphic_FillRectangle( x-1, y-1, x+width+1, y+height+1, 1-color );
     else
-        Graphic_FillRectangle( x, y, x+width, y+height, 1-color );
+        Graphic_FillRectangle( x, y, x+width-2, y+height-2, 1-color );
     Gtext_SetCoordinates( x, y );
 
     // print the time in hh:mm:ss

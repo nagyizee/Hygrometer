@@ -38,78 +38,47 @@ void HW_ASSERT(const char *reason)
 
 bool BtnGet_OK()
 {
-    return pClass->HW_wrapper_getButton(0);
+    return pClass->HW_wrapper_getButton(BTN_OK);
 }
 
-bool BtnGet_Cancel()
+bool BtnGet_Esc()
 {
-    return pClass->HW_wrapper_getButton(1);
+    return pClass->HW_wrapper_getButton(BTN_ESC);
 }
 
-bool BtnGet_Power()
+bool BtnGet_Mode()
 {
-    return pClass->HW_wrapper_getButton(2);
+    return pClass->HW_wrapper_getButton(BTN_MODE);
 }
 
-bool BtnGet_StartStop()
+bool BtnGet_Up()
 {
-    return pClass->HW_wrapper_getButton(3);
+    return pClass->HW_wrapper_getButton(BTN_UP);
 }
 
-bool BtnGet_Menu()
+bool BtnGet_Down()
 {
-    return pClass->HW_wrapper_getButton(4);
+    return pClass->HW_wrapper_getButton(BTN_DOWN);
 }
 
-void HW_Shutter_Prefocus_ON()
+bool BtnGet_Left()
 {
-    pClass->HW_wrapper_shutter_pref(true);
+    return pClass->HW_wrapper_getButton(BTN_LEFT);
 }
 
-void HW_Shutter_Prefocus_OFF()
+bool BtnGet_Right()
 {
-    pClass->HW_wrapper_shutter_pref(false);
+    return pClass->HW_wrapper_getButton(BTN_RIGHT);
 }
 
-void HW_Shutter_Release_ON()
+bool BtnPollStick()
 {
-    pClass->HW_wrapper_shutter_release(true);
-}
 
-void HW_Shutter_Release_OFF()
-{
-    pClass->HW_wrapper_shutter_release(false);
 }
 
 
 int encoder_dir = 0;
 
-void HW_Encoder_Poll(void)
-{
-    static uint32 enc_old = 0;
-    int enc;
-
-    enc = pClass->HW_wrapper_getEncoder();
-
-    if ( enc != enc_old )
-    {
-        if ( ((enc > enc_old) && ((enc - enc_old) < (ENCODER_MAX / 2) )) ||
-             ((enc < enc_old) && ((enc_old - enc) > (ENCODER_MAX / 2) ))    )
-             encoder_dir = 2;
-        if ( ((enc > enc_old) && ((enc - enc_old) > (ENCODER_MAX / 2) )) ||
-             ((enc < enc_old) && ((enc_old - enc) < (ENCODER_MAX / 2) ))    )
-             encoder_dir = 1;
-        enc_old = enc;  //Currently it detects the direction only. TBD: if we need a step up/down count to not to lose steps
-    }
-}
-
-
-uint32 BtnGet_Encoder()
-{
-    int tmp;
-    tmp = encoder_dir;
-    encoder_dir = 0;
-}
 
 
 uint32 DispHAL_Init(uint8 *Gmem)
@@ -164,63 +133,9 @@ bool HW_Sleep(int mode)
 }
 
 
-static int adc_run = 0;
-static int adc_group = 0;
-static uint32 *adcBuff = NULL;
-
-void ADC_ISR_simulation(void)
-{
-    int i;
-    if (adc_run == 0)
-        return;
-
-    i = 5;
-    while (i > 0)
-    {
-        uint32 value;
-        if ( adc_group )
-            value = pClass->HW_wrapper_ADC_sound();
-        else
-            value = pClass->HW_wrapper_ADC_light();
-
-        adcBuff[0] = pClass->HW_wrapper_ADC_battery();
-        adcBuff[1] = value;
-        adcBuff[2] = value;
-        CoreADC_ISR_Complete();
-        i--;
-    }
-
-}
-
-
-
 uint32 HW_ADC_GetBattery(void)
 {
     return pClass->HW_wrapper_ADC_battery();
-}
-
-void HW_ADC_StartAcquisition( uint32 buffer_addr, int group )
-{
-    adc_run = 1;
-    adc_group = group;
-    adcBuff = (uint32*)buffer_addr;
-    pClass->HW_wrapper_ADC_On_indicator( true );
-}
-
-void HW_ADC_StopAcquisition( void )
-{
-    adc_run = 0;
-    pClass->HW_wrapper_ADC_On_indicator( false );
-}
-
-void HW_ADC_SetupPretrigger( uint32 value )
-{
-    Core_ISR_PretriggerCompleted();     // mark directly the completion in simu
-}
-
-void HW_ADC_ResetPretrigger( void )
-{
-    // do nothing in simu
 }
 
 
@@ -252,20 +167,6 @@ bool mainw::HW_wrapper_getButton(int index)
     return buttons[index];
 }
 
-int mainw::HW_wrapper_getEncoder(void)
-{
-    return ui->dial->value();
-}
-
-int mainw::HW_wrapper_shutter_pref( bool state )
-{
-    ui->cb_prefocus->setChecked(state);
-}
-
-int mainw::HW_wrapper_shutter_release( bool state )
-{
-    ui->cb_expo->setChecked(state);
-}
 
 void mainw::HW_wrapper_set_disp_brt(int brt)
 {
@@ -286,22 +187,8 @@ int mainw::HW_wrapper_ADC_battery(void)
     return ui->sld_battery->value();
 }
 
-int mainw::HW_wrapper_ADC_light(void)
-{
-    return ui->sld_light->value();
-}
 
-int mainw::HW_wrapper_ADC_sound(void)
-{
-    return ui->sld_sound->value();
-}
-
-void mainw::HW_wrapper_ADC_On_indicator(bool value)
-{
-    ui->cb_adc_on->setChecked( value );
-}
-
-////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 
 void mainw::HW_wrapper_setup( int interval )
 {

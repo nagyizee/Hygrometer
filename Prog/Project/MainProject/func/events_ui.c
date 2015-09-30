@@ -19,20 +19,12 @@ static struct STIM1 *TIM1 = &stim;
 #endif
 
 
-
 volatile struct SEventStruct events = { 0, };
 static volatile uint32 counter = 0;
 static volatile uint32 sec_ctr = 0;
 static volatile uint32 rcc_comp = 0x10;
 static volatile uint32 tmr_over = 0;
 
-#ifdef STATISTICKS
-uint32 stat_loop_ctr = 0;   // current value
-uint32 stat_max_loop = 0;   // maximum value
-uint32 stat_avg_loop = 0;
-uint32 stat_avg_cnt  = 0;
-uint32 stat_last_avg = 0;   // average in 1 second
-#endif
 #ifdef STAT_TMR_CAL
 static volatile uint32 tmr_over_max = 0;
 static volatile uint32 tmr_under_max = 0;
@@ -49,7 +41,6 @@ static volatile uint32 tmr_under_max = 0;
 #define BEEP_DUR_OFF_SHORT  20
 #define BEEP_DUR_PAUSE      2
 
-
 struct SBeep
 {
     uint32  seq;
@@ -59,9 +50,7 @@ struct SBeep
     uint16  active;
 } beep = {0, };
 
-
-
-    extern void DispHAL_ISR_Poll(void);
+extern void DispHAL_ISR_Poll(void);
 
 
     void TimerSysIntrHandler(void)
@@ -70,7 +59,7 @@ struct SBeep
         // IF timer 16 in use - check for the interrupt flag
 
         // Clear update interrupt bit
-        TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;        //TIM_ClearITPendingBit(TIM1, TIM_FLAG_Update);
+        TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
 
         if ( sec_ctr < 2000 )  // execute this isr only for useconds inside the 1second interval
         {
@@ -151,40 +140,34 @@ struct SBeep
 //////////////////////////////////////////////////////////////////
 
 
-
     static uint32 internal_get_keys()
     {
         uint32 keys = 0;
         uint32 enc;
 
-        if ( BtnGet_Power() )
-            keys |= KEY_POWER;
-        if ( BtnGet_Menu() )
-            keys |= KEY_MENU;
-        if ( BtnGet_StartStop() )
-            keys |= KEY_STARTSTOP;
         if ( BtnGet_OK() )
             keys |= KEY_OK;
-        if ( BtnGet_Cancel() )
+        if ( BtnGet_Mode() )
+            keys |= KEY_MODE;
+        if ( BtnGet_Up() )
+            keys |= KEY_UP;
+        if ( BtnGet_Down() )
+            keys |= KEY_DOWN;
+        if ( BtnGet_Left() )
+            keys |= KEY_LEFT;
+        if ( BtnGet_Right() )
+            keys |= KEY_RIGHT;
+        if ( BtnGet_Esc() )
         {
-            keys |= KEY_CANCEL;
+            keys |= KEY_ESC;
         #ifdef STAT_TMR_CAL
             tmr_over_max = 0;
             tmr_under_max = 0;
         #endif
         }
 
-        enc = BtnGet_Encoder();
-        if ( enc == 1 )
-            keys |= KEY_PLUS;
-        else if ( enc == 2 )
-            keys |= KEY_MINUS;
-        else if ( enc == 3 )
-            keys |= KEY_ENCODER;
-
         return keys;
     }
-
 
     uint32   keys_old        = 0;    // bitmask with previous key state
     uint8    keys_strokepause[8];
@@ -196,12 +179,6 @@ struct SBeep
         uint32 keys_on   = changed & crt_keys;              // newly pressed
         uint32 keys_off  = changed & (~crt_keys) & 0xff;    // newly released
 
-        if ( crt_keys & KEY_ENCODER )
-        {
-            crt_keys &= ~KEY_ENCODER;
-            evt->key_event = 1;
-        }
-    
         int poz = 0x01;
         int pctr = 0;
         while ( pctr < 6 )
@@ -238,13 +215,6 @@ struct SBeep
 
             poz = poz << 1;
             pctr++;
-        }
-
-        // process the +/- separately because they are from the encoder and can work at high frequency, only pressed is threated
-        if ( crt_keys & ( KEY_PLUS | KEY_MINUS) )
-        {
-            evt->key_pressed |= crt_keys & (KEY_PLUS | KEY_MINUS);
-            evt->key_event = 1;
         }
 
         keys_old = crt_keys;
@@ -325,11 +295,6 @@ struct SBeep
     {
         struct SEventStruct evtemp = { 0, };
 
-        if ( events.timer_tick_system )
-        {
-            HW_Encoder_Poll();
-        }
-
         if ( events.timer_tick_10ms )
         {
             local_process_button( &evtemp );
@@ -338,11 +303,6 @@ struct SBeep
 
         __disable_interrupt();
         *((uint32*)&events) |= *((uint32*)&evtemp);
-
-#ifdef STATISTICKS
-        // considering that it enters here at each main application loop
-        stat_loop_ctr++;
-#endif
         __enable_interrupt();
 
         return events;
@@ -363,5 +323,3 @@ struct SBeep
         __enable_interrupt();
 
     }//END: Event_Clear
-
-

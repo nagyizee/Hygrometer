@@ -9,16 +9,9 @@
     #include "core.h"
 
 
-    #define UI_DISPLAY_X_MAX    16
-    #define UI_DISPLAY_Y_MAX    2
-
-
     void ui_init( struct SCore *instance );
 
     int ui_poll( struct SEventStruct *evmask );
-
-
-
 
 
 #ifdef __cplusplus

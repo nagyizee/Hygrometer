@@ -21,13 +21,12 @@
 
 
     #define KEY_OK          0x01
-    #define KEY_CANCEL      0x02
-    #define KEY_POWER       0x04
-    #define KEY_STARTSTOP   0x08
-    #define KEY_MENU        0x10
-    #define KEY_PLUS        0x40
-    #define KEY_MINUS       0x80
-    #define KEY_ENCODER     0x8000          // encoder actionated in standby state
+    #define KEY_ESC         0x02
+    #define KEY_MODE        0x04
+    #define KEY_UP          0x08
+    #define KEY_DOWN        0x10
+    #define KEY_LEFT        0x40
+    #define KEY_RIGHT       0x80
 
     struct SEventStruct
     {

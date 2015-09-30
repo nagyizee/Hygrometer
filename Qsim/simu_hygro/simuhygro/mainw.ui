@@ -14,40 +14,11 @@
    <string>mainw</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <widget class="QCheckBox" name="cb_prefocus">
-    <property name="geometry">
-     <rect>
-      <x>330</x>
-      <y>360</y>
-      <width>70</width>
-      <height>17</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Prefocus</string>
-    </property>
-   </widget>
-   <widget class="QCheckBox" name="cb_expo">
-    <property name="geometry">
-     <rect>
-      <x>330</x>
-      <y>380</y>
-      <width>70</width>
-      <height>17</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Expo</string>
-    </property>
-    <property name="checked">
-     <bool>false</bool>
-    </property>
-   </widget>
    <widget class="QSpinBox" name="num_disp_brightness">
     <property name="geometry">
      <rect>
-      <x>450</x>
-      <y>340</y>
+      <x>410</x>
+      <y>350</y>
       <width>51</width>
       <height>21</height>
      </rect>
@@ -68,8 +39,8 @@
    <widget class="QLabel" name="label_4">
     <property name="geometry">
      <rect>
-      <x>420</x>
-      <y>320</y>
+      <x>310</x>
+      <y>350</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -81,8 +52,8 @@
    <widget class="QSpinBox" name="num_pwr_mng">
     <property name="geometry">
      <rect>
-      <x>450</x>
-      <y>380</y>
+      <x>410</x>
+      <y>370</y>
       <width>51</width>
       <height>21</height>
      </rect>
@@ -103,8 +74,8 @@
    <widget class="QLabel" name="label_5">
     <property name="geometry">
      <rect>
-      <x>420</x>
-      <y>360</y>
+      <x>310</x>
+      <y>370</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -116,8 +87,8 @@
    <widget class="QSlider" name="sld_battery">
     <property name="geometry">
      <rect>
-      <x>340</x>
-      <y>30</y>
+      <x>310</x>
+      <y>20</y>
       <width>19</width>
       <height>251</height>
      </rect>
@@ -147,19 +118,6 @@
     <property name="frameShadow">
      <enum>QFrame::Sunken</enum>
     </property>
-    <widget class="QLabel" name="label_3">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>300</y>
-       <width>31</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Menu</string>
-     </property>
-    </widget>
     <widget class="QGraphicsView" name="grf_display">
      <property name="geometry">
       <rect>
@@ -173,37 +131,11 @@
       <number>1</number>
      </property>
     </widget>
-    <widget class="QPushButton" name="btn_OK">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>200</y>
-       <width>41</width>
-       <height>41</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>OK</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="btn_startstop">
-     <property name="geometry">
-      <rect>
-       <x>90</x>
-       <y>310</y>
-       <width>71</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>start/stop</string>
-     </property>
-    </widget>
     <widget class="QLabel" name="label">
      <property name="geometry">
       <rect>
-       <x>20</x>
-       <y>190</y>
+       <x>220</x>
+       <y>170</y>
        <width>51</width>
        <height>16</height>
       </rect>
@@ -212,24 +144,11 @@
       <string>Pwr/mode</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="btn_esc">
-     <property name="geometry">
-      <rect>
-       <x>200</x>
-       <y>320</y>
-       <width>41</width>
-       <height>41</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
     <widget class="QPushButton" name="btn_power">
      <property name="geometry">
       <rect>
-       <x>20</x>
-       <y>210</y>
+       <x>220</x>
+       <y>190</y>
        <width>41</width>
        <height>41</height>
       </rect>
@@ -238,52 +157,11 @@
       <string/>
      </property>
     </widget>
-    <widget class="QDial" name="dial">
+    <widget class="QPushButton" name="btn_up">
      <property name="geometry">
       <rect>
-       <x>120</x>
-       <y>150</y>
-       <width>161</width>
-       <height>141</height>
-      </rect>
-     </property>
-     <property name="minimum">
-      <number>0</number>
-     </property>
-     <property name="maximum">
-      <number>20</number>
-     </property>
-     <property name="value">
-      <number>0</number>
-     </property>
-     <property name="wrapping">
-      <bool>true</bool>
-     </property>
-     <property name="notchTarget">
-      <double>10.000000000000000</double>
-     </property>
-     <property name="notchesVisible">
-      <bool>true</bool>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_2">
-     <property name="geometry">
-      <rect>
-       <x>206</x>
-       <y>300</y>
-       <width>31</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>esc</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="btn_menu">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>320</y>
+       <x>60</x>
+       <y>160</y>
        <width>41</width>
        <height>41</height>
       </rect>
@@ -292,22 +170,109 @@
       <string/>
      </property>
     </widget>
-    <zorder>label_3</zorder>
-    <zorder>grf_display</zorder>
-    <zorder>btn_startstop</zorder>
-    <zorder>label</zorder>
-    <zorder>btn_esc</zorder>
-    <zorder>btn_power</zorder>
-    <zorder>dial</zorder>
-    <zorder>label_2</zorder>
-    <zorder>btn_menu</zorder>
-    <zorder>btn_OK</zorder>
+    <widget class="QPushButton" name="btn_left">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>200</y>
+       <width>41</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btn_down">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>240</y>
+       <width>41</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btn_right">
+     <property name="geometry">
+      <rect>
+       <x>100</x>
+       <y>200</y>
+       <width>41</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btn_ok">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>200</y>
+       <width>41</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btn_esc">
+     <property name="geometry">
+      <rect>
+       <x>60</x>
+       <y>310</y>
+       <width>41</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rb_led_activity">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>260</y>
+       <width>41</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Act</string>
+     </property>
+     <property name="autoExclusive">
+      <bool>false</bool>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="rb_led_charging">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>290</y>
+       <width>41</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Crg</string>
+     </property>
+     <property name="autoExclusive">
+      <bool>false</bool>
+     </property>
+    </widget>
    </widget>
    <widget class="QLabel" name="label_6">
     <property name="geometry">
      <rect>
-      <x>330</x>
-      <y>280</y>
+      <x>310</x>
+      <y>270</y>
       <width>41</width>
       <height>20</height>
      </rect>
@@ -316,88 +281,11 @@
      <string>Battery</string>
     </property>
    </widget>
-   <widget class="QSlider" name="sld_light">
-    <property name="geometry">
-     <rect>
-      <x>400</x>
-      <y>30</y>
-      <width>19</width>
-      <height>251</height>
-     </rect>
-    </property>
-    <property name="maximum">
-     <number>4095</number>
-    </property>
-    <property name="value">
-     <number>3000</number>
-    </property>
-    <property name="orientation">
-     <enum>Qt::Vertical</enum>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_7">
-    <property name="geometry">
-     <rect>
-      <x>400</x>
-      <y>280</y>
-      <width>41</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Light</string>
-    </property>
-   </widget>
-   <widget class="QSlider" name="sld_sound">
-    <property name="geometry">
-     <rect>
-      <x>460</x>
-      <y>30</y>
-      <width>19</width>
-      <height>251</height>
-     </rect>
-    </property>
-    <property name="maximum">
-     <number>4095</number>
-    </property>
-    <property name="value">
-     <number>200</number>
-    </property>
-    <property name="orientation">
-     <enum>Qt::Vertical</enum>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_8">
-    <property name="geometry">
-     <rect>
-      <x>460</x>
-      <y>280</y>
-      <width>41</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Sound</string>
-    </property>
-   </widget>
-   <widget class="QCheckBox" name="cb_adc_on">
-    <property name="geometry">
-     <rect>
-      <x>330</x>
-      <y>320</y>
-      <width>70</width>
-      <height>17</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>ADC on</string>
-    </property>
-   </widget>
    <widget class="QSpinBox" name="num_dbg">
     <property name="geometry">
      <rect>
-      <x>540</x>
-      <y>340</y>
+      <x>410</x>
+      <y>390</y>
       <width>51</width>
       <height>21</height>
      </rect>
@@ -421,8 +309,8 @@
    <widget class="QLabel" name="label_9">
     <property name="geometry">
      <rect>
-      <x>540</x>
-      <y>320</y>
+      <x>310</x>
+      <y>390</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -434,8 +322,8 @@
    <widget class="QCheckBox" name="cb_beepHi">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>230</y>
+      <x>310</x>
+      <y>310</y>
       <width>70</width>
       <height>17</height>
      </rect>
@@ -447,8 +335,8 @@
    <widget class="QCheckBox" name="cb_beepLo">
     <property name="geometry">
      <rect>
-      <x>530</x>
-      <y>250</y>
+      <x>310</x>
+      <y>330</y>
       <width>70</width>
       <height>17</height>
      </rect>

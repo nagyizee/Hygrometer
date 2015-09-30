@@ -68,19 +68,13 @@ struct STIM1
 void InitHW(void);
 
 bool BtnGet_OK();
-bool BtnGet_Cancel();
-bool BtnGet_Power();
-bool BtnGet_StartStop();
-bool BtnGet_Menu();
-uint32 BtnGet_Encoder();
-
-void HW_Shutter_Prefocus_ON();
-void HW_Shutter_Prefocus_OFF();
-void HW_Shutter_Release_ON();
-void HW_Shutter_Release_OFF();
-
-
-void HW_Encoder_Poll();
+bool BtnGet_Esc();
+bool BtnGet_Mode();
+bool BtnGet_Up();
+bool BtnGet_Down();
+bool BtnGet_Left();
+bool BtnGet_Right();
+bool BtnPollStick();                // the stick used for directional control uses combination of signals - this routine polls it's status and prevents faulty reads
 
 
 void TimerSysIntrHandler(void);
@@ -91,6 +85,15 @@ void HW_ASSERT();
 
 
 // just a wrapper solution
+#define BTN_MODE    0
+#define BTN_OK      1
+#define BTN_ESC     2
+#define BTN_UP      3
+#define BTN_DOWN    4
+#define BTN_LEFT    5
+#define BTN_RIGHT   6
+
+
 void main_entry(uint32 *stack_top);
 void main_loop(void);
 
@@ -116,10 +119,6 @@ void HW_Buzzer_Off(void);
 
 
 uint32 HW_ADC_GetBattery(void);
-void HW_ADC_StartAcquisition( uint32 buffer_addr, int group );
-void HW_ADC_StopAcquisition( void );
-void HW_ADC_SetupPretrigger( uint32 value );
-void HW_ADC_ResetPretrigger( void );
 
 void HW_PWR_An_On( void );
 void HW_PWR_An_Off( void );

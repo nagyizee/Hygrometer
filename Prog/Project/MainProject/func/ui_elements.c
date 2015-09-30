@@ -996,7 +996,7 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
         // Plus and Minus are captured here only if element is selected for editing
         if ( int_focus )
         {
-            if ( evmask->key_pressed & KEY_PLUS )
+            if ( evmask->key_pressed & KEY_UP )
             {
                 switch ( handle_ID )
                 {
@@ -1007,9 +1007,9 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                     case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle ); break;
                 }
                 changed = true;
-                evmask->key_pressed &= ~KEY_PLUS;     // delete the keypress event for the upper layer as it is captured by this layer
+                evmask->key_pressed &= ~KEY_UP;     // delete the keypress event for the upper layer as it is captured by this layer
             }
-            else if ( evmask->key_pressed & KEY_MINUS )
+            else if ( evmask->key_pressed & KEY_DOWN )
             {
                 switch ( handle_ID )
                 {
@@ -1020,9 +1020,9 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                     case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle ); break;
                 }
                 changed = true;
-                evmask->key_pressed &= ~KEY_MINUS;     // delete the keypress event for the upper layer as it is captured by this layer
+                evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
             }
-            else if ( evmask->key_pressed & KEY_CANCEL )
+            else if ( evmask->key_pressed & KEY_ESC )
             {
                 if ( int_focus & 0x80)
                 {
@@ -1040,7 +1040,7 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
 
                 if ( handle_ID != ELEM_ID_DROPDOWN_MENU )
                 {
-                    evmask->key_pressed &= ~KEY_CANCEL;
+                    evmask->key_pressed &= ~KEY_ESC;
                     changed = true;
                 }
             }
