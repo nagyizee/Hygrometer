@@ -26,6 +26,7 @@
     {
         uitxt_small = 0,
         uitxt_smallbold,
+        uitxt_micro,
         uitxt_large_num,
         uitxt_system,
 
@@ -45,9 +46,9 @@
 
     void grf_setup_font( enum Etextstyle style, int color, int backgnd );
 
-    void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill );
+    void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill, bool show_plus_sign );
     void uigrf_puthex( int x, int y, enum Etextstyle style, int nr, int digits, char fill );
-    void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits, int fp, char fill );
+    void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits, int fp, char fill, bool show_plus_sign );
 
     
     void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct time, bool minute_only, bool large_border );

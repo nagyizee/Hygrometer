@@ -104,9 +104,13 @@ static void uist_mainwindow_statusbar( uint32 opmode, bool rdrw_all )
         }
 
         tm.hour = 0;
-        tm.minute = 13;
+        tm.minute = 23;
         tm.second = 56;
-        uigrf_puttime( 92, 4, uitxt_small, 0, tm, true, false );
+        uigrf_puttime( 92, 1, uitxt_small, 0, tm, true, false );
+
+        grf_setup_font( uitxt_micro, 0, 1 );
+        Gtext_SetCoordinates( 93, 10 );
+        Gtext_PutText( "MAY 23" );
     }
 }
 
@@ -134,10 +138,59 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
 {
     if ( redraw_all == RDRW_ALL )
     {
-        uigrf_text( 40, 17, uitxt_small,  "temp:" );
-
+//        uigrf_text( 40, 17, uitxt_small,  "temp:" );
+    
     }
-    ui_element_display( &ui.p.mgThermo.temp, ui.focus );
+
+
+    if ( redraw_all & RDRW_UI_DYNAMIC )
+    {
+        int temp = ( 23.65 * 100 );       // testing purpose
+        int temp_int = temp / 100;
+        int temp_fract = temp % 100;
+
+        if (temp_fract < 0)
+            temp_fract = -temp_fract;
+
+        // temperature display
+        int x = 13;
+        int y = 17;
+        uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, temp_int, 2, 0 , true );
+        uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, temp_fract, 2, '0', false );
+        Graphic_SetColor( 1 );
+        Graphic_Rectangle( x+33, y+19, x+34, y+20 );
+        Graphic_Rectangle( x+40, y+2, x+42, y+4 );
+        uigrf_text( x+45, y+2, uitxt_small,  "C" );
+
+        // min/max set display
+        x = 0;
+        y = 41;
+
+        uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
+        Graphic_SetColor( -1 );
+        Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
+
+        uigrf_putfixpoint( x, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+        uigrf_putfixpoint( x, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+        uigrf_putfixpoint( x+28, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+        uigrf_putfixpoint( x+28, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+        uigrf_putfixpoint( x+54, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+        uigrf_putfixpoint( x+54, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+
+        // tendency graph
+        x = 77;
+        y = 16;
+        uigrf_putfixpoint( x+4, y+42, uitxt_micro, -2253, 3, 2, 0x00, false );
+        uigrf_text( x+32, y+42, uitxt_micro, "C/MIN" );
+        Graphic_Rectangle( x+27, y+42, x+29, y+44 );    // *C
+
+        uigrf_putnr( x+40, y, uitxt_micro, 20, 2, 0x00, true );
+        uigrf_putnr( x+40, y+35, uitxt_micro, -18, 3, 0x00, true );
+        Graphic_Rectangle( x+37, y, x+38, y+40 );
+        Graphic_Rectangle( x, y, x, y+40 );
+    }
+
+//    ui_element_display( &ui.p.mgThermo.temp, ui.focus );
 }
 
 
@@ -343,7 +396,7 @@ void uist_startup_entry( void )
     uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
     DispHAL_UpdateScreen();
     core_beep( beep_pwron );
-    ui.m_substate = 200;    // 2sec. startup screen
+    ui.m_substate = 50;    // 2sec. startup screen
 }
 
 

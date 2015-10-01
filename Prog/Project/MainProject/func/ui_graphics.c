@@ -169,6 +169,25 @@ const uint8 font_small_bold[] = { 0x49, 0x08, 0x00, 0x02, 0xFF, 0x33, 0x00, 0x00
                               0xB7, 0x6D, 0xFB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0xC0, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00,
                               0x00};
 
+// Static Buffer in data space for font 'font_micro'
+const uint8 font_micro[] = { 0x44, 0x06, 0x00, 0x01, 0x17, 0x00, 0x00, 0x03, 0x2F, 0x00, 0x00, 0x03, 0x7D, 0x5F, 0x00, 0x03,
+                              0x5A, 0x2D, 0x00, 0x03, 0xA5, 0x52, 0x00, 0x03, 0xAA, 0x6A, 0x00, 0x01, 0x03, 0x00, 0x00, 0x02,
+                              0x56, 0x02, 0x00, 0x02, 0xA9, 0x01, 0x00, 0x03, 0xA8, 0x0A, 0x00, 0x03, 0xD0, 0x05, 0x00, 0x02,
+                              0x00, 0x0E, 0x00, 0x03, 0xC0, 0x01, 0x00, 0x01, 0x10, 0x00, 0x00, 0x03, 0x94, 0x94, 0x00, 0x03,
+                              0x6F, 0x7B, 0x00, 0x03, 0x9A, 0x74, 0x00, 0x03, 0xA3, 0x72, 0x00, 0x03, 0xA7, 0x79, 0x00, 0x03,
+                              0xED, 0x49, 0x00, 0x03, 0xCF, 0x79, 0x00, 0x03, 0xCF, 0x7B, 0x00, 0x03, 0xA7, 0x24, 0x00, 0x03,
+                              0xEF, 0x7B, 0x00, 0x03, 0xEF, 0x79, 0x00, 0x01, 0x0A, 0x00, 0x00, 0x02, 0x88, 0x03, 0x00, 0x03,
+                              0x54, 0x44, 0x00, 0x03, 0x38, 0x0E, 0x00, 0x03, 0x11, 0x15, 0x00, 0x03, 0xA7, 0x20, 0x00, 0x03,
+                              0x6F, 0x73, 0x00, 0x03, 0xEF, 0x5B, 0x00, 0x03, 0xEF, 0x7A, 0x00, 0x03, 0x4F, 0x72, 0x00, 0x03,
+                              0x6B, 0x3B, 0x00, 0x03, 0xCF, 0x72, 0x00, 0x03, 0xCF, 0x12, 0x00, 0x03, 0x4F, 0x7B, 0x00, 0x03,
+                              0xED, 0x5B, 0x00, 0x03, 0x97, 0x74, 0x00, 0x03, 0x24, 0x7B, 0x00, 0x03, 0xED, 0x5A, 0x00, 0x03,
+                              0x49, 0x72, 0x00, 0x03, 0x7D, 0x5B, 0x00, 0x03, 0xED, 0x5F, 0x00, 0x03, 0x6F, 0x7B, 0x00, 0x03,
+                              0xEF, 0x13, 0x00, 0x03, 0x6F, 0x7B, 0x02, 0x03, 0xEB, 0x5A, 0x00, 0x03, 0x8E, 0x39, 0x00, 0x03,
+                              0x97, 0x24, 0x00, 0x03, 0x6D, 0x7B, 0x00, 0x03, 0x6D, 0x2B, 0x00, 0x03, 0x6D, 0x7F, 0x00, 0x03,
+                              0xAD, 0x5A, 0x00, 0x03, 0xAD, 0x24, 0x00, 0x03, 0xA7, 0x72, 0x00, 0x02, 0x57, 0x03, 0x00, 0x03,
+                              0x91, 0x44, 0x00, 0x02, 0xAB, 0x03, 0x00, 0x03, 0x2A, 0x00, 0x00, 0x03, 0x00, 0x80, 0x03, 0x01,
+                              0x03, 0x00, 0x00, 0x03, 0xD6, 0x64, 0x00, 0x01, 0x3F, 0x00, 0x00, 0x03, 0x93, 0x35, 0x00, 0x03,
+                              0x33, 0x00, 0x00};
 
 
 ////////////////////////////////////////////////////
@@ -352,7 +371,7 @@ const uint16 bitmap_datasz[] = { 708, 26, 26, 26,
 
 
 
-static void internal_display_number( int value, int chnr, char fillchar, uint32 radix )
+static void internal_display_number( int value, int chnr, char fillchar, uint32 radix, bool show_plus_sign )
 {
     char str[9];
     char str1[9];
@@ -361,7 +380,14 @@ static void internal_display_number( int value, int chnr, char fillchar, uint32 
     if ( chnr >= 8 )
         return;
 
-    itoa( value, str1, radix );
+    if ( show_plus_sign && (value>0) )
+    {
+        str1[0]='+';
+        itoa( value, str1+1, radix );
+    }
+    else
+        itoa( value, str1, radix );
+
 
     if ( fillchar != 0x00 )
     {
@@ -483,6 +509,8 @@ void grf_setup_font( enum Etextstyle style, int color, int backgnd )
         Gtext_SetFontAndColors( font_small, mono, color, backgnd );
     else if ( style == uitxt_smallbold )
         Gtext_SetFontAndColors( font_small_bold, mono, color, backgnd );
+    else if ( style == uitxt_micro )
+        Gtext_SetFontAndColors( font_micro, mono, color, backgnd );
     else if ( style == uitxt_large_num )
         Gtext_SetFontAndColors( font_large_num, mono, color, backgnd );
     else if ( style == uitxt_system )
@@ -534,11 +562,11 @@ int poz_2_increment( int poz )
     return val;
 }
 
-void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill )
+void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill, bool show_plus_sign )
 {
     grf_setup_font( style, 1, 0 );
     Gtext_SetCoordinates( x, y );
-    internal_display_number( nr, digits, fill, 10 );
+    internal_display_number( nr, digits, fill, 10, show_plus_sign );
 }
 
 void uigrf_puthex( int x, int y, enum Etextstyle style, int nr, int digits, char fill )
@@ -546,12 +574,12 @@ void uigrf_puthex( int x, int y, enum Etextstyle style, int nr, int digits, char
     grf_setup_font( style, 1, 0 );
     Gtext_SetCoordinates( x, y );
     Gtext_PutText( "0x" );
-    internal_display_number( nr, digits, fill, 16 );
+    internal_display_number( nr, digits, fill, 16, false );
 }
 
 // nr of digits - max. digits to display
 // fp - how many digits are after the decimal point
-void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits, int fp, char fill )
+void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits, int fp, char fill, bool show_plus_sign )
 {
     int len;
     int div = 1;
@@ -559,10 +587,10 @@ void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits,
     Gtext_SetCoordinates( x, y );
     len = digits - fp;  // length of integer part or whole part
     div = poz_2_increment( fp );    // convert the value
-    internal_display_number( nr/div, len, fill, 10 );
+    internal_display_number( nr/div, len, fill, 10, show_plus_sign );
     Gtext_PutChar('.');
     nr = nr % div;
-    internal_display_number( nr, fp, '0', 10 );
+    internal_display_number( nr, fp, '0', 10, false );
 }
 
 
@@ -598,16 +626,16 @@ void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct t
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
     if ( minute_only == false )
     {
-        internal_display_number( time.hour, 2, '0', 10 );
+        internal_display_number( time.hour, 2, '0', 10, false );
         grf_setup_font( (enum Etextstyle)(style), color, -1 );
         Gtext_PutChar( ':' );
         grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
     }
-    internal_display_number( time.minute, 2, '0', 10 );
+    internal_display_number( time.minute, 2, '0', 10, false );
     grf_setup_font( (enum Etextstyle)(style), color, -1 );
     Gtext_PutChar( ':' );
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    internal_display_number( time.second, 2, '0', 10 );
+    internal_display_number( time.second, 2, '0', 10, false );
 
 }
 

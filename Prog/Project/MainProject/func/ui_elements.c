@@ -427,7 +427,7 @@ static inline void uiel_control_numeric_display( struct Suiel_control_numeric *h
     int yend = handle->ypoz + handle->height + 1;
     Graphic_SetColor(0);
     Graphic_FillRectangle( handle->xpoz+1, handle->ypoz+1, xend, yend, 0 );
-    uigrf_putnr( handle->xpoz+2, handle->ypoz+2, (enum Etextstyle)handle->style, handle->val, handle->lenght, handle->padding );
+    uigrf_putnr( handle->xpoz+2, handle->ypoz+2, (enum Etextstyle)handle->style, handle->val, handle->lenght, handle->padding, false );
 
     xend++;
     yend++;
