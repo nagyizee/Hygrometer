@@ -527,6 +527,13 @@ void uigrf_text( int x, int y, enum Etextstyle style, char *text )
     Gtext_PutText( text );
 }
 
+void uigrf_text_inv( int x, int y, enum Etextstyle style, char *text )
+{
+    grf_setup_font( style, 0, 1 );
+    Gtext_SetCoordinates( x, y );
+    Gtext_PutText( text );
+}
+
 
 void uigrf_text_mono( int x, int y, enum Etextstyle style, char *text, bool specialdot )
 {

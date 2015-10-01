@@ -83,13 +83,6 @@ static void uist_mainwindow_statusbar( uint32 opmode, bool rdrw_all )
         Graphic_Line( 0, 15, 127, 15 );
 
     x = 0;
-
-    if ( opmode & UIMODE_GAUDE_THERMO )
-    {
-        uibm_put_bitmap( x, 1, BMP_ICON_CABLEREL );
-        x+= 14;
-    }
-
     {
         timestruct tm;
         uint32 i;
@@ -98,8 +91,8 @@ static void uist_mainwindow_statusbar( uint32 opmode, bool rdrw_all )
         {
             // first time
             Graphic_SetColor(1);
-            Graphic_FillRectangle( x + 1, 0, 117, 15, 1);
-            Graphic_PutPixel( x + 1, 0, 0 );
+            Graphic_FillRectangle( x, 0, 117, 15, 1);
+            Graphic_PutPixel( x, 0, 0 );
             Graphic_PutPixel( 117, 0, 0 );
         }
 
@@ -107,11 +100,24 @@ static void uist_mainwindow_statusbar( uint32 opmode, bool rdrw_all )
         tm.minute = 23;
         tm.second = 56;
         uigrf_puttime( 92, 1, uitxt_small, 0, tm, true, false );
-
-        grf_setup_font( uitxt_micro, 0, 1 );
-        Gtext_SetCoordinates( 93, 10 );
-        Gtext_PutText( "MAY 23" );
+        uigrf_text_inv( 93, 10, uitxt_micro, "MAY 23" );
     }
+
+    if ( opmode == UIMODE_GAUDE_THERMO )
+    {
+        uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" );
+    }
+    else if ( opmode == UIMODE_GAUGE_HYGRO )
+    {
+        uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );
+    }
+    else if ( opmode == UIMODE_GAUGE_PRESSURE )
+    {
+        uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );
+    }
+
+
+
 }
 
 static void uist_internal_disp_with_focus( int i )
@@ -136,62 +142,221 @@ static void uist_internal_disp_all_with_focus()
 
 static inline void uist_draw_gauge_thermo( int redraw_all )
 {
-    if ( redraw_all == RDRW_ALL )
+    int temp = ( 23.65 * 100 );       // testing purpose
+    int temp_int = temp / 100;
+    int temp_fract = temp % 100;
+
+    if (temp_fract < 0)
+        temp_fract = -temp_fract;
+
+    // temperature display
+    int x = 13;
+    int y = 17;
+    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, temp_int, 2, 0 , true );
+    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, temp_fract, 2, '0', false );
+    Graphic_SetColor( 1 );
+    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
+    Graphic_Rectangle( x+40, y+2, x+42, y+4 );
+    uigrf_text( x+45, y+2, uitxt_small,  "C" );
+
+    // min/max set display
+    x = 0;
+    y = 41;
+
+    uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
+    Graphic_SetColor( -1 );
+    Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
+
+    uigrf_putfixpoint( x, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+28, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+28, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+54, y+8, uitxt_small, -124, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+54, y+16, uitxt_small, -325, 3, 1, 0x00, false );
+
+    // tendency meter
+    x = 77;
+    y = 16;
+    uigrf_putfixpoint( x+4, y+43, uitxt_micro, -2253, 3, 2, 0x00, false );
+    uigrf_text( x+32, y+43, uitxt_micro, "C/MIN" );
+    Graphic_Rectangle( x+27, y+43, x+29, y+45 );    // *C
+
+    // tendency graph
+    uigrf_putnr( x+40, y, uitxt_micro, 20, 2, 0x00, true );
+    uigrf_putnr( x+40, y+36, uitxt_micro, -18, 3, 0x00, true );
+    Graphic_Rectangle( x+40, y+5, x+41, y+35 );
+    Graphic_Rectangle( x, y, x, y+40 );
+
     {
-//        uigrf_text( 40, 17, uitxt_small,  "temp:" );
-    
-    }
+        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
+                            12,14,15,30,33,39,40,40,38,34,
+                            30,32,33,33,35,36,32,28,24,23,
+                            22,22,21,18,19,25,26,27,26 };
+        int i, j;
 
-
-    if ( redraw_all & RDRW_UI_DYNAMIC )
-    {
-        int temp = ( 23.65 * 100 );       // testing purpose
-        int temp_int = temp / 100;
-        int temp_fract = temp % 100;
-
-        if (temp_fract < 0)
-            temp_fract = -temp_fract;
-
-        // temperature display
-        int x = 13;
-        int y = 17;
-        uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, temp_int, 2, 0 , true );
-        uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, temp_fract, 2, '0', false );
         Graphic_SetColor( 1 );
-        Graphic_Rectangle( x+33, y+19, x+34, y+20 );
-        Graphic_Rectangle( x+40, y+2, x+42, y+4 );
-        uigrf_text( x+45, y+2, uitxt_small,  "C" );
 
-        // min/max set display
-        x = 0;
-        y = 41;
+        for (j=0; j<=5; j++)
+        {
+            for (i=0; i<=6; i++)
+                Graphic_PutPixel(x+i*6, y+j*8, 1);
+        }
 
-        uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
-        Graphic_SetColor( -1 );
-        Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
+        for (i=0; i<38; i++)
+        {
+            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
+        }
 
-        uigrf_putfixpoint( x, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-        uigrf_putfixpoint( x, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-        uigrf_putfixpoint( x+28, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-        uigrf_putfixpoint( x+28, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-        uigrf_putfixpoint( x+54, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-        uigrf_putfixpoint( x+54, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-
-        // tendency graph
-        x = 77;
-        y = 16;
-        uigrf_putfixpoint( x+4, y+42, uitxt_micro, -2253, 3, 2, 0x00, false );
-        uigrf_text( x+32, y+42, uitxt_micro, "C/MIN" );
-        Graphic_Rectangle( x+27, y+42, x+29, y+44 );    // *C
-
-        uigrf_putnr( x+40, y, uitxt_micro, 20, 2, 0x00, true );
-        uigrf_putnr( x+40, y+35, uitxt_micro, -18, 3, 0x00, true );
-        Graphic_Rectangle( x+37, y, x+38, y+40 );
-        Graphic_Rectangle( x, y, x, y+40 );
     }
 
 //    ui_element_display( &ui.p.mgThermo.temp, ui.focus );
 }
+
+
+static inline void uist_draw_gauge_hygro( int redraw_all )
+{
+    int hum = ( 98.6 * 10 );       // testing purpose
+    int hum_int = hum / 10;
+    int hum_fract = hum % 10;
+
+    // humidity display
+    int x = 13;
+    int y = 17;
+    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, hum_int, 3, ' ', false );
+    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, hum_fract, 1, '0', false );
+    Graphic_SetColor( 1 );
+    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
+    uigrf_text( x+45, y+2, uitxt_small,  "%" );
+
+    // min/max set display
+    x = 0;
+    y = 41;
+
+    uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
+    Graphic_SetColor( -1 );
+    Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
+
+    uigrf_putfixpoint( x, y+8, uitxt_small, 1000, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x, y+16, uitxt_small, 607, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+28, y+8, uitxt_small, 889, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+28, y+16, uitxt_small, 561, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+54, y+8, uitxt_small, 567, 3, 1, 0x00, false );
+    uigrf_putfixpoint( x+54, y+16, uitxt_small, 600, 3, 1, 0x00, false );
+
+    // tendency meter
+    x = 77;
+    y = 16;
+    uigrf_putfixpoint( x+4, y+43, uitxt_micro, -246, 3, 1, 0x00, false );
+    uigrf_text( x+32, y+43, uitxt_micro, "%/MIN" );
+
+    // tendency graph
+    uigrf_putnr( x+40, y, uitxt_micro, 100, 2, 0x00, false );
+    uigrf_putnr( x+40, y+36, uitxt_micro, 40, 3, 0x00, false );
+    Graphic_Rectangle( x+40, y+6, x+41, y+34 );
+    Graphic_Rectangle( x, y, x, y+40 );
+
+    {
+        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
+                            12,14,15,30,33,39,40,40,38,34,
+                            30,32,33,33,35,36,32,28,24,23,
+                            22,22,21,18,19,25,26,27,26 };
+        int i, j;
+
+        Graphic_SetColor( 1 );
+
+        for (j=0; j<=5; j++)
+        {
+            for (i=0; i<=6; i++)
+                Graphic_PutPixel(x+i*6, y+j*8, 1);
+        }
+
+        for (i=0; i<38; i++)
+        {
+            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
+        }
+
+    }
+}
+
+
+static inline void uist_draw_gauge_pressure( int redraw_all )
+{
+    int press = ( 101.325 * 1000 );       // testing purpose
+    int press_int = press / 1000;
+    int press_fract = press % 1000;
+
+    // pressure display
+    int x = 13;
+    int y = 17;
+    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, press_int, 3, ' ', false );
+    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, press_fract, 3, '0', false );
+    Graphic_SetColor( 1 );
+    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
+    uigrf_text( x+45, y+2, uitxt_small,  "hPa" );
+
+    // altimetric setup
+    x = 0;
+    y = 41;
+
+    Graphic_SetColor( 1 );
+    Graphic_FillRectangle( x, y, x + 41, y + 6, -1 );
+    uigrf_text_inv( x+3, y+1, uitxt_micro,  "REFERENCE" );
+
+    uigrf_text( x, y+9, uitxt_micro,  "SLP:" );
+    uigrf_text( x+16, y+9, uitxt_micro, "101.325" );
+    Graphic_SetColor( -1 );
+    Graphic_FillRectangle( x, y+8, x + 41, y + 14, -1 );
+    Graphic_PutPixel(x, y, 0);
+    Graphic_PutPixel(x+41, y, 1);
+    uigrf_text( x, y+17, uitxt_micro,  "ALT:" );
+    uigrf_text( x+16, y+17, uitxt_micro,  "26495 F" );
+
+
+    // min/max set display
+    x = 42;
+    y = 41;
+    Graphic_Rectangle( x, y+1, x, y+22);
+
+
+
+    // tendency meter
+    x = 77;
+    y = 16;
+    uigrf_putfixpoint( x+4, y+43, uitxt_micro, 1231, 4, 3, 0x00, false );
+    uigrf_text( x+32, y+43, uitxt_micro, "U/MIN" );
+
+    // tendency graph
+    uigrf_putfixpoint( x+40, y, uitxt_micro, 2.9, 2, 1, 0x00, false );
+    uigrf_putfixpoint( x+40, y+36, uitxt_micro, 0.1, 2, 1, 0x00, false );
+    Graphic_Rectangle( x+40, y+6, x+41, y+34 );
+    Graphic_Rectangle( x, y, x, y+40 );
+
+    {
+        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
+                            12,14,15,30,33,39,40,40,38,34,
+                            30,32,33,33,35,36,32,28,24,23,
+                            22,22,21,18,19,25,26,27,26 };
+        int i, j;
+
+        Graphic_SetColor( 1 );
+
+        for (j=0; j<=5; j++)
+        {
+            for (i=0; i<=6; i++)
+                Graphic_PutPixel(x+i*6, y+j*8, 1);
+        }
+
+        for (i=0; i<38; i++)
+        {
+            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
+        }
+
+    }
+
+
+}
+
+
 
 
 ////////////////////////////////////////////////////
@@ -207,6 +372,15 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     ui.ui_elems[0] = &ui.p.mgThermo.temp;
 }
 
+static inline void uist_setview_mainwindowgauge_hygro( void )
+{
+    ui.ui_elem_nr = 0;
+}
+
+static inline void uist_setview_mainwindowgauge_pressure( void )
+{
+    ui.ui_elem_nr = 0;
+}
 
 
 ////////////////////////////////////////////////////
@@ -235,9 +409,9 @@ static void uist_drawview_mainwindow( int redraw_type )
     {
         switch ( ui.main_mode )
         {
-            case UIMODE_GAUDE_THERMO:   uist_draw_gauge_thermo(redraw_type);  break;
-            case UIMODE_GAUGE_HYGRO:        break;
-            case UIMODE_GAUGE_PRESSURE:     break;
+            case UIMODE_GAUDE_THERMO:   uist_draw_gauge_thermo(redraw_type); break;
+            case UIMODE_GAUGE_HYGRO:    uist_draw_gauge_hygro(redraw_type); break;
+            case UIMODE_GAUGE_PRESSURE: uist_draw_gauge_pressure(redraw_type); break;
             break;
         }
     }
@@ -252,8 +426,8 @@ void uist_setupview_mainwindow( bool reset )
     switch ( ui.main_mode )
     {
         case UIMODE_GAUDE_THERMO:      uist_setview_mainwindowgauge_thermo(); break;
-        case UIMODE_GAUGE_HYGRO:       break;
-        case UIMODE_GAUGE_PRESSURE:    break;
+        case UIMODE_GAUGE_HYGRO:       uist_setview_mainwindowgauge_hygro(); break;
+        case UIMODE_GAUGE_PRESSURE:    uist_setview_mainwindowgauge_pressure(); break;
     }
 }
 
@@ -524,6 +698,18 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         else
         {
             // operations if no focus yet - OK presssed
+            if ( (evmask->key_pressed & KEY_UP) && (ui.main_mode > 0) )
+            {
+                ui.main_mode--;
+                uist_setupview_mainwindow( true );
+                disp_update = RDRW_ALL;
+            }
+            if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UIMODE_GAUGE_PRESSURE) )
+            {
+                ui.main_mode++;
+                uist_setupview_mainwindow( true );
+                disp_update = RDRW_ALL;
+            }
             if ( evmask->key_pressed & KEY_OK )    // enter in edit mode
             {
                 ui.focus = 1;

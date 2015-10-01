@@ -41,6 +41,7 @@
     void uigrf_draw_scale( int y, int thold, int maxptr, int minptr, bool centered, bool redraw );
 
     void uigrf_text( int x, int y, enum Etextstyle style, char *text );
+    void uigrf_text_inv( int x, int y, enum Etextstyle style, char *text );
 
     void uigrf_text_mono( int x, int y, enum Etextstyle style, char *text, bool specialdot );
 
