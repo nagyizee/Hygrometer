@@ -30,12 +30,13 @@
     #define UI_MAX_ELEMS            10
 
     // display redraw options
-    #define RDRW_BATTERY            0x01        // 0000 0001b - redraw battery only
-    #define RDRW_STATUSBAR          0x03        // 0000 0011b - redraw battery and status bar
-    #define RDRW_UI_CONTENT         0x04        // 0000 0100b - redraw ui content
-    #define RDRW_UI_DYNAMIC         0x08        // 0000 1000b - redraw ui dynamic elements only (high update rate stuff like indicators)
-    #define RDRW_UI_CONTENT_ALL     0x0C        // 0000 1100b - redraw ui content including dynamic elements
-    #define RDRW_ALL                0x0F        // redraw everything
+    #define RDRW_BATTERY            0x01        // 0000 0001b - redraw battery
+    #define RDRW_CLOCKTICK          0x02        // 0000 0010b - redraw clock tick
+    #define RDRW_STATUSBAR          0x07        // 0000 0111b - redraw all the status bar
+    #define RDRW_UI_CONTENT         0x08        // 0000 1000b - redraw ui content
+    #define RDRW_UI_DYNAMIC         0x10        // 0001 0000b - redraw ui dynamic elements only (high update rate stuff like indicators)
+    #define RDRW_UI_CONTENT_ALL     0x18        // 0001 1000b - redraw ui content including dynamic elements
+    #define RDRW_ALL                0x1F        // redraw everything
 
     #define RDRW_DISP_UPDATE        0x80        // just a dummy value to enter to the display update routine
 

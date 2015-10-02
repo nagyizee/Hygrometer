@@ -17,7 +17,7 @@
 
 #include "graphic_lib.h"
 
-struct SCore *core;
+extern struct SCore core;
 static bool failure = false;
 static bool wake_up = false;
 
@@ -98,13 +98,13 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
-    if ( core_init( &core ) )
+    if ( core_init( NULL ) )
     {
         failure = true;
         return;
     }
 
-    ui_init( core );
+    ui_init( NULL );
     DispHAL_Display_On( );
     DispHAL_SetContrast( 0x30 );
 }

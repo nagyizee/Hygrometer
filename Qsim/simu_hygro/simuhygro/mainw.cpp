@@ -72,6 +72,9 @@ void mainw::TimerTick()
     int i;
     int j;
 
+    if ( ui->cb_stop_time->isChecked() )
+        return;
+
     for (i=0; i<TICKS_TO_SIMULATE; i++)
     {
 
@@ -92,7 +95,7 @@ void mainw::TimerTick()
 
         TimerSysIntrHandler();    // timer interval - 500us
         sec_ctr++;
-        if ( sec_ctr == 2000 )
+        if ( sec_ctr == 1000 )
         {
             sec_ctr = 0;
             TimerRTCIntrHandler();
@@ -132,11 +135,5 @@ void mainw::on_btn_ok_released() { buttons[BTN_OK] = false; }
 
 void mainw::on_btn_esc_pressed()  { buttons[BTN_ESC] = true; }
 void mainw::on_btn_esc_released() { buttons[BTN_ESC] = false; }
-
-
-
-
-
-
 
 

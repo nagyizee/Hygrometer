@@ -1,34 +1,9 @@
-
 #include "events_ui.h"
 #include "hw_stuff.h"
 #include "core.h"
 
-//////////////////////////////////////////////////////////////////
-//
-//      ISR RELATED DEFINES AND ROUTINES - handle with care
-//
-//////////////////////////////////////////////////////////////////
+extern struct SEventStruct events;
 
-// Debug feature for loop efficiency
-//#define STATISTICKS
-#define STAT_TMR_CAL
-
-#ifdef ON_QT_PLATFORM
-static struct STIM1 stim;
-static struct STIM1 *TIM1 = &stim;
-#endif
-
-
-volatile struct SEventStruct events = { 0, };
-static volatile uint32 counter = 0;
-static volatile uint32 sec_ctr = 0;
-static volatile uint32 rcc_comp = 0x10;
-static volatile uint32 tmr_over = 0;
-
-#ifdef STAT_TMR_CAL
-static volatile uint32 tmr_over_max = 0;
-static volatile uint32 tmr_under_max = 0;
-#endif
 
 #define BEEP_MASK           0x07
 #define BEEP_IS_ON          0x04
@@ -49,88 +24,6 @@ struct SBeep
     uint16  timer;
     uint16  active;
 } beep = {0, };
-
-extern void DispHAL_ISR_Poll(void);
-
-
-    void TimerSysIntrHandler(void)
-    {
-        // !!!!!!! IMPORTANT NOTE !!!!!!!!
-        // IF timer 16 in use - check for the interrupt flag
-
-        // Clear update interrupt bit
-        TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
-
-        if ( sec_ctr < 2000 )  // execute this isr only for useconds inside the 1second interval
-        {
-            counter++;
-            sec_ctr++;
-            events.timer_tick_system = 1;
-
-            if ( counter == SYSTEM_T_10MS_COUNT )
-            {
-                events.timer_tick_10ms = 1;
-                counter = 0;
-            }
-            DispHAL_ISR_Poll();
-        }
-        else
-        {
-            // TODO: can do stats - detect faster than normal internal osclillator speed
-            tmr_over++;
-        }
-
-    }//END: Timer1IntrHandler
-
-
-    void TimerRTCIntrHandler(void)
-    {
-        // clear the interrrupt flag and update clock alarm for the next second
-        TIMER_RTC->CRL &= (uint16)~RTC_ALARM_FLAG;
-        RTC_WaitForLastTask();
-        RTC_SetAlarm( RTC_GetCounter() + 1024 ); 
-
-        // adjust internal oscillator for precision clock
-       if ( tmr_over )                         // timer overshoot
-        {
-            if ( rcc_comp > 0 )
-            {
-                rcc_comp--;
-                RCC_AdjustHSICalibrationValue( rcc_comp );
-            }
-        }
-        else if ( sec_ctr < 1999 )              // timer undershoot
-        {
-            if ( rcc_comp < 0x1F )
-            {
-                rcc_comp++;
-                RCC_AdjustHSICalibrationValue( rcc_comp );
-            }
-        }
-
-
-    #ifdef STAT_TMR_CAL
-        if ( (tmr_over) && (tmr_over > tmr_over_max) )
-        {
-            tmr_over_max = tmr_over;
-        }
-        else if ( (sec_ctr < 1999) && ( (1999-sec_ctr) > tmr_under_max ) && (sec_ctr > 1250) )
-        {
-            tmr_under_max = (1999-sec_ctr);
-        }
-    #endif
-    
-
-
-        // reset everything and signal the events
-        tmr_over = 0;
-        counter = 0;
-        sec_ctr = 0;
-        events.timer_tick_system = 1;
-        events.timer_tick_10ms = 1;
-        events.timer_tick_1sec = 1;
-    }//END: Timer1IntrHandler
-
 
 
 //////////////////////////////////////////////////////////////////
@@ -316,10 +209,6 @@ extern void DispHAL_ISR_Poll(void);
 
         __disable_interrupt();
         *ev &= ~( tmp );
-        if ( evmask.reset_sec )
-        {
-            sec_ctr = 0;
-        }
         __enable_interrupt();
 
     }//END: Event_Clear

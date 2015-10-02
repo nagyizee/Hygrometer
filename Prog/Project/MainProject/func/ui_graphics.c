@@ -366,9 +366,7 @@ const uint16 bitmap_datasz[] = { 708, 26, 26, 26,
 
 
 
-
-
-
+const char mounthname[] = "IAN\0FEB\0MAR\0APR\0MAY\0JUN\0JUL\0AUG\0SEP\0OCT\0NOV\0DEC\0";
 
 
 static void internal_display_number( int value, int chnr, char fillchar, uint32 radix, bool show_plus_sign )
@@ -631,23 +629,65 @@ void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct t
 
     // print the time in hh:mm:ss
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    if ( minute_only == false )
-    {
-        internal_display_number( time.hour, 2, '0', 10, false );
-        grf_setup_font( (enum Etextstyle)(style), color, -1 );
-        Gtext_PutChar( ':' );
-        grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    }
-    internal_display_number( time.minute, 2, '0', 10, false );
+    internal_display_number( time.hour, 2, '0', 10, false );
     grf_setup_font( (enum Etextstyle)(style), color, -1 );
     Gtext_PutChar( ':' );
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    internal_display_number( time.second, 2, '0', 10, false );
+    internal_display_number( time.minute, 2, '0', 10, false );
+    if ( minute_only == false )
+    {
+        grf_setup_font( (enum Etextstyle)(style), color, -1 );
+        Gtext_PutChar( ':' );
+        grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
+        internal_display_number( time.second, 2, '0', 10, false );
+    }
 
 }
 
 
+void uigrf_putdate( int x, int y, enum Etextstyle style, int color, datestruct mdate, bool show_year, bool show_mname )
+{
+    int height;
+    int width;
+    int w_nr;
+    int w_spacer;
 
+    grf_setup_font( (enum Etextstyle)style, color, -1 );
+    height = Gtext_GetCharacterHeight();
+
+    grf_setup_font( (enum Etextstyle)(style), color, -1 );
+    w_spacer = Gtext_GetCharacterWidth('-') + 1;
+    w_nr = Gtext_GetCharacterWidth('&') + 1;
+    if ( show_year )
+        width = (8+show_mname)*w_nr+2*w_spacer;
+    else
+        width = (4+show_mname)*w_nr+w_spacer;
+
+    // available formats:   0000/nnn/dd
+    //                      0000/mm/dd
+    // make background
+    Graphic_SetColor( 1-color );
+    Graphic_FillRectangle( x, y, x+width-2, y+height-2, 1-color );
+    Gtext_SetCoordinates( x, y );
+
+    // print the date
+    if ( show_year )
+    {
+        grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
+        internal_display_number( mdate.year , 4, '0', 10, false );
+        grf_setup_font( (enum Etextstyle)(style), color, -1 );
+        Gtext_PutChar( '-' );
+    }
+    grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
+    if ( show_mname )
+        Gtext_PutText( mounthname + 4 * (mdate.mounth-1) );
+    else
+        internal_display_number( mdate.mounth, 2, '0', 10, false );
+    grf_setup_font( (enum Etextstyle)(style), color, -1 );
+    Gtext_PutChar( '-' );
+    grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
+    internal_display_number( mdate.day, 2, '0', 10, false );
+}
 
 
 

@@ -27,7 +27,8 @@ SOURCES += main.cpp\
     ../../../Prog/Project/MainProject/func/core.c \
     ../../../Prog/Project/MainProject/func/ui_elements.c \
     ../../../../../../000_SoftOnly/MyGraphicLibrary/MyGraphicLibrary/graphic_lib_app/graphic_lib/graphic_lib.c \
-    ../../../Prog/Project/MainProject/func/ui_graphics.c
+    ../../../Prog/Project/MainProject/func/ui_graphics.c \
+    ../../../Prog/Project/MainProject/func/utilities.c
 
 HEADERS  += mainw.h \
     stm32f10x.h \
@@ -43,7 +44,8 @@ HEADERS  += mainw.h \
     ../../../../../../000_SoftOnly/MyGraphicLibrary/MyGraphicLibrary/graphic_lib_app/graphic_lib/graphic_lib.h \
     ../../../Prog/Project/MainProject/graphic_lib_user.h \
     ../../../Prog/Project/MainProject/func/ui_graphics.h \
-    ../../../Prog/Project/MainProject/func/dispHAL.h
+    ../../../Prog/Project/MainProject/func/dispHAL.h \
+    ../../../Prog/Project/MainProject/func/utilities.h
 
 FORMS    += mainw.ui \
             graph.ui

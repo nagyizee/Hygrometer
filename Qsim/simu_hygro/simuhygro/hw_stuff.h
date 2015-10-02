@@ -111,6 +111,7 @@ void HW_Buzzer_Off(void);
 
 #define RTC_WaitForLastTask()           do {  } while(0)
 #define RTC_SetAlarm(a)                 do {  } while(0)
+#define RTC_GetCounter()                RTCctr + 1
 #define RCC_AdjustHSICalibrationValue(a)do {  } while(0)
 
 #define VBAT_MIN        0x0000                   // 2.6V
@@ -129,6 +130,12 @@ void HW_EXTI_ISR( void );
 bool HW_Sleep(int mode);
 
 void HWDBG( int val );
+
+
+int HWDBG_Get_Temp();
+int HWDBG_Get_Humidity();
+int HWDBG_Get_Pressure();
+
 
 #define __disable_interrupt()       do {  } while(0)
 #define __enable_interrupt()        do {  } while(0)

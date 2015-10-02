@@ -135,18 +135,8 @@
 
     struct SCoreOperation
     {
-        uint32      opmode;             // bitmask with the selected operation modes
-        uint32      op_state;           // operation state
-        uint32      w_time;             // wait time in 10ms units (used for mirror lockup, wait states, etc)
+        uint32      RTC_clock;          // clock counter in 0.5sec. Start date is 2012-Ian-01 00:00:00.0, Max range is 49710 days - 136 years
 
-        uint32      op_time_left;       // time left in seconds (displayed on the status bar in ui)
-
-        timestruct  time_longexpo;      // long expo in time format
-        uint32      expo;               // long expo in seconds
-        uint16      seq_shotnr;         // nr of shots to be takes, if 0 then it takes infinite shots, for fixed shot nr. minimum value is 2
-        uint16      seq_interval;       // interval between shots in seconds, for normal expo this is the iv. between each shot,
-                                        //      in case of long expo, it is the calculated iv. between shots from finishing one and starting the new one
-        uint16      tmr_interval;       // timer interval for taking the first shot
     };
 
 
@@ -171,6 +161,8 @@
     void core_poll( struct SEventStruct *evmask );
     int  core_get_pwrstate();
     void core_update_battery();
+    uint32 core_get_clock_counter();
+    void core_set_clock_counter( uint32 counter );
 
     // save / load / reset setup
     int core_setup_save( void );

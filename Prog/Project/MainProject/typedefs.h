@@ -56,6 +56,14 @@
  } timestruct;
 
 
+ typedef struct SDate
+ {
+    uint16 year;
+    uint8 mounth;
+    uint8 day;
+ } datestruct;
+
+
 #define true    1
 #define false   0
 

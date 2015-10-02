@@ -16,6 +16,8 @@
 #include "core.h"
 #include "graphic_lib.h"
 #include "ui_graphics.h"
+#include "utilities.h"
+
 #ifndef ON_QT_PLATFORM
   #include "stdlib_extension.h"
   #include "dispHAL.h"
@@ -23,7 +25,8 @@
 
 
 struct SUIstatus ui;
-static struct SCore *core;
+extern struct SCore core;
+
 
 
 ////////////////////////////////////////////////////
@@ -61,63 +64,68 @@ static int uist_internal_setup_menu( void *handle, const char *list )
 }
 
 
-static void uist_mainwindow_statusbar( uint32 opmode, bool rdrw_all )
+static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
 {
+    uint32 clock;
     int x;
-    uigrf_draw_battery(120, 0, 50);
 
+    clock = core_get_clock_counter();
 
-    if ( ui.m_state == UI_STATE_MAIN_GAUGE )
+    if ( rdrw & RDRW_BATTERY)
+        uigrf_draw_battery(120, 0, 50);
+
+    if ( (rdrw & RDRW_STATUSBAR) == RDRW_STATUSBAR )
     {
-        Graphic_Line( 25, 15, 127, 15 );
+        // redraw everything
+        Graphic_SetColor(1);
+        Graphic_FillRectangle( 0, 0, 118, 15, 1);
+        Graphic_SetColor(0);
         // draw the page selection
         for ( x=0; x<3; x++ )
         {
-            if ( ui.main_mode & ( 1 << x ) )
-                Graphic_Rectangle( 0+x*4, 14, 2+x*4, 15 );
+            if ( x == ui.main_mode )
+                Graphic_Rectangle( 1+x*5, 13, 3+x*5, 14 );
             else
-                Graphic_PutPixel( 1+x*4, 15, 1 );
+                Graphic_PutPixel( 2+x*5, 14, 0 );
         }
+        Graphic_PutPixel( 0, 0, 0 );
+        Graphic_PutPixel( 118, 0, 0 );
+
+        if ( opmode == UIMODE_GAUDE_THERMO )
+        {
+            uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" );
+        }
+        else if ( opmode == UIMODE_GAUGE_HYGRO )
+        {
+            uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );
+        }
+        else if ( opmode == UIMODE_GAUGE_PRESSURE )
+        {
+            uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );
+        }
+
+        // draw time
+        {
+            timestruct tm;
+            datestruct dt;
+            utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, NULL );
+            utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
+            uigrf_puttime( 92, 1, uitxt_small, 0, tm, true, false );
+            uigrf_putdate( 93, 10, uitxt_micro, 0, dt, false, true );
+        }
+    }
+
+    // clock blink
+    if ( clock & 0x01 )
+    {
+        Graphic_PutPixel( 104, 3, 1 );
+        Graphic_PutPixel( 104, 6, 1 );
     }
     else
-        Graphic_Line( 0, 15, 127, 15 );
-
-    x = 0;
     {
-        timestruct tm;
-        uint32 i;
-
-        if ( rdrw_all )
-        {
-            // first time
-            Graphic_SetColor(1);
-            Graphic_FillRectangle( x, 0, 117, 15, 1);
-            Graphic_PutPixel( x, 0, 0 );
-            Graphic_PutPixel( 117, 0, 0 );
-        }
-
-        tm.hour = 0;
-        tm.minute = 23;
-        tm.second = 56;
-        uigrf_puttime( 92, 1, uitxt_small, 0, tm, true, false );
-        uigrf_text_inv( 93, 10, uitxt_micro, "MAY 23" );
+        Graphic_PutPixel( 104, 3, 0 );
+        Graphic_PutPixel( 104, 6, 0 );
     }
-
-    if ( opmode == UIMODE_GAUDE_THERMO )
-    {
-        uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" );
-    }
-    else if ( opmode == UIMODE_GAUGE_HYGRO )
-    {
-        uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );
-    }
-    else if ( opmode == UIMODE_GAUGE_PRESSURE )
-    {
-        uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );
-    }
-
-
-
 }
 
 static void uist_internal_disp_with_focus( int i )
@@ -281,29 +289,29 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
 
 static inline void uist_draw_gauge_pressure( int redraw_all )
 {
-    int press = ( 101.325 * 1000 );       // testing purpose
-    int press_int = press / 1000;
-    int press_fract = press % 1000;
+    int press = ( 1013.25 * 100 );       // testing purpose
+    int press_int = press / 100;
+    int press_fract = press % 100;
 
     // pressure display
-    int x = 13;
+    int x = 7;
     int y = 17;
-    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, press_int, 3, ' ', false );
-    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, press_fract, 3, '0', false );
+    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, press_int, 4, ' ', false );
+    uigrf_putnr(x+48, y+14, uitxt_smallbold | uitxt_MONO, press_fract, 2, '0', false );
     Graphic_SetColor( 1 );
-    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
-    uigrf_text( x+45, y+2, uitxt_small,  "hPa" );
+    Graphic_Rectangle( x+44, y+19, x+45, y+20 );
+    uigrf_text( x+48, y+2, uitxt_small,  "hPa" );
 
     // altimetric setup
     x = 0;
     y = 41;
 
     Graphic_SetColor( 1 );
-    Graphic_FillRectangle( x, y, x + 41, y + 6, -1 );
+    Graphic_FillRectangle( x, y, x + 41, y + 6, 1 );
     uigrf_text_inv( x+3, y+1, uitxt_micro,  "REFERENCE" );
 
     uigrf_text( x, y+9, uitxt_micro,  "SLP:" );
-    uigrf_text( x+16, y+9, uitxt_micro, "101.325" );
+    uigrf_text( x+16, y+9, uitxt_micro, "1013.25" );
     Graphic_SetColor( -1 );
     Graphic_FillRectangle( x, y+8, x + 41, y + 14, -1 );
     Graphic_PutPixel(x, y, 0);
@@ -315,14 +323,20 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
     // min/max set display
     x = 42;
     y = 41;
+    Graphic_SetColor( 1 );
     Graphic_Rectangle( x, y+1, x, y+22);
+    Graphic_FillRectangle( x+1, y, x + 34, y + 6, 1 );
+    Graphic_PutPixel(x+34, y, 0);
+    uigrf_text_inv( x+10, y+1, uitxt_micro,  "SET1" );
+    uigrf_text( x+8, y+9, uitxt_micro, "1002.5" );
+    uigrf_text( x+8, y+17, uitxt_micro, " 996.4" );
 
 
 
     // tendency meter
     x = 77;
     y = 16;
-    uigrf_putfixpoint( x+4, y+43, uitxt_micro, 1231, 4, 3, 0x00, false );
+    uigrf_putfixpoint( x+4, y+43, uitxt_micro, 1231, 4, 2, 0x00, false );
     uigrf_text( x+32, y+43, uitxt_micro, "U/MIN" );
 
     // tendency graph
@@ -398,10 +412,7 @@ static void uist_drawview_mainwindow( int redraw_type )
     // if status bar should be redrawn
     if ( redraw_type & RDRW_STATUSBAR )
     {
-        if ( (redraw_type & RDRW_STATUSBAR) == RDRW_BATTERY )       // only battery should be redrawn
-            uist_mainwindow_statusbar( 0, (redraw_type == RDRW_ALL) );
-        else                                                        // else redraw the whole status bar
-            uist_mainwindow_statusbar( ui.main_mode, (redraw_type == RDRW_ALL) );
+        uist_mainwindow_statusbar( ui.main_mode, redraw_type );
     }
 
     // if UI content should be redrawn
@@ -474,14 +485,15 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
             }
         }
 
-        if ( evmask->timer_tick_1sec )
+        if ( evmask->timer_tick_05sec )
         {
             ui.upd_batt++;
-            if( ui.upd_batt == 5 )          // battery status update on every 5sec
+            if( ui.upd_batt == 10 )          // battery status update on every 5sec
             {
                 ui.upd_batt = 0;
                 update |= RDRW_BATTERY;
             }
+            update |= RDRW_CLOCKTICK;
         }
         return update;
     }
@@ -505,7 +517,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
         if ( ui.pwr_dispdim )
         {
-            DispHAL_SetContrast( core->setup.disp_brt_on );
+            DispHAL_SetContrast( core.setup.disp_brt_on );
             ui.pwr_dispdim = false;
         }
         if ( ui.pwr_dispoff )
@@ -522,14 +534,14 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
 
         if ( ( ui.pwr_state != SYSSTAT_UI_PWROFF ) &&       // power off time limit reached
-             ( core->setup.pwr_off ) && 
-             ( core->setup.pwr_off < ui.incativity) )       
+             ( core.setup.pwr_off ) &&
+             ( core.setup.pwr_off < ui.incativity) )
         {
             DispHAL_Display_Off();
             ui.pwr_state = SYSSTAT_UI_PWROFF;
         }
-        else if ( ( core->setup.pwr_disp_off ) &&           // display off limit reached
-                  ( core->setup.pwr_disp_off < ui.incativity) )
+        else if ( ( core.setup.pwr_disp_off ) &&           // display off limit reached
+                  ( core.setup.pwr_disp_off < ui.incativity) )
         {
             DispHAL_Display_Off();
             ui.pwr_dispdim = true;
@@ -540,10 +552,10 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY | SYSSTAT_UI_STOP_W_SKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
-                  ( core->setup.pwr_stdby ) && 
-                  ( core->setup.pwr_stdby < ui.incativity) )
+                  ( core.setup.pwr_stdby ) &&
+                  ( core.setup.pwr_stdby < ui.incativity) )
         {
-            DispHAL_SetContrast( core->setup.disp_brt_dim );
+            DispHAL_SetContrast( core.setup.disp_brt_dim );
             ui.pwr_dispdim = true;
         } 
     }
@@ -753,7 +765,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 
 void ui_init( struct SCore *instance )
 {
-    core = instance;
+    //core = instance;
 
     Graphics_Init( NULL, NULL );
 

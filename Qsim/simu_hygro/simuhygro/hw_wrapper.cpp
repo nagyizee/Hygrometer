@@ -5,6 +5,7 @@
 #include "eeprom_spi.h"
 #include "graphic_lib.h"
 #include "dispHAL.h"
+#include "utilities.h"
 
 
 #define MAX_AXIS_CHANNELS 4
@@ -154,6 +155,23 @@ void HWDBG( int val )
     pClass->HW_wrapper_DBG( val );
 }
 
+int HWDBG_Get_Temp()
+{
+    return pClass->HW_wrapper_get_temperature();
+}
+
+int HWDBG_Get_Humidity()
+{
+    return pClass->HW_wrapper_get_humidity();
+}
+
+int HWDBG_Get_Pressure()
+{
+    return pClass->HW_wrapper_get_pressure();
+}
+
+
+
 ///////////////////////////////////////////////////
 
 void mainw::HW_assertion(const char *reason)
@@ -200,11 +218,35 @@ void mainw::HW_wrapper_setup( int interval )
 
 void mainw::HW_wrapper_update_display()
 {
+    static uint32 OldRTC = 0;
+    uint32 RTC;
+
     if ( disp_changed )
     {
         disp_changed = false;
         ui->num_pwr_mng->setValue( hw_power_mode );
     }
+
+    RTC = core_get_clock_counter();
+    if ( RTC != OldRTC )
+    {
+        char timedisp[256];
+        OldRTC = RTC;
+        uint8 mounth, day, hour, minute, second;
+        uint16 year;
+
+        utils_convert_counter_2_hms( RTC, &hour, &minute, &second );
+        utils_convert_counter_2_ymd( RTC, &year, &mounth, &day );
+
+        sprintf( timedisp, "%04d-%02d-%02d %02d:%02d:%02d.%c [0x%08X]",
+                 year, mounth, day,
+                 hour, minute, second,
+                 (RTC & 0x01) ? '5' : '0',               // 1/2 second
+                 RTC                      );
+        ui->tb_time->setText(tr(timedisp));
+
+    }
+
 }
 
 
@@ -213,6 +255,21 @@ void mainw::HW_wrapper_DBG( int val )
 {
     ui->num_dbg->setValue( val );
 
+}
+
+int mainw::HW_wrapper_get_temperature()
+{
+    return (ui->num_temperature->value() * 100);
+}
+
+int mainw::HW_wrapper_get_humidity()
+{
+    return (ui->num_humidity->value() * 10);
+}
+
+int mainw::HW_wrapper_get_pressure()
+{
+    return (ui->num_pressure->value() * 1000);
 }
 
 void mainw::HW_wrapper_Beep( int op )
@@ -230,6 +287,55 @@ void mainw::HW_wrapper_Beep( int op )
             ui->cb_beepHi->setChecked(true);
             break;
     }
+}
+
+
+void mainw::on_tb_time_editingFinished()
+{
+
+    char dateline[256];
+    char *pchr;
+    datestruct sdate;
+    timestruct stime;
+    uint32 counter;
+
+    int y, m, d, h, mn, s;
+
+    strcpy( dateline, ui->tb_time->text().toLatin1() );
+
+    pchr = strtok( dateline, "- :" );
+    sscanf( pchr, "%d", &y );
+
+    pchr = strtok( NULL, "- :" );
+    if ( pchr == NULL )         return;
+    sscanf( pchr, "%d", &m );
+
+    pchr = strtok( NULL, "- :" );
+    if ( pchr == NULL )         return;
+    sscanf( pchr, "%d", &d );
+
+    pchr = strtok( NULL, "- :" );
+    if ( pchr == NULL )         return;
+    sscanf( pchr, "%d", &h );
+
+    pchr = strtok( NULL, "- :" );
+    if ( pchr == NULL )         return;
+    sscanf( pchr, "%d", &mn );
+
+    pchr = strtok( NULL, "- :" );
+    if ( pchr == NULL )         return;
+    sscanf( pchr, "%d", &s );
+
+    sdate.year = (uint16)y;
+    sdate.mounth = (uint8)m;
+    sdate.day = (uint8)d;
+    stime.hour = (uint8)h;
+    stime.minute = (uint8)mn;
+    stime.second = (uint8)s;
+
+    counter = utils_convert_date_2_counter( &sdate, &stime );
+    core_set_clock_counter( counter );
+    HW_wrapper_update_display();
 }
 
 

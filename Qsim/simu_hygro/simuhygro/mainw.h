@@ -48,6 +48,8 @@ private slots:
     void on_btn_esc_released();
 
 
+    void on_tb_time_editingFinished();
+
 private:
     Ui::mainw *ui;
     QTimer *ticktimer;
@@ -68,6 +70,10 @@ private:
 public:
 
     void HW_wrapper_DBG(int val);
+    int HW_wrapper_get_temperature();
+    int HW_wrapper_get_humidity();
+    int HW_wrapper_get_pressure();
+
     void HW_wrapper_Beep( int op );
 
 
