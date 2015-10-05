@@ -59,6 +59,8 @@
         uint8 elem_crt;         // selected element - ( 0 -> elem_total-1 ) all elements
         uint8 width;            // text element height in pixels
         uint8 height;           // elements displayed in a menu window
+        uint8 color;            // color of the displayed text
+        uint8 thin_border;      // use thin border - this works with negativating the selected item
 
         char labels[ UIEL_LIST_LABEL_MAX ];
         uint16 value[ UIEL_LIST_MAX ];
@@ -149,7 +151,7 @@
     // LIST
 
     // inits or resets a list
-    void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int ypoz, int width, enum Etextstyle style );
+    void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int ypoz, int width, enum Etextstyle style, int color, bool thin_border );
 
     // add element to a list
     // value can be 0 - 255

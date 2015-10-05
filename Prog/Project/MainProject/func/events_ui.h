@@ -20,13 +20,13 @@
     #include "typedefs.h"
 
 
-    #define KEY_OK          0x01
-    #define KEY_ESC         0x02
-    #define KEY_MODE        0x04
-    #define KEY_UP          0x08
-    #define KEY_DOWN        0x10
-    #define KEY_LEFT        0x40
-    #define KEY_RIGHT       0x80
+    #define KEY_UP          0x01            // |
+    #define KEY_DOWN        0x02            // |
+    #define KEY_LEFT        0x04            // |  these keys will generate repeated accelerated key_pressed event when long pressed
+    #define KEY_RIGHT       0x08            // |  will not generate key_released and key_longpressed
+    #define KEY_OK          0x10            // -- will not generate key key_longpressed, neither repeated key_pressed
+    #define KEY_ESC         0x20            // |
+    #define KEY_MODE        0x40            // |  these keys will generate key_longpressed and key_released
 
     struct SEventStruct
     {

@@ -19,7 +19,8 @@
         UI_STATE_MAIN_GRAPH,                    // graph display for the abowe stuff
         UI_STATE_MAIN_ALTIMETER,                // altimeter mode - this include variometer function
         UI_STATE_MODE_SELECT,                   // mode selector window - navigate bw. gauge - graph - altimeter - recording - setup
-        UI_STATE_SHUTDOWN                       // shut-down window
+        UI_STATE_SHUTDOWN,                      // shut-down window
+        UI_STATE_DBG_INPUTS,                    // debug button press, sensor readings, etc
     };
 
 
@@ -48,7 +49,8 @@
 
     struct SUIMainGaugeThermo
     {
-        struct Suiel_control_numeric    temp;
+        struct Suiel_control_list    units;
+        struct Suiel_control_list    minmaxset[3];
     };
 
 

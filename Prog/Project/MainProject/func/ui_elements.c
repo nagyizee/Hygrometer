@@ -185,7 +185,7 @@ int uiel_dropdown_menu_get_index( struct Suiel_dropdown_menu *handle )
 
 // LIST
 
-void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int ypoz, int width, enum Etextstyle style )
+void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int ypoz, int width, enum Etextstyle style, int color, bool thin_border )
 {
     memset( handle, 0, sizeof(*handle));
 
@@ -194,8 +194,14 @@ void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int yp
     handle->poz_y = ypoz;
     handle->width = width;
     handle->textstyle = style;
+    handle->color = color;
+    handle->thin_border = thin_border;
     grf_setup_font( style, 0, 0 );
-    handle->height = Gtext_GetCharacterHeight() + 2;
+    if ( handle->thin_border )
+        handle->height = Gtext_GetCharacterHeight();
+    else
+        handle->height = Gtext_GetCharacterHeight() + 2;
+
     if (handle->height == 0 )    // prevent div/0
         handle->height = 1;
 }
@@ -263,44 +269,50 @@ static inline void uiel_control_list_display( struct Suiel_control_list *handle,
     yend = handle->poz_y + handle->height;
 
     // clear the underlaying area
-    Graphic_SetColor( 0 );
-    Graphic_FillRectangle( handle->poz_x, y, xend, yend, 0 );
+    Graphic_SetColor( 1 - handle->color );
+    Graphic_FillRectangle( handle->poz_x, y, xend, yend, 1 - handle->color );
 
     // draw the content
-    grf_setup_font( handle->textstyle, 1, -1 );
+    grf_setup_font( handle->textstyle, handle->color, -1 );
 
     Graphic_Window( handle->poz_x, y, xend, yend );
     crt_poz = uiel_internal_menu_find_index( handle->labels, handle->elem_crt );
     crt_label = handle->labels + crt_poz;
-    Gtext_SetCoordinates( handle->poz_x + 2, y+2 );
+    if ( handle->thin_border )
+        Gtext_SetCoordinates( handle->poz_x + 1, y+1 );
+    else
+        Gtext_SetCoordinates( handle->poz_x + 2, y+2 );
+
     Gtext_PutText( crt_label );
     Graphic_Window( 0, 0, GDISP_WIDTH-1, GDISP_HEIGHT-1 );
 
-    if ( focus)
+    if ( focus )
     {
         if ( (handle->ID & ELEM_IN_FOCUS) == 0 )
         {
-            int_focus = 0;  // the control just got the focus, reset the internal focus state
-            handle->ID |= ELEM_IN_FOCUS;
+            int_focus = 0;                  // the control just got the focus, reset internal focus state
+            handle->ID |= ELEM_IN_FOCUS;    
         }
 
-        Graphic_SetColor(1);
-        Graphic_Rectangle( handle->poz_x, y, xend, yend );
-        Graphic_PutPixel( handle->poz_x, y, -1 );
-        Graphic_PutPixel( xend, y, -1 );
-        Graphic_PutPixel( handle->poz_x, yend, -1 );
-        Graphic_PutPixel( xend, yend, -1 );
-
-        if ( int_focus )
+        if ( handle->thin_border )
         {
-            Graphic_SetColor( -1 );
-            Graphic_FillRectangle( handle->poz_x, y, xend, yend, -1 );
+            Graphic_SetColor(-1);
+            Graphic_FillRectangle( handle->poz_x, y, xend, yend, -1);
+        }
+        else
+        {
+            Graphic_SetColor(1);
+            Graphic_Rectangle( handle->poz_x, y, xend, yend );
+            Graphic_PutPixel( handle->poz_x, y, -1 );
+            Graphic_PutPixel( xend, y, -1 );
+            Graphic_PutPixel( handle->poz_x, yend, -1 );
+            Graphic_PutPixel( xend, yend, -1 );
         }
     }
     else
     {
-        Graphic_SetColor(0);
-        Graphic_Rectangle( handle->poz_x, y, xend, yend );
+//        Graphic_SetColor(0);
+//        Graphic_Rectangle( handle->poz_x, y, xend, yend );
         handle->ID &= ~ELEM_IN_FOCUS;
     }
 }
@@ -973,28 +985,17 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
             else if ( handle_ID == ELEM_ID_CHECKBOX )        // these type of controls don't need internal focus since only one action is possible on them
             {
                 uiel_control_checkbox_toggle( (struct Suiel_control_checkbox *)handle );
+                changed = true;
             }
-            else
+            else if ( (handle_ID == ELEM_ID_TIME) || (handle_ID == ELEM_ID_EDIT ) )
             {
-                if ( int_focus == 0 )       // the control is not selected for editing - select it
-                    int_focus++;
-                else                    // control was selected for editing - exit from editing mode or for timer enter and exit in editing mode for digits
-                {
-                    if ( (handle_ID == ELEM_ID_TIME ) ||
-                         (handle_ID == ELEM_ID_EDIT )    )
-                    {
-                        int_focus ^= 0x80;
-                    }
-                    else
-                        int_focus = 0;
-                }
+                int_focus ^= 0x80;
+                changed = true;
             }
-            changed = true;
             evmask->key_pressed &= ~KEY_OK;     // delete the keypress event for the upper layer as it is captured by this layer
         }
 
-        // Plus and Minus are captured here only if element is selected for editing
-        if ( int_focus )
+        // Up and Down are captured for any element in focus and have immediate action
         {
             if ( evmask->key_pressed & KEY_UP )
             {
@@ -1022,7 +1023,9 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                 changed = true;
                 evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
             }
-            else if ( evmask->key_pressed & KEY_ESC )
+        }
+
+        /*    else if ( evmask->key_pressed & KEY_ESC )
             {
                 if ( int_focus & 0x80)
                 {
@@ -1044,7 +1047,9 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                     changed = true;
                 }
             }
-        }
+            */
+
+
     }
 
     if ( changed )

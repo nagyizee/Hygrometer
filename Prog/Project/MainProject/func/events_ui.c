@@ -74,18 +74,22 @@ struct SBeep
 
         int poz = 0x01;
         int pctr = 0;
-        while ( pctr < 6 )
+        while ( pctr < 7 )
         {
             if ( keys_on & poz )    // newly pressed key
             {
-                keys_strokepause[pctr]  = 200;
+                if ( pctr < 4 )
+                    keys_strokepause[pctr]  = 25;      // - for <,>,^,v keys use 250ms timeout for 1st repeat key
+                else
+                    keys_strokepause[pctr]  = 150;     // - for the others generate long_press after 1.5sec
+
                 evt->key_pressed |= (1 << pctr);
                 evt->key_event = 1;
             }
 
             if ( keys_off & poz )   // newly released key
             {
-                if ( keys_strokepause[pctr] )
+                if ( keys_strokepause[pctr] && (pctr >= 4) )
                 {
                     evt->key_released |= (1 << pctr);
                     evt->key_event = 1;
@@ -96,12 +100,22 @@ struct SBeep
             {
                 if ( keys_strokepause[pctr] )
                 {
-                    keys_strokepause[pctr]--;       // count down for first stroke
+                    if ( pctr != 4 )
+                        keys_strokepause[pctr]--;       // count down for first stroke (don't do it for OK button)
 
                     if ( keys_strokepause[pctr] == 0 )
                     {
-                        evt->key_longpressed |= (1 << pctr);
-                        evt->key_event = 1;
+                        if ( pctr < 4 )             // - for <,>,^,v keys generate the repeated key_press, and set repetition counter for 100ms
+                        {
+                            evt->key_pressed |= (1 << pctr);
+                            evt->key_event = 1;
+                            keys_strokepause[pctr]  = 10;
+                        }
+                        else if ( pctr > 4 )        // - for the Esc, Mode - generate the long_press event
+                        {
+                            evt->key_longpressed |= (1 << pctr);
+                            evt->key_event = 1;
+                        }
                     }
                 }
             }

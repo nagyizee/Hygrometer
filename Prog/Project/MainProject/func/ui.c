@@ -164,16 +164,13 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
     uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, temp_fract, 2, '0', false );
     Graphic_SetColor( 1 );
     Graphic_Rectangle( x+33, y+19, x+34, y+20 );
-    Graphic_Rectangle( x+40, y+2, x+42, y+4 );
-    uigrf_text( x+45, y+2, uitxt_small,  "C" );
 
     // min/max set display
     x = 0;
     y = 41;
 
-    uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
-    Graphic_SetColor( -1 );
-    Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
+    Graphic_SetColor( 1 );
+    Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 
     uigrf_putfixpoint( x, y+8, uitxt_small, -124, 3, 1, 0x00, false );
     uigrf_putfixpoint( x, y+16, uitxt_small, -325, 3, 1, 0x00, false );
@@ -217,7 +214,7 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
 
     }
 
-//    ui_element_display( &ui.p.mgThermo.temp, ui.focus );
+    uist_internal_disp_all_with_focus();
 }
 
 
@@ -381,9 +378,29 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 
 static inline void uist_setview_mainwindowgauge_thermo( void )
 {
-    uiel_control_numeric_init( &ui.p.mgThermo.temp, -50, 100, 0, 80, 16, 4, 0x00, uitxt_large_num );
-    ui.ui_elem_nr = 1;
-    ui.ui_elems[0] = &ui.p.mgThermo.temp;
+    int i;
+    uiel_control_list_init( &ui.p.mgThermo.units, 52, 16, 11, uitxt_small, 1, false );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", 0 );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", 1 );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", 2 );
+    uiel_control_list_set_index( &ui.p.mgThermo.units, 0 );
+    ui.ui_elems[0] = &ui.p.mgThermo.units;
+
+    for (i=0; i<3; i++)
+    {
+        uiel_control_list_init( &ui.p.mgThermo.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", 0x00 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", 0x01 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET3", 0x02 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", 0x10 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", 0x20 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", 0x30 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", 0x40 );
+        uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], i );
+        ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
+    }
+
+    ui.ui_elem_nr = 4;
 }
 
 static inline void uist_setview_mainwindowgauge_hygro( void )
@@ -428,6 +445,62 @@ static void uist_drawview_mainwindow( int redraw_type )
     }
 }
 
+                      // up  dn  l   r   ok  esc  mo
+const uint32 dik_x[] = { 10, 10, 0,  20, 10, 0,  20 };
+const uint32 dik_y[] = { 0,  20, 10, 10, 10, 20, 0  };
+
+void uist_drawview_debuginputs( int redraw_type, uint32 key_bits )
+{
+    // if all the content should be redrawn
+    int i;
+    if ( redraw_type == RDRW_ALL )
+    {
+        int x,y;
+        Graphics_ClearScreen(0);
+
+        x = 0;
+        y = 48;
+        uigrf_text( x, y, uitxt_micro, "MO ES OK S1 S2 S3 S4" );
+    }
+
+    Graphic_SetColor(0);
+    Graphic_FillRectangle( 0, 55, 70, 63, 0 );
+
+    for (i=0; i<7; i++)
+    {
+        uint32 mask = (1<<i);
+
+        if ( (key_bits & 0xff) & mask )     // keypress event
+        {
+            Graphic_SetColor(1);
+            Graphic_FillRectangle( dik_x[i]+2, dik_y[i]+2+16, dik_x[i]+8, dik_y[i]+8+16, 1 );
+        }
+        else if ( (key_bits & 0xff00 ) & (mask << 8) ) // key released event
+        {
+            Graphic_SetColor(1);
+            Graphic_FillRectangle( dik_x[i]+2, dik_y[i]+2+16, dik_x[i]+8, dik_y[i]+8+16, 0 );
+        }
+        else if ( (key_bits & 0xff0000 ) & (mask << 16) )  // key long pressed event
+        {
+            Graphic_SetColor(1);
+            Graphic_FillRectangle( dik_x[i], dik_y[i]+16, dik_x[i]+10, dik_y[i]+10+16, 1 );
+        }
+        else
+        {
+            Graphic_SetColor(1);
+            Graphic_FillRectangle( dik_x[i], dik_y[i]+16, dik_x[i]+10, dik_y[i]+10+16, 0 );
+        }
+
+        if ( key_bits & (mask<<24) )
+        {
+            Graphic_SetColor(1);
+            Graphic_FillRectangle( 2+10*i, 57, 4+10*i, 59, 0 );
+        }
+    }
+
+}
+
+
 
 void uist_setupview_mainwindow( bool reset )
 {
@@ -442,6 +515,10 @@ void uist_setupview_mainwindow( bool reset )
     }
 }
 
+void uist_setupview_debuginputs( void )
+{
+
+}
 
 ////////////////////////////////////////////////////
 //
@@ -582,7 +659,7 @@ void uist_startup_entry( void )
     uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
     DispHAL_UpdateScreen();
     core_beep( beep_pwron );
-    ui.m_substate = 50;    // 2sec. startup screen
+    ui.m_substate = 100;    // 1sec. startup screen
 }
 
 
@@ -595,9 +672,82 @@ void uist_startup( struct SEventStruct *evmask )
 
     if ( evmask->key_event || (ui.m_substate == 0) )
     {
+        if ( evmask->key_pressed & KEY_OK )
+        {
+            ui.m_state = UI_STATE_DBG_INPUTS;
+            ui.m_substate = 0;
+            return;
+        }
+
         ui.m_state = UI_STATE_MAIN_GAUGE;
         ui.m_substate = 0;
         ui.main_mode = UIMODE_GAUDE_THERMO;
+    }
+}
+
+
+/// UI DEBUG INPUTS
+
+void uist_debuginputs_entry( void )
+{
+    uist_setupview_debuginputs();
+    uist_drawview_debuginputs( RDRW_ALL, 0 );
+    DispHAL_UpdateScreen();
+    ui.m_substate ++;
+    ui.upd_dynamics = 0;
+    ui.upd_batt = 0;
+}
+
+void uist_debuginputs( struct SEventStruct *evmask )
+{
+    if ( evmask->timer_tick_10ms || evmask->key_event )
+    {
+        uint32 bits = 0;
+        bool update = false;
+
+        // MO ES OK S1 S2 S3 S4
+        if ( BtnGet_Mode() )
+            bits |= ( 0x01 << 24 );
+        if ( BtnGet_Esc() )
+            bits |= ( 0x02 << 24 );
+        if ( BtnGet_OK() )
+            bits |= ( 0x04 << 24 );
+        if ( BtnGet_Up() )
+            bits |= ( 0x08 << 24 );
+        if ( BtnGet_Down() )
+            bits |= ( 0x10 << 24 );
+        if ( BtnGet_Left() )
+            bits |= ( 0x20 << 24 );
+        if ( BtnGet_Right() )
+            bits |= ( 0x40 << 24 );
+
+        if ( evmask->key_event )
+        {
+            bits |= evmask->key_pressed | (evmask->key_released << 8) | (evmask->key_longpressed << 16);
+            update = true;
+            ui.upd_batt = 8;
+        }
+
+        if ( evmask->timer_tick_10ms )
+        {
+            if (ui.upd_batt)
+                ui.upd_batt--;
+            else
+            {
+                ui.upd_dynamics++;
+                if ( ui.upd_dynamics == 5 )     // obtain 20fps for dynamic stuff update
+                {
+                    update = true;
+                    ui.upd_dynamics = 0;
+                }
+            }
+        }
+
+        if (update)
+        {
+            uist_drawview_debuginputs( RDRW_UI_DYNAMIC, bits );
+            DispHAL_UpdateScreen();
+        }
     }
 }
 
@@ -688,23 +838,28 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 disp_update  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
 
             // move focus to the next element
-            if ( evmask->key_pressed & KEY_LEFT )
-            {
-                if ( ui.focus < ui.ui_elem_nr )
-                {
-                    ui.focus++;
-                    disp_update |= RDRW_UI_CONTENT;
-                }
-            }
-
-            // move focus to the previous element
             if ( evmask->key_pressed & KEY_RIGHT )
             {
+                if ( ui.focus < ui.ui_elem_nr )
+                    ui.focus++;
+                else
+                    ui.focus = 1;
+                disp_update |= RDRW_UI_CONTENT;
+            }
+            // move focus to the previous element
+            if ( evmask->key_pressed & KEY_LEFT )
+            {
                 if ( ui.focus > 1 )
-                {
                     ui.focus--;
-                    disp_update |= RDRW_UI_CONTENT;
-                }
+                else
+                    ui.focus = ui.ui_elem_nr - 1;
+                disp_update |= RDRW_UI_CONTENT;
+            }
+            // short press on esc will exit focus
+            if ( evmask->key_released & KEY_ESC )
+            {
+                ui.focus = 0;
+                disp_update |= RDRW_UI_CONTENT;
             }
         }
         else
@@ -796,6 +951,9 @@ int ui_poll( struct SEventStruct *evmask )
             case UI_STATE_MAIN_GAUGE:
                 uist_mainwindowgauge_entry();
                 break;
+            case UI_STATE_DBG_INPUTS:
+                uist_debuginputs_entry();
+                break;
         }
     }
     else
@@ -810,6 +968,9 @@ int ui_poll( struct SEventStruct *evmask )
                 break;
             case UI_STATE_MAIN_GAUGE:
                 uist_mainwindowgauge( evmask );
+                break;
+            case UI_STATE_DBG_INPUTS:
+                uist_debuginputs( evmask );
                 break;
         }
     }
