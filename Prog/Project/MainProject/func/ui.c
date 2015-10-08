@@ -150,20 +150,13 @@ static void uist_internal_disp_all_with_focus()
 
 static inline void uist_draw_gauge_thermo( int redraw_all )
 {
-    int temp = ( 23.65 * 100 );       // testing purpose
-    int temp_int = temp / 100;
-    int temp_fract = temp % 100;
+    int temp = ( 24.00 * 100 );       // testing purpose
 
-    if (temp_fract < 0)
-        temp_fract = -temp_fract;
+    int x, y;
 
     // temperature display
-    int x = 13;
-    int y = 17;
-    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, temp_int, 2, 0 , true );
-    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, temp_fract, 2, '0', false );
-    Graphic_SetColor( 1 );
-    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
+    uigrf_putvalue_impact( 13, 17, temp, 3, 2, true );
+
 
     // min/max set display
     x = 0;
@@ -659,7 +652,7 @@ void uist_startup_entry( void )
     uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
     DispHAL_UpdateScreen();
     core_beep( beep_pwron );
-    ui.m_substate = 100;    // 1sec. startup screen
+    ui.m_substate = 50;    // 0.5sec. startup screen
 }
 
 

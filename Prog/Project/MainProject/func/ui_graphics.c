@@ -369,7 +369,27 @@ const uint16 bitmap_datasz[] = { 708, 26, 26, 26,
 const char mounthname[] = "IAN\0FEB\0MAR\0APR\0MAY\0JUN\0JUL\0AUG\0SEP\0OCT\0NOV\0DEC\0";
 
 
-static void internal_display_number( int value, int chnr, char fillchar, uint32 radix, bool show_plus_sign )
+static int internal_10pow( int pow )
+{
+    switch ( pow )
+    {
+        case 0: return 1;
+        case 1: return 10;
+        case 2: return 100;
+        case 3: return 1000;
+        case 4: return 10000;
+        case 5: return 100000;
+        case 6: return 1000000;
+        case 7: return 10000000;
+        case 8: return 100000000;
+        default:
+            return 0;
+    }
+    return 0;
+}
+
+
+static void internal_display_number( int value, int chnr, char fillchar, uint32 radix, bool force_sign, bool force_minus )
 {
     char str[9];
     char str1[9];
@@ -378,9 +398,13 @@ static void internal_display_number( int value, int chnr, char fillchar, uint32 
     if ( chnr >= 8 )
         return;
 
-    if ( show_plus_sign && (value>0) )
+    if ( force_sign && (value>=0) )
     {
-        str1[0]='+';
+        if ( force_minus )
+            str1[0]='-';
+        else
+            str1[0]='+';
+
         itoa( value, str1+1, radix );
     }
     else
@@ -394,16 +418,14 @@ static void internal_display_number( int value, int chnr, char fillchar, uint32 
         str[i]      = 0x00;
 
         i = strlen( str1 );
+        if ( i > chnr )
+            i = chnr;
         strncpy( (str + chnr - i), str1, i );
         Gtext_PutText( str );
     }
     else
         Gtext_PutText( str1 );
 }
-
-
-
-
 
 
 void uibm_put_bitmap( int x, int y, int bmp )
@@ -571,7 +593,7 @@ void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char 
 {
     grf_setup_font( style, 1, 0 );
     Gtext_SetCoordinates( x, y );
-    internal_display_number( nr, digits, fill, 10, show_plus_sign );
+    internal_display_number( nr, digits, fill, 10, show_plus_sign, false );
 }
 
 void uigrf_puthex( int x, int y, enum Etextstyle style, int nr, int digits, char fill )
@@ -579,7 +601,7 @@ void uigrf_puthex( int x, int y, enum Etextstyle style, int nr, int digits, char
     grf_setup_font( style, 1, 0 );
     Gtext_SetCoordinates( x, y );
     Gtext_PutText( "0x" );
-    internal_display_number( nr, digits, fill, 16, false );
+    internal_display_number( nr, digits, fill, 16, false, false );
 }
 
 // nr of digits - max. digits to display
@@ -592,10 +614,10 @@ void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits,
     Gtext_SetCoordinates( x, y );
     len = digits - fp;  // length of integer part or whole part
     div = poz_2_increment( fp );    // convert the value
-    internal_display_number( nr/div, len, fill, 10, show_plus_sign );
+    internal_display_number( nr/div, len, fill, 10, show_plus_sign, false );
     Gtext_PutChar('.');
     nr = nr % div;
-    internal_display_number( nr, fp, '0', 10, false );
+    internal_display_number( nr, fp, '0', 10, false, false );
 }
 
 
@@ -629,17 +651,17 @@ void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct t
 
     // print the time in hh:mm:ss
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    internal_display_number( time.hour, 2, '0', 10, false );
+    internal_display_number( time.hour, 2, '0', 10, false, false );
     grf_setup_font( (enum Etextstyle)(style), color, -1 );
     Gtext_PutChar( ':' );
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    internal_display_number( time.minute, 2, '0', 10, false );
+    internal_display_number( time.minute, 2, '0', 10, false, false );
     if ( minute_only == false )
     {
         grf_setup_font( (enum Etextstyle)(style), color, -1 );
         Gtext_PutChar( ':' );
         grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-        internal_display_number( time.second, 2, '0', 10, false );
+        internal_display_number( time.second, 2, '0', 10, false, false );
     }
 
 }
@@ -674,7 +696,7 @@ void uigrf_putdate( int x, int y, enum Etextstyle style, int color, datestruct m
     if ( show_year )
     {
         grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-        internal_display_number( mdate.year , 4, '0', 10, false );
+        internal_display_number( mdate.year , 4, '0', 10, false, false );
         grf_setup_font( (enum Etextstyle)(style), color, -1 );
         Gtext_PutChar( '-' );
     }
@@ -682,13 +704,77 @@ void uigrf_putdate( int x, int y, enum Etextstyle style, int color, datestruct m
     if ( show_mname )
         Gtext_PutText( mounthname + 4 * (mdate.mounth-1) );
     else
-        internal_display_number( mdate.mounth, 2, '0', 10, false );
+        internal_display_number( mdate.mounth, 2, '0', 10, false, false );
     grf_setup_font( (enum Etextstyle)(style), color, -1 );
     Gtext_PutChar( '-' );
     grf_setup_font( (enum Etextstyle)(style | uitxt_MONO), color, -1 );
-    internal_display_number( mdate.day, 2, '0', 10, false );
+    internal_display_number( mdate.day, 2, '0', 10, false, false );
 }
 
+
+void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_digits, bool use_plus )
+{
+    // big_digits - how many big digits to be used ( if use_plus - then the first digit is a mandatory sign, if digits don't fit then '+' is ommited )
+    // small_digits - how many small digits to be used (after the decimal point) - max 3
+    // value - in x1000 - zecimal point is at 10^3
+    int char_w;
+    int char_h;
+    int digits = 0;
+    bool has_sign = false;
+    int int_val;
+    int fract_val;
+    int i;
+
+    grf_setup_font( uitxt_large_num | uitxt_MONO , 1, 0 );
+    Gtext_SetCoordinates( x, y );
+
+    int_val = value / internal_10pow(small_digits);
+    fract_val = value % internal_10pow(small_digits);
+    if ( fract_val < 0 )
+        fract_val = -fract_val;
+
+    // find out how many digits do we have in the integer part
+    i = int_val;
+    do
+    {
+        digits++;
+        i /= 10;
+    } while ( i );
+
+    if ( ( digits < big_digits ) && (use_plus || (value < 0)) )
+        has_sign = true;
+
+    if ( ((value < 0) && (has_sign == false)) || (digits > big_digits) )
+    {
+        for (i=0; i<big_digits; i++)
+            Gtext_PutChar( '#' );
+        digits = -1;               // mark the failure to display
+    }
+    else
+    {
+        internal_display_number( int_val, big_digits, ' ', 10, has_sign, (value < 0) ? true : false );
+    }
+
+    // decimal point
+    char_w = (Gtext_GetCharacterWidth('0') + 1) * big_digits;
+    char_h = Gtext_GetCharacterHeight();
+    Graphic_SetColor( 1 );
+    Graphic_Rectangle( x+char_w, y+char_h-3, x+char_w+1, y+char_h-2 );
+
+    grf_setup_font( uitxt_smallbold | uitxt_MONO , 1, 0 );
+    char_h = char_h - Gtext_GetCharacterHeight();
+    Gtext_SetCoordinates( x+char_w+3, y+char_h );
+
+    if ( digits == -1 )
+    {
+        for (i=0; i<small_digits; i++)
+            Gtext_PutChar( '#' );
+    }
+    else
+    {
+        internal_display_number( fract_val, small_digits, '0', 10, false, false );
+    }
+}
 
 
 

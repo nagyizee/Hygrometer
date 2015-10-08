@@ -55,6 +55,9 @@
     void uigrf_puttime( int x, int y, enum Etextstyle style, int color, timestruct time, bool minute_only, bool large_border );
     void uigrf_putdate( int x, int y, enum Etextstyle style, int color, datestruct date, bool show_year, bool show_mname );
 
+    void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_digits, bool use_plus ); 
+
+
         /// Utilities
     int poz_2_increment( int poz );
 
