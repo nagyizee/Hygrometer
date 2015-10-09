@@ -23,6 +23,12 @@
         UI_STATE_DBG_INPUTS,                    // debug button press, sensor readings, etc
     };
 
+    enum UIMainMode
+    {
+        UImm_gauge_thermo = 0,
+        UImm_gauge_hygro,
+        UImm_gauge_pressure,
+    };
 
     // user interface substate
     #define UI_SUBST_ENTRY          0
@@ -42,12 +48,13 @@
     #define RDRW_DISP_UPDATE        0x80        // just a dummy value to enter to the display update routine
 
 
-    #define UIMODE_GAUDE_THERMO     0x00
-    #define UIMODE_GAUGE_HYGRO      0x01
-    #define UIMODE_GAUGE_PRESSURE   0x02
-
-
     struct SUIMainGaugeThermo
+    {
+        struct Suiel_control_list    units;
+        struct Suiel_control_list    minmaxset[3];
+    };
+
+    struct SUIMainGaugeHygro
     {
         struct Suiel_control_list    units;
         struct Suiel_control_list    minmaxset[3];
@@ -58,17 +65,18 @@
     {
         // main window stuff
         struct SUIMainGaugeThermo  mgThermo;
+        struct SUIMainGaugeHygro   mgHygro;
     };
 
 
 
     struct SUIstatus
     {
-        uint32 m_state;         // main ui state - see enum EUIStates
-        uint32 m_substate;      // 0 means state entry
-        uint32 m_setstate;      // internal state for windows with settings
-        uint32 m_return;        // return value set by inner state for an outer state
-        uint32 main_mode;       // mode for gauge/graph display - selects bw. temperature - humidity - pressure
+        uint32 m_state;             // main ui state - see enum EUIStates
+        uint32 m_substate;          // 0 means state entry
+        uint32 m_setstate;          // internal state for windows with settings
+        uint32 m_return;            // return value set by inner state for an outer state
+        enum UIMainMode main_mode;  // mode for gauge/graph display - selects bw. temperature - humidity - pressure
 
         bool setup_mod;         // true if setup parameter is modified - setup will be saved in eeprom in case of shutdown
         void *ui_elems[ UI_MAX_ELEMS ]; // active elements on the current screen

@@ -91,17 +91,11 @@ static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
         Graphic_PutPixel( 0, 0, 0 );
         Graphic_PutPixel( 118, 0, 0 );
 
-        if ( opmode == UIMODE_GAUDE_THERMO )
+        switch ( opmode )
         {
-            uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" );
-        }
-        else if ( opmode == UIMODE_GAUGE_HYGRO )
-        {
-            uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );
-        }
-        else if ( opmode == UIMODE_GAUGE_PRESSURE )
-        {
-            uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );
+            case UImm_gauge_thermo:     uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" ); break;
+            case UImm_gauge_hygro:      uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );  break;
+            case UImm_gauge_pressure:   uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );   break;
         }
 
         // draw time
@@ -140,6 +134,15 @@ static void uist_internal_disp_all_with_focus()
         ui_element_display( ui.ui_elems[i], (ui.focus - 1) == i );
 }
 
+void internal_drawthermo_minmaxval( int x, int y, int value )
+{
+    if ( value == NUM100_MAX )
+        uigrf_text( x, y, uitxt_small | uitxt_MONO, " HI" );
+    else if ( value == NUM100_MIN )
+        uigrf_text( x, y, uitxt_small | uitxt_MONO, " LO" );
+    else
+        uigrf_putfixpoint( x, y, uitxt_small, value / 10, 3, 1, 0x00, false );
+}
 
 
 ////////////////////////////////////////////////////
@@ -148,66 +151,66 @@ static void uist_internal_disp_all_with_focus()
 //
 ////////////////////////////////////////////////////
 
+
 static inline void uist_draw_gauge_thermo( int redraw_all )
 {
-    int temp = ( 24.00 * 100 );       // testing purpose
-
-    int x, y;
-
-    // temperature display
-    uigrf_putvalue_impact( 13, 17, temp, 3, 2, true );
-
-
-    // min/max set display
-    x = 0;
-    y = 41;
-
-    Graphic_SetColor( 1 );
-    Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
-
-    uigrf_putfixpoint( x, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+28, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+28, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+54, y+8, uitxt_small, -124, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+54, y+16, uitxt_small, -325, 3, 1, 0x00, false );
-
-    // tendency meter
-    x = 77;
-    y = 16;
-    uigrf_putfixpoint( x+4, y+43, uitxt_micro, -2253, 3, 2, 0x00, false );
-    uigrf_text( x+32, y+43, uitxt_micro, "C/MIN" );
-    Graphic_Rectangle( x+27, y+43, x+29, y+45 );    // *C
-
-    // tendency graph
-    uigrf_putnr( x+40, y, uitxt_micro, 20, 2, 0x00, true );
-    uigrf_putnr( x+40, y+36, uitxt_micro, -18, 3, 0x00, true );
-    Graphic_Rectangle( x+40, y+5, x+41, y+35 );
-    Graphic_Rectangle( x, y, x, y+40 );
-
+    if ( redraw_all & RDRW_UI_DYNAMIC )
     {
-        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
-                            12,14,15,30,33,39,40,40,38,34,
-                            30,32,33,33,35,36,32,28,24,23,
-                            22,22,21,18,19,25,26,27,26 };
-        int i, j;
+        // convert temperature from base unit to the selected one
+        int temp;
+        temp = core_utils_temperature2unit( core.measure.measured.temperature, core.setup.show_unit_temp );
+
+        // temperature display
+        if ( temp == NUM100_MAX )
+            uigrf_text( 13, 17, uitxt_smallbold | uitxt_MONO, "HI" );
+        else if ( temp == NUM100_MIN )
+            uigrf_text( 13, 17, uitxt_smallbold | uitxt_MONO, "LO" );
+        else
+            uigrf_putvalue_impact( 13, 17, temp, 3, 2, true );
+
+        // tendency meter
+        uigrf_putfixpoint( 81, 59, uitxt_micro, -2253, 3, 2, 0x00, false );
+    }
+    if ( redraw_all & RDRW_UI_CONTENT )
+    {
+        int x, y;
+        uint32 mms;
+        int unit;
+        // min/max set display
+        x = 0;
+        y = 41;
+
+        mms = core.setup.show_mm_temp;
+        unit = core.setup.show_unit_temp;
 
         Graphic_SetColor( 1 );
+        Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 
-        for (j=0; j<=5; j++)
+        internal_drawthermo_minmaxval( x, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 0 )], unit ) );
+        internal_drawthermo_minmaxval( x, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 0 )], unit ) );
+        internal_drawthermo_minmaxval( x+28, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 1 )], unit ) );
+        internal_drawthermo_minmaxval( x+28, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 1 )], unit ) );
+        internal_drawthermo_minmaxval( x+54, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 2 )], unit ) );
+        internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], unit ) );
+
+        // for tendency meter
+        uigrf_text( 104, 59, uitxt_micro, "*C/MIN" );
+
+        // tendency graph
         {
-            for (i=0; i<=6; i++)
-                Graphic_PutPixel(x+i*6, y+j*8, 1);
+            int up_lim = 20;
+            int dn_lim = -18;
+            uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
+                                12,14,15,30,33,39,40,40,38,34,
+                                30,32,33,33,35,36,32,28,24,23,
+                                22,22,21,18,19,25,26,27,26 };
+
+            uigrf_put_graph_small( 77, 16, values, 39, up_lim, dn_lim, 3, 0 );
+
         }
 
-        for (i=0; i<38; i++)
-        {
-            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
-        }
-
+        uist_internal_disp_all_with_focus();
     }
-
-    uist_internal_disp_all_with_focus();
 }
 
 
@@ -376,19 +379,45 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", 0 );
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", 1 );
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", 2 );
+    uiel_control_list_set_index( &ui.p.mgThermo.units, core.setup.show_unit_temp );
+    ui.ui_elems[0] = &ui.p.mgThermo.units;
+
+    for (i=0; i<3; i++)
+    {
+        uiel_control_list_init( &ui.p.mgThermo.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", mms_set1 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", mms_set2 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", mms_day_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", mms_day_bfr );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
+        uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.setup.show_mm_temp, i) );
+        ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
+    }
+
+    ui.ui_elem_nr = 4;
+}
+
+
+static inline void uist_setview_mainwindowgauge_hygro( void )
+{
+    int i;
+    uiel_control_list_init( &ui.p.mgHygro.units, 52, 16, 20, uitxt_small, 1, false );
+    uiel_control_list_add_item( &ui.p.mgHygro.units, " %", 0 );
+    uiel_control_list_add_item( &ui.p.mgHygro.units, "dew", 1 );
+    uiel_control_list_add_item( &ui.p.mgHygro.units, "g/m3", 2 );
     uiel_control_list_set_index( &ui.p.mgThermo.units, 0 );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 
     for (i=0; i<3; i++)
     {
         uiel_control_list_init( &ui.p.mgThermo.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", 0x00 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", 0x01 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET3", 0x02 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", 0x10 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", 0x20 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", 0x30 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", 0x40 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", mms_set1 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", mms_set2 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", mms_day_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", mms_day_bfr );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
         uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], i );
         ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
     }
@@ -396,10 +425,6 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     ui.ui_elem_nr = 4;
 }
 
-static inline void uist_setview_mainwindowgauge_hygro( void )
-{
-    ui.ui_elem_nr = 0;
-}
 
 static inline void uist_setview_mainwindowgauge_pressure( void )
 {
@@ -430,9 +455,9 @@ static void uist_drawview_mainwindow( int redraw_type )
     {
         switch ( ui.main_mode )
         {
-            case UIMODE_GAUDE_THERMO:   uist_draw_gauge_thermo(redraw_type); break;
-            case UIMODE_GAUGE_HYGRO:    uist_draw_gauge_hygro(redraw_type); break;
-            case UIMODE_GAUGE_PRESSURE: uist_draw_gauge_pressure(redraw_type); break;
+            case UImm_gauge_thermo:   uist_draw_gauge_thermo(redraw_type); break;
+            case UImm_gauge_hygro:    uist_draw_gauge_hygro(redraw_type); break;
+            case UImm_gauge_pressure: uist_draw_gauge_pressure(redraw_type); break;
             break;
         }
     }
@@ -502,9 +527,9 @@ void uist_setupview_mainwindow( bool reset )
     // main windows
     switch ( ui.main_mode )
     {
-        case UIMODE_GAUDE_THERMO:      uist_setview_mainwindowgauge_thermo(); break;
-        case UIMODE_GAUGE_HYGRO:       uist_setview_mainwindowgauge_hygro(); break;
-        case UIMODE_GAUGE_PRESSURE:    uist_setview_mainwindowgauge_pressure(); break;
+        case UImm_gauge_thermo:      uist_setview_mainwindowgauge_thermo(); break;
+        case UImm_gauge_hygro:       uist_setview_mainwindowgauge_hygro(); break;
+        case UImm_gauge_pressure:    uist_setview_mainwindowgauge_pressure(); break;
     }
 }
 
@@ -544,17 +569,21 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
     if ( evmask->timer_tick_10ms )
     {
         int update = 0;
-
-        if ( 0 ) // do it for dynamic modes (will be needed for altimeter)
+        
+        if ( ui.m_state == UI_STATE_MAIN_GAUGE )
         {
-            ui.upd_dynamics++;
-            if ( ui.upd_dynamics == 3 )     // obtain 30fps for dynamic stuff update
+            switch ( ui.main_mode )
             {
-                ui.upd_dynamics = 0;
-                update |= RDRW_UI_DYNAMIC;
+                case UImm_gauge_thermo:
+                    if ( core.measure.dirty.b.upd_temp )
+                        update |= RDRW_UI_DYNAMIC;
+                    if ( core.measure.dirty.b.upd_temp_minmax ||
+                         core.measure.dirty.b.upd_th_tendency )
+                        update |= RDRW_UI_CONTENT;
+                    break;
             }
         }
-
+    
         if ( evmask->timer_tick_05sec )
         {
             ui.upd_batt++;
@@ -617,8 +646,8 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             ui.pwr_dispdim = true;
             ui.pwr_dispoff = true;
             ui.pwr_state = SYSSTAT_UI_STOPPED;
-            if ( ui.main_mode == OPMODE_CABLE )             // if in cable release mode - set display of with immediate action on "Start" button
-                ui.pwr_state = SYSSTAT_UI_STOP_W_SKEY;
+//            if ( ui.main_mode == OPMODE_CABLE )             // if in cable release mode - set display of with immediate action on "Start" button
+//                ui.pwr_state = SYSSTAT_UI_STOP_W_SKEY;
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY | SYSSTAT_UI_STOP_W_SKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
@@ -674,7 +703,7 @@ void uist_startup( struct SEventStruct *evmask )
 
         ui.m_state = UI_STATE_MAIN_GAUGE;
         ui.m_substate = 0;
-        ui.main_mode = UIMODE_GAUDE_THERMO;
+        ui.main_mode = UImm_gauge_thermo;
     }
 }
 
@@ -864,7 +893,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 uist_setupview_mainwindow( true );
                 disp_update = RDRW_ALL;
             }
-            if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UIMODE_GAUGE_PRESSURE) )
+            if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UImm_gauge_pressure) )
             {
                 ui.main_mode++;
                 uist_setupview_mainwindow( true );

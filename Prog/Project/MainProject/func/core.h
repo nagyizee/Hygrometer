@@ -16,51 +16,20 @@
     #include "typedefs.h"
     #include "events_ui.h"
 
-    #define OPMODE_CABLE        0x01
-    #define OPMODE_LONGEXPO     0x02
-    #define OPMODE_SEQUENTIAL   0x04
-    #define OPMODE_TIMER        0x08
-    #define OPMODE_LIGHT        0x10
-    #define OPMODE_SOUND        0x20
-
-    #define OPMODE_COMBINED     0x8000
-
-    #define OPSTATE_STOPPED     0x00
-    #define OPSTATE_MLOCKUP     0x01    // wait for mirror lockup.
-    #define OPSTATE_TIMER       0x02    // wait for timer
-    #define OPSTATE_EXPO        0x04    // exposure (if long expo - count down in seconds, otherwise 1/5 second pulse)
-    #define OPSTATE_WAIT_NEXT   0x08    // wait for next operation (used for sequential shooting)
-    #define OPSTATE_EVENT       0x10    // wait for event (light or sound trigger)
-    #define OPSTATE_CABLEBULB   0x20    // executing cable release bulb mode
-    #define OPSTATE_CABLE       0x40    // cable release simple mode
-
     /*
-     * Valid modes for combinations:
-     * Notations:
-     *      L - long expo
-     *      S - sequential shots
-     *      T - timer
-     *      I - lightning
-     *      V - sound
-     *
-     *  - LS    - sequential shots with long expo. seq.iv. is time between closed shutter. Ttot = seq.nr * ( le.time + seqiv.time )
-     *            sequence starts with [L], continue with [S.iv], cycle for [S.nr]
-     *  - LT    - long expo which starts after timer interval. Ttot = le.time + tmr
-     *            sequence starts with [T], countinues with [L]
-     *  - LI    - long expo started with lighning trigger, retrigger only after expo is ready. Ttot = le.time
-     *            sequence starts with [I], continues with [L]
-     *  - LV    - same as abowe
-     *            sequence starts with [V], continues with [L]
-     *  - LST   - sequential shots with long expo after timer. Ttot = seq.nr * ( le.time + seqiv.time ) + tmr
-     *            sequence starts with [T], continues in:  [L], continued with [S.iv], cycle for [S.nr]
-     *  - TI    - light triggered shot after timer period. Ttot = tmr.
-     *  - TV    - sound triggered shot after timer period. Ttot = tmr.
-     *  - LTI   - light triggered long expo after timer period. Ttot = tmr + le.time.
-     *  - LTV   - sound triggered long expo after timer period. Ttot = tmr + le.time.
-     *  - LSI/V - light or sound triggered sequential long expos
-     *  - LSTI/V- light or sound triggered sequential long expos with timer startup
      *
      */
+
+
+    #define TEMP_FP         9           // use 16bit fixpoint at 9 bits for temperature
+
+
+    #define NUM100_MIN      0x20000000  // minimum below value error
+    #define NUM100_MAX      0x40000000  // maximum abowe value error
+
+    #define STORAGE_MINMAX  6
+
+    #define GET_MM_SET_SELECTOR( value, index )     ( (value >> (4*index)) & 0x0f )
 
     enum EBeepSequence
     {
@@ -70,67 +39,41 @@
         beep_expo_tick = 0x06,      // .   ->  110
         beep_expo_end = 0x07,       // -   ->  111
     };
-        
 
-    struct SADC
+    enum ETemperatureUnits
     {
-        uint32 samples[4];      // DMA buffer - Channel indexes: 0 - Battery,  1 - LowGain,  2 - HighGain,  3 - Temperature
-        uint32 smplmin[2];      // sample minimums for active channel
-        uint32 smplmax[2];      // sample maximums for active channel
-
-        uint32 base;            // mobile base
-        int32  value;           // calculated value after filtering, offsetting and adding gain
-        int32  filter_dly;      // delay element in the low pass filter
-        int32  vmin;            // minimum value
-        int32  vmax;            // maximum value
-
-        bool armed;             // armed for trigger shutter on event - set by application, reset by isr when triggered
-        int adc_in_run;         // 0 - not in run, 1 - light, 2 - sound ( controlled by application - checked by isr )
-        int channel_lock;       // 0 - no channel lock, 1 / 2 - lock low or high gain channel for debug purpose
+        ut_C = 0,                   // *C
+        ut_F,                       // *F
+        ut_K                        // *K
     };
 
-    struct SCoreSetLight
+    enum EMinimumMaximumStorage     // NOTE: keep the nr of elements in sync with STORAGE_MINMAX
     {
-        uint8   gain;           // sensitivity gain         5 - 100%
-        uint8   thold;          // trigger threshold        0 - 50
-        uint8   trig_h;         // trigger on ligther
-        uint8   trig_l;         // trigger on darker
-        bool    bright;         // use amp stage 2 for bright light condition
-        uint32  iv_pretrig;     // pretrigger interval in 100us units
-    };
-
-    struct SCoreSetSound
-    {
-        uint16  iv_pretrig;     // pretrigger interval in 100us units
-        uint8   gain;           // sensitivity gain
-        uint8   thold;          // trigger threshold
-    };
-
+        mms_set1 = 0,               // generic location 1
+        mms_set2,                   // generic location 2
+        mms_day_crt,                // min/max this day
+        mms_week_crt,               // min/max this week
+        mms_day_bfr,                // min/max last day
+        mms_week_bfr                // min/max last week
+    };  
 
 
     struct SCoreSetup
     {
-        timestruct              time_longexpo;
-        uint16                  seq_shotnr;
-        uint16                  seq_interval;       // interval in seconds between shots
-        uint16                  tmr_interval;       // interval in seconds
-        struct SCoreSetLight    light;
-        struct SCoreSetSound    sound;
-        uint8                   mlockup;            // if non-0 then mirror lockup is in use
         uint8                   disp_brt_on;        // display brightness on full power  ( 0x00 - 0x40 )
         uint8                   disp_brt_dim;       // display brightness on dimmed state
-        uint8                   disp_brt_auto;      // use the light sensor to set up display brightness - when selected then the max brightness value is dowscaled as light diminishes
         uint16                  pwr_stdby;          // time for standby mode. - idle state, low ui activity, display dimmed 
         uint16                  pwr_disp_off;       // time for display off. must > t.stdby, display is turned off.
         uint16                  pwr_off;            // time for auto power off.
-        uint16                  shtr_pulse;         // shutter pulse length in x10 ms
         uint32                  beep_on;            // beep in use
         uint16                  beep_hi;            // high pitch
         uint16                  beep_low;           // low pitch
+                                                    // 
+        uint8                   show_unit_temp;     // see ETemperatureUnits for values
+        uint8                   show_mm_press;      // show min/max set for pressure
+        uint16                  show_mm_temp;       // show min/max set for temperature: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
+        uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
     };
-
-
-
 
 
     struct SCoreOperation
@@ -140,12 +83,54 @@
     };
 
 
+    union UUIdirtybits
+    {
+        uint32  val;
+        struct
+        {
+            uint32 upd_battery:1;          // battery measurement updated
+            uint32 upd_temp:1;             // temperature measurement updated
+            uint32 upd_temp_minmax:1;      // temperature minim/maxim updated
+            uint32 upd_hum:1;              // humidity value updated
+            uint32 upd_hum_minmax:1;       // humidity min/max values updated
+            uint32 upd_abshum_minmax:1;    // absolute humidity min/max values updated
+            uint32 upd_th_tendency:1;      // updated tendency value set ( 39 values for temperature/humidity - averaged between samples, shifted at update )
+            uint32 upd_pressure:1;         // barometric pressure updated
+            uint32 upd_press_minmax:1;     // updated min/max values
+            uint32 upd_press_tendency:1;   // updated tendency value set
+        } b;
+    };
+
+    struct SMeasurements
+    {
+        uint16  temperature;        // current temperature in 16fp9 + 40*C base. 0x0000 - means low error, 0xFFFF - means high error
+        int16   dewpoint;           // current dewpoint in x100 *C units
+        uint16  rh;                 // current humidity in x100 %
+        uint16  absh;               // absolute humidity in x100 g/m3
+        uint32  pressure;           // current barometric pressure in x100 hPa
+        
+    };
+
+    struct SMinimMaxim              // 96 bytes
+    {
+        uint16  temp_min[STORAGE_MINMAX];   // minimum temperature values in 16fp9 + 40*C
+        uint16  temp_max[STORAGE_MINMAX];   // maximum temperature values in 16fp9 + 40*C
+        uint16  rh_min[STORAGE_MINMAX];
+        uint16  rh_max[STORAGE_MINMAX];
+        uint16  absh_min[STORAGE_MINMAX];
+        uint16  absh_max[STORAGE_MINMAX];
+        uint16  press_min[STORAGE_MINMAX];
+        uint16  press_max[STORAGE_MINMAX];
+    };
+
 
     struct SCoreMeasure
     {
-        uint8       battery;            // 0 - 100 in % adjusted allready
-        uint8       batt_rdout;         // seconds tick for battery value read out
-        int8        scaled_val;         // scaled value to +/-100 for the measured channel (light or sound)
+        union UUIdirtybits      dirty;      // flags for new values for user interface update
+        struct SMeasurements    measured;   // currently measured and calculated values
+        struct SMinimMaxim      minmax;     // minimum and maximum values
+        uint8       battery;                // 0 - 100 in % adjusted allready
+        uint8       batt_rdout;             // seconds tick for battery value read out
     };
 
 
@@ -157,10 +142,16 @@
         struct SCoreMeasure     measure;
     };
 
+
     int  core_init( struct SCore **instance );
     void core_poll( struct SEventStruct *evmask );
     int  core_get_pwrstate();
     void core_update_battery();
+
+    // convert 16fp9 temperature to the given unit in x100 integer format
+    int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit );
+
+
     uint32 core_get_clock_counter();
     void core_set_clock_counter( uint32 counter );
 

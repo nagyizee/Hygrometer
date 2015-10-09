@@ -136,7 +136,7 @@ extern void DispHAL_ISR_Poll(void);
 /////////////////////////////////////////////////////
 
 
-void core_update_battery()
+static void local_update_battery()
 {
     uint32 battery;
     battery = HW_ADC_GetBattery();
@@ -151,6 +151,82 @@ void core_update_battery()
     // scale to 0 - 100%
     core.measure.battery = (uint8)((battery * 100) / VBAT_DIFF);     
 }
+
+static int local_calculate_dewpoint( int temp, int rh )
+{
+
+}
+
+static int local_calculate_abs_humidity( int temp, int rh )
+{
+
+}
+
+
+static inline void local_poll_measurements( void )
+{
+    int msr;
+
+    // acquire the measured parameters
+    msr = HWDBG_Get_Temp();
+    if ( msr != core.measure.measured.temperature )
+    {
+        core.measure.measured.temperature = msr;
+        core.measure.dirty.b.upd_temp = 1;
+    }
+    msr = HWDBG_Get_Humidity();
+    if ( msr != core.measure.measured.rh )
+    {
+        core.measure.measured.rh = msr;
+        core.measure.dirty.b.upd_hum = 1;
+    }
+    msr = HWDBG_Get_Pressure();
+    if ( msr != core.measure.measured.pressure )
+    {
+        core.measure.measured.pressure = msr;
+        core.measure.dirty.b.upd_pressure = 1;
+    }
+
+    // calculate derivated values
+    msr = local_calculate_dewpoint( core.measure.measured.temperature, core.measure.measured.rh );
+    if ( msr != core.measure.measured.dewpoint )
+    {
+        core.measure.measured.dewpoint = msr;
+        core.measure.dirty.b.upd_hum = 1;
+    }
+    msr = local_calculate_abs_humidity( core.measure.measured.temperature, core.measure.measured.rh );
+    if ( msr != core.measure.measured.absh )
+    {
+        core.measure.measured.absh = msr;
+        core.measure.dirty.b.upd_hum = 1;
+    }
+}
+
+/////////////////////////////////////////////////////
+//
+//   main routines
+//
+/////////////////////////////////////////////////////
+
+int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit )
+{
+    if ( temp16fp9 == 0 )
+        return NUM100_MIN;
+    if ( temp16fp9 == 0xffff )
+        return NUM100_MAX;
+
+    switch ( unit )
+    {
+        case ut_C:
+            return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) - 4000;
+        case ut_F:
+            return (int)( ( ((int)temp16fp9 * 900) / 5 ) >> TEMP_FP ) - 4000;       // see the mathcad sheet why this formula
+        case ut_K:
+            return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) + 23315;              // substract the 40*C from the 273.15*K
+    }
+    return 0;
+}
+
 
 
 uint32 core_get_clock_counter()
@@ -170,14 +246,6 @@ void core_set_clock_counter( uint32 counter )
     //TBD if something needs to be done for alarm setup/etc.
     __enable_interrupt();
 }
-
-
-/////////////////////////////////////////////////////
-//
-//   main routines
-//
-/////////////////////////////////////////////////////
-
 
 //-------------------------------------------------
 //     Setup save / load
@@ -212,7 +280,6 @@ int core_setup_reset( bool save )
 
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
-    setup->disp_brt_auto = 0;
     setup->pwr_stdby = 30;       // 30sec standby
     setup->pwr_disp_off = 60;    // 1min standby
     setup->pwr_off = 300;        // 5min pwr off
@@ -220,6 +287,11 @@ int core_setup_reset( bool save )
     setup->beep_on = 1;
     setup->beep_hi = 1554;
     setup->beep_low = 2152;
+
+    setup->show_unit_temp = ut_C;
+    setup->show_mm_temp = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
+    setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
+    setup->show_mm_press = mms_set1;
 
     if ( save )
     {
@@ -286,7 +358,7 @@ int core_init( struct SCore **instance )
     if ( core_setup_load() )
         goto _err_exit;
 
-    core_update_battery();
+    local_update_battery();
     BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
     return 0;
 
@@ -297,11 +369,14 @@ _err_exit:
 
 void core_poll( struct SEventStruct *evmask )
 {
-    // poll the started state
-    if ( 0 ) //core.op.op_state )
+    if ( evmask->timer_tick_05sec )
     {
+        // do the measurements at 1/2 seconds
+        local_poll_measurements();
 
     }
+
+
     return;
 }
 

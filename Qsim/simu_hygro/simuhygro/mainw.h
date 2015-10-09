@@ -47,8 +47,13 @@ private slots:
     void on_btn_esc_pressed();
     void on_btn_esc_released();
 
+    void on_num_temperature_valueChanged(double arg1);
+    void on_num_humidity_valueChanged(double arg1);
+    void on_num_pressure_valueChanged(double arg1);
+
 
     void on_tb_time_editingFinished();
+
 
 private:
     Ui::mainw *ui;
@@ -56,6 +61,9 @@ private:
     graph_disp *graph;
 
     bool buttons[8];
+    int ms_temp;
+    int ms_hum;
+    int ms_press;
 
     QGraphicsScene *scene;
     QGraphicsPixmapItem *G_item;

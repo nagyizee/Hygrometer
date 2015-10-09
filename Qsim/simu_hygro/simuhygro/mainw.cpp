@@ -40,6 +40,14 @@ mainw::mainw(QWidget *parent) :
     ticktimer->start( TIMER_INTERVAL );
     HW_wrapper_setup( TIMER_INTERVAL );
 
+    ms_temp = 23.54;
+    ms_hum = 56.7;
+    ms_press = 1013.25;
+
+    ui->num_temperature->setValue( ms_temp );
+    ui->num_humidity->setValue( ms_hum );
+    ui->num_pressure->setValue( ms_press );
+
     //--- test phase
     qsrand(0x64892354);
     main_entry( NULL );
@@ -136,4 +144,6 @@ void mainw::on_btn_ok_released() { buttons[BTN_OK] = false; }
 void mainw::on_btn_esc_pressed()  { buttons[BTN_ESC] = true; }
 void mainw::on_btn_esc_released() { buttons[BTN_ESC] = false; }
 
-
+void mainw::on_num_temperature_valueChanged(double arg1) { ms_temp = (arg1 * 100); }
+void mainw::on_num_humidity_valueChanged(double arg1) { ms_hum = (arg1 * 100); }
+void mainw::on_num_pressure_valueChanged(double arg1) { ms_press = (arg1 * 100); }

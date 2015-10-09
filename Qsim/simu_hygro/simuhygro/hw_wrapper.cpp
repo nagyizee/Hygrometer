@@ -259,17 +259,24 @@ void mainw::HW_wrapper_DBG( int val )
 
 int mainw::HW_wrapper_get_temperature()
 {
-    return (ui->num_temperature->value() * 100);
+    double val =ui->num_temperature->value();
+
+    if ( val > 87.99 )
+        return 0xffff;
+    if ( val < -39.99 )
+        return 0;
+
+    return (int)( (val + 40) * (1 << TEMP_FP) );
 }
 
 int mainw::HW_wrapper_get_humidity()
 {
-    return (ui->num_humidity->value() * 10);
+    return ms_hum;
 }
 
 int mainw::HW_wrapper_get_pressure()
 {
-    return (ui->num_pressure->value() * 1000);
+    return ms_press;
 }
 
 void mainw::HW_wrapper_Beep( int op )

@@ -369,25 +369,16 @@ const uint16 bitmap_datasz[] = { 708, 26, 26, 26,
 const char mounthname[] = "IAN\0FEB\0MAR\0APR\0MAY\0JUN\0JUL\0AUG\0SEP\0OCT\0NOV\0DEC\0";
 
 
-static int internal_10pow( int pow )
+int poz_2_increment( int poz )
 {
-    switch ( pow )
+    int i;
+    int val = 1;
+    for (i=0; i<poz; i++)
     {
-        case 0: return 1;
-        case 1: return 10;
-        case 2: return 100;
-        case 3: return 1000;
-        case 4: return 10000;
-        case 5: return 100000;
-        case 6: return 1000000;
-        case 7: return 10000000;
-        case 8: return 100000000;
-        default:
-            return 0;
+        val = val * 10;
     }
-    return 0;
+    return val;
 }
-
 
 static void internal_display_number( int value, int chnr, char fillchar, uint32 radix, bool force_sign, bool force_minus )
 {
@@ -510,10 +501,6 @@ void uigrf_draw_scale( int y, int thold, int maxptr, int minptr, bool centered, 
 }
 
 
-
-
-
-
 void grf_setup_font( enum Etextstyle style, int color, int backgnd )
 {
     bool mono;
@@ -578,17 +565,6 @@ void uigrf_text_mono( int x, int y, enum Etextstyle style, char *text, bool spec
     }
 }
 
-int poz_2_increment( int poz )
-{
-    int i;
-    int val = 1;
-    for (i=0; i<poz; i++)
-    {
-        val = val * 10;
-    }
-    return val;
-}
-
 void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill, bool show_plus_sign )
 {
     grf_setup_font( style, 1, 0 );
@@ -617,6 +593,8 @@ void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits,
     internal_display_number( nr/div, len, fill, 10, show_plus_sign, false );
     Gtext_PutChar('.');
     nr = nr % div;
+    if ( nr < 0 )
+        nr = -nr;
     internal_display_number( nr, fp, '0', 10, false, false );
 }
 
@@ -728,8 +706,8 @@ void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_d
     grf_setup_font( uitxt_large_num | uitxt_MONO , 1, 0 );
     Gtext_SetCoordinates( x, y );
 
-    int_val = value / internal_10pow(small_digits);
-    fract_val = value % internal_10pow(small_digits);
+    int_val = value / poz_2_increment(small_digits);
+    fract_val = value % poz_2_increment(small_digits);
     if ( fract_val < 0 )
         fract_val = -fract_val;
 
@@ -777,4 +755,33 @@ void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_d
 }
 
 
+void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int disp_up_lim, int disp_btm_lim, int digits, int decimalp )
+{
+    int i, j;
 
+    grf_setup_font( uitxt_micro | uitxt_MONO, 1, 0 );
+
+    Gtext_SetCoordinates( x+40, y );
+    if ( decimalp == 0 )
+        internal_display_number( disp_up_lim, digits, ' ', 10, false, false );
+
+    Gtext_SetCoordinates( x+40, y+36 );
+    if ( decimalp == 0 )
+        internal_display_number( disp_btm_lim, digits, ' ', 10, false, false );
+    
+    Graphic_Rectangle( x+40, y+5, x+41, y+35 );
+    Graphic_Rectangle( x, y, x, y+40 );
+
+    Graphic_SetColor( 1 );
+
+    for (j=0; j<=5; j++)
+    {
+        for (i=0; i<=6; i++)
+            Graphic_PutPixel(x+i*6, y+j*8, 1);
+    }
+
+    for (i=0; i<(length-1); i++)
+    {
+        Graphic_Line( x+1+i, y+40-array[i], x+2+i, y+40-array[i+1] );
+    }
+}

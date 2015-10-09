@@ -132,7 +132,7 @@ bool HW_Sleep(int mode);
 void HWDBG( int val );
 
 
-int HWDBG_Get_Temp();
+int HWDBG_Get_Temp();           // temperature in 16fp9 + 40*C
 int HWDBG_Get_Humidity();
 int HWDBG_Get_Pressure();
 
