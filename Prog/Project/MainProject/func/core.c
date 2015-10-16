@@ -358,6 +358,8 @@ int core_init( struct SCore **instance )
     if ( core_setup_load() )
         goto _err_exit;
 
+    Sensors_Init();
+
     local_update_battery();
     BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
     return 0;

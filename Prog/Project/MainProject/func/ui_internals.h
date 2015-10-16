@@ -30,6 +30,7 @@
         UImm_gauge_pressure,
     };
 
+
     // user interface substate
     #define UI_SUBST_ENTRY          0
 
@@ -52,6 +53,7 @@
     {
         struct Suiel_control_list    units;
         struct Suiel_control_list    minmaxset[3];
+        enum ETemperatureUnits       unitT;
     };
 
     struct SUIMainGaugeHygro

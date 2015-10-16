@@ -101,7 +101,8 @@ void mainw::TimerTick()
             send_tick = false;
         }
 
-        TimerSysIntrHandler();    // timer interval - 500us
+        TimerSysIntrHandler();    // timer interval - 1ms
+        Sensor_simu_poll();
         sec_ctr++;
         if ( sec_ctr == 1000 )
         {

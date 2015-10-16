@@ -101,6 +101,32 @@ void DispHAL_UpdateScreen();
 void DispHAL_ISR_Poll();
 void CoreADC_ISR_Complete();
 void Core_ISR_PretriggerCompleted();
+
+
+#define SENSOR_TEMP     0x01
+#define SENSOR_RH       0x02
+#define SENSOR_PRESS    0x04
+
+#define SENSOR_VALUE_FAIL 0xffffffff
+
+// init sensor module
+void Sensors_Init();
+// shut down individual sensor block ( RH and temp are in one - they need to be provided in pair )
+void Sensors_Shutdown( uint32 mask );
+// set up acquire request on one or more sensors ( it will wake up the sensor if needed )
+void Sensors_Acquire( uint32 mask );
+// check the sensor state - returning a mask with the sensors which have read out value
+uint32 Sensor_Is_Ready(void);
+// check the sensor state - returning a mask busy sensors
+uint32 Sensor_Is_Busy(void);
+// get the acquired value from the sensor (returns the base formatted value from a sensor - Temp: 16fp9+40*, RH: 16fp8, Press: TBD) and clears the reagy flag
+uint32 Sensor_Get_Value( uint32 sensor );
+// sensor submodule polling
+void Sensor_Poll(bool tick_ms);
+
+// polled for each ms
+void Sensor_simu_poll();
+
 // they don't belong here normally
 
 void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment

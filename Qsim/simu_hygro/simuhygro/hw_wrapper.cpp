@@ -347,6 +347,148 @@ void mainw::on_tb_time_editingFinished()
 
 
 /////////////////////////////////////////////////////
+// Sensor emulation
+/////////////////////////////////////////////////////
+
+struct 
+{
+    int time_ctr_RH;            // result lag simulation for the Temp/RH sensor
+    int time_ctr_Press;         // result lag for Pressure sensor
+    bool RH_up;                 // if sensor is shut down - additional time is considered
+    bool Press_up;              //
+
+    uint32 in_progress;         // measurement in progress
+    uint32 ready;               // measurement is ready
+
+} sens;
+
+
+
+void Sensors_Init()
+{
+    memset( &sens, 0, sizeof(sens));
+}
+
+void Sensors_Shutdown( uint32 mask )
+{
+    if ( (mask & ( SENSOR_TEMP | SENSOR_RH )) == ( SENSOR_TEMP | SENSOR_RH ) )
+    {
+        sens.ready &= ~SENSOR_TEMP;
+        sens.ready &= ~SENSOR_RH;
+        sens.RH_up = false;
+    }
+    if ( mask & SENSOR_PRESS )
+    {
+        sens.ready &= ~SENSOR_PRESS;
+        sens.Press_up = false;
+    }
+}
+
+void Sensors_Acquire( uint32 mask )
+{
+    if ( (mask & SENSOR_TEMP) && ((sens.in_progress & SENSOR_TEMP) == 0) )
+    {
+        if ( sens.RH_up == false )
+            sens.time_ctr_RH = 15 + 70;      // 15ms start-up + 70ms read time
+        else
+            sens.time_ctr_RH = 70;           // 70ms read time
+        sens.RH_up = true;
+        sens.in_progress |= SENSOR_TEMP;
+        sens.ready &= ~SENSOR_TEMP;
+    }
+    if ( (mask & SENSOR_RH) && ((sens.in_progress & SENSOR_RH) == 0) )
+    {
+        if ( sens.RH_up == false )
+            sens.time_ctr_RH = 15 + 25;      // 15ms start-up + 25ms read time
+        else
+            sens.time_ctr_RH = 25;           // 70ms read time
+        sens.RH_up = true;
+        sens.in_progress |= SENSOR_RH;
+        sens.ready &= ~SENSOR_RH;
+    }
+    if ( (mask & SENSOR_PRESS) && ((sens.in_progress & SENSOR_PRESS) == 0) )
+    {
+        if ( sens.Press_up == false )
+            sens.time_ctr_Press = 50 + 80;       // 50ms start-up + 80ms read time
+        else
+            sens.time_ctr_Press = 80;            // 40ms read time for 8x oversample
+        sens.Press_up = true;
+        sens.in_progress |= SENSOR_PRESS;
+        sens.ready &= ~SENSOR_PRESS;
+    }
+}
+
+uint32 Sensor_Is_Ready(void)
+{
+    return sens.ready;
+}
+
+uint32 Sensor_Is_Busy(void)
+{
+    return sens.in_progress;
+}
+
+uint32 Sensor_Get_Value( uint32 sensor )
+{
+    switch ( sensor )
+    {
+        case SENSOR_TEMP:
+            if ( (sens.ready & SENSOR_TEMP) == 0 )
+                return SENSOR_VALUE_FAIL;
+            sens.ready &= ~SENSOR_TEMP;
+            return pClass->HW_wrapper_get_temperature();
+        case SENSOR_PRESS:
+            if ( (sens.ready & SENSOR_PRESS) == 0 )
+                return SENSOR_VALUE_FAIL;
+            sens.ready &= ~SENSOR_PRESS;
+            return pClass->HW_wrapper_get_pressure();
+        case SENSOR_RH:
+            if ( (sens.ready & SENSOR_RH) == 0 )
+                return SENSOR_VALUE_FAIL;
+            sens.ready &= ~SENSOR_RH;
+            return pClass->HW_wrapper_get_humidity();
+        default:
+            return SENSOR_VALUE_FAIL;
+    }
+    return SENSOR_VALUE_FAIL;
+}
+
+void Sensor_simu_poll()
+{
+    if ( sens.in_progress & SENSOR_TEMP )
+    {
+        if ( sens.time_ctr_RH == 0 )
+        {
+            sens.in_progress &= ~SENSOR_TEMP;
+            sens.ready |= SENSOR_TEMP;
+        }
+        else
+            sens.time_ctr_RH--;
+    }
+    if ( sens.in_progress & SENSOR_RH )
+    {
+        if ( sens.time_ctr_RH == 0 )
+        {
+            sens.in_progress &= ~SENSOR_RH;
+            sens.ready |= SENSOR_RH;
+        }
+        else
+            sens.time_ctr_RH--;
+    }
+    if ( sens.in_progress & SENSOR_PRESS )
+    {
+        if ( sens.time_ctr_Press == 0 )
+        {
+            sens.in_progress &= ~SENSOR_PRESS;
+            sens.ready |= SENSOR_PRESS;
+        }
+        else
+            sens.time_ctr_Press--;
+    }
+}
+
+
+/////////////////////////////////////////////////////
 // EEPROM emulation
 /////////////////////////////////////////////////////
 

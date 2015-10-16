@@ -158,7 +158,7 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
     {
         // convert temperature from base unit to the selected one
         int temp;
-        temp = core_utils_temperature2unit( core.measure.measured.temperature, core.setup.show_unit_temp );
+        temp = core_utils_temperature2unit( core.measure.measured.temperature, ui.p.mgThermo.unitT );
 
         // temperature display
         if ( temp == NUM100_MAX )
@@ -181,7 +181,7 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         y = 41;
 
         mms = core.setup.show_mm_temp;
-        unit = core.setup.show_unit_temp;
+        unit = ui.p.mgThermo.unitT;
 
         Graphic_SetColor( 1 );
         Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
@@ -194,8 +194,13 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], unit ) );
 
         // for tendency meter
-        uigrf_text( 104, 59, uitxt_micro, "*C/MIN" );
-
+        switch ( unit )
+        {
+            case ut_C: uigrf_text( 104, 59, uitxt_micro, "*C/MIN" ); break;
+            case ut_F: uigrf_text( 104, 59, uitxt_micro, "*F/MIN" ); break;
+            case ut_K: uigrf_text( 104, 59, uitxt_micro, "*K/MIN" ); break;
+        }
+        
         // tendency graph
         {
             int up_lim = 20;
@@ -376,9 +381,9 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
 {
     int i;
     uiel_control_list_init( &ui.p.mgThermo.units, 52, 16, 11, uitxt_small, 1, false );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", 0 );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", 1 );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", 2 );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", ut_C );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", ut_F );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", ut_K );
     uiel_control_list_set_index( &ui.p.mgThermo.units, core.setup.show_unit_temp );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 
@@ -396,6 +401,8 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     }
 
     ui.ui_elem_nr = 4;
+
+    ui.p.mgThermo.unitT = core.setup.show_unit_temp;
 }
 
 
@@ -599,6 +606,13 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
     return 0;
 }
 
+static void uist_goto_shutdown(void)
+{
+    ui.m_state = UI_STATE_SHUTDOWN;
+    ui.m_substate = 0;
+}
+
+
 
 static inline void ui_power_management( struct SEventStruct *evmask )
 {
@@ -660,11 +674,49 @@ static inline void ui_power_management( struct SEventStruct *evmask )
     }
 }
 
-static void uist_goto_shutdown(void)
+
+
+static inline bool ui_imchanges_gauge_thermo( bool to_default )
 {
-    ui.m_state = UI_STATE_SHUTDOWN;
-    ui.m_substate = 0;
+    if ( ui.focus == 1 )        // check for units changed
+    {
+        if ( to_default )
+        {
+            ui.p.mgThermo.unitT = core.setup.show_unit_temp;
+            uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
+            return true;
+        }
+        else
+        {
+            int val = uiel_control_list_get_index( &ui.p.mgThermo.units );
+            if ( val != ui.p.mgThermo.unitT )
+            {
+                ui.p.mgThermo.unitT = val;
+                return true;
+            }
+        }
+    }
+    return false;
 }
+
+
+
+static bool ui_process_intermediate_changes( bool to_default )
+{
+    switch ( ui.m_state )
+    {
+        case UI_STATE_MAIN_GAUGE:
+            switch ( ui.main_mode )
+            {
+                case UImm_gauge_thermo: return ui_imchanges_gauge_thermo(to_default);
+
+            }
+            break;
+    }
+    return false;
+}
+
+
 
 
 ////////////////////////////////////////////////////
@@ -857,7 +909,11 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         {
             // operations if focus on ui elements
             if ( ui_element_poll( ui.ui_elems[ ui.focus - 1], evmask ) )
+            {
                 disp_update  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
+                if ( ui_process_intermediate_changes( false ) )
+                    disp_update |= RDRW_UI_CONTENT_ALL;
+            }
 
             // move focus to the next element
             if ( evmask->key_pressed & KEY_RIGHT )
@@ -883,6 +939,13 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 ui.focus = 0;
                 disp_update |= RDRW_UI_CONTENT;
             }
+            // long press on escape
+            if ( evmask->key_longpressed & KEY_ESC )
+            {
+                ui_process_intermediate_changes( true );
+                disp_update |= RDRW_UI_CONTENT_ALL;
+            }
+
         }
         else
         {
