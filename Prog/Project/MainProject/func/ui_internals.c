@@ -308,9 +308,9 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         // for tendency meter
         switch ( unit )
         {
-            case ut_C: uigrf_text( 104, 59, uitxt_micro, "*C/MIN" ); break;
-            case ut_F: uigrf_text( 104, 59, uitxt_micro, "*F/MIN" ); break;
-            case ut_K: uigrf_text( 104, 59, uitxt_micro, "*K/MIN" ); break;
+            case tu_C: uigrf_text( 104, 59, uitxt_micro, "*C/MIN" ); break;
+            case tu_F: uigrf_text( 104, 59, uitxt_micro, "*F/MIN" ); break;
+            case tu_K: uigrf_text( 104, 59, uitxt_micro, "*K/MIN" ); break;
         }
 
         // tendency graph
@@ -494,9 +494,9 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
 {
     int i;
     uiel_control_list_init( &ui.p.mgThermo.units, 52, 16, 11, uitxt_small, 1, false );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", ut_C );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", ut_F );
-    uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", ut_K );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", tu_C );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", tu_F );
+    uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", tu_K );
     uiel_control_list_set_index( &ui.p.mgThermo.units, core.setup.show_unit_temp );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 

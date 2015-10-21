@@ -7,7 +7,7 @@
 #include "events_ui.h"
 
 #define TIMER_INTERVAL          20       // 20ms
-#define TICKS_TO_SIMULATE       60       // timer tick is on 500us -> 2000 timer ticks in 1 sec.  => 40 ticks in 20ms
+#define TICKS_TO_SIMULATE       60       // to obtain 1sec simulated time ( 1000cycles of 1ms timer )
 
 
 mainw::mainw(QWidget *parent) :

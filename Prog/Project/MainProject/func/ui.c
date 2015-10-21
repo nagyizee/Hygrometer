@@ -164,6 +164,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             DispHAL_Display_On();
             ui.pwr_dispoff = false;
         }
+        core_op_realtime_sensor_select( ui.main_mode + 1 );
     }
     else if ( evmask->timer_tick_1sec )
     {
@@ -186,8 +187,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             ui.pwr_dispdim = true;
             ui.pwr_dispoff = true;
             ui.pwr_state = SYSSTAT_UI_STOPPED;
-//            if ( ui.main_mode == OPMODE_CABLE )             // if in cable release mode - set display of with immediate action on "Start" button
-//                ui.pwr_state = SYSSTAT_UI_STOP_W_SKEY;
+            core_op_realtime_sensor_select( 0 );
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY | SYSSTAT_UI_STOP_W_SKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
@@ -377,6 +377,7 @@ void uist_mainwindowgauge_entry( void )
     uist_setupview_mainwindow( true );
     uist_drawview_mainwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
+    core_op_realtime_sensor_select( ui.main_mode + 1 );
     ui.m_substate ++;
 }
 
@@ -439,6 +440,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 uist_setupview_mainwindow( true );
                 disp_update = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
+                core_op_realtime_sensor_select( ui.main_mode + 1 );
             }
             if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UImm_gauge_pressure) )
             {
@@ -446,6 +448,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 uist_setupview_mainwindow( true );
                 disp_update = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
+                core_op_realtime_sensor_select( ui.main_mode + 1 );
             }
             if ( evmask->key_pressed & KEY_OK )    // enter in edit mode
             {

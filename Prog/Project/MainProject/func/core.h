@@ -61,9 +61,9 @@
 
     enum ETemperatureUnits
     {
-        ut_C = 0,                   // *C
-        ut_F,                       // *F
-        ut_K                        // *K
+        tu_C = 0,                   // *C
+        tu_F,                       // *F
+        tu_K                        // *K
     };
 
     enum EMinimumMaximumStorage     // NOTE: keep the nr of elements in sync with STORAGE_MINMAX
@@ -105,7 +105,7 @@
         uint16                  show_mm_temp;       // show min/max set for temperature: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
         uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
 
-        uint8                   tim_tend_temp;      // tendency update timing for temperature - see enum EUpdateTimings for values
+        uint8                   tim_tend_temp;      // tendency update rate for temperature - see enum EUpdateTimings for values
     };
 
     union UCoreOperationFlags
@@ -119,13 +119,9 @@
         } b;
         uint32 val;
     };
-    
-    struct SSensorRead
-    {
-        uint32  sch_hygro;          // RTC schedule for the next hygro read
-        uint32  sch_thermo;         // RTC schedule for the next temperature read
-        uint32  sch_press;          // RTC schedule for the next pressure read - if CORE_SCHED_PRESS_ALTIMETER - the sensor is set up for fast read-out
 
+    struct SSensorReadAvgMonitoring
+    {
         uint16  avg_ctr_temp;       // count the averages for temperature
         uint16  avg_ctr_hygro;      // count the averages for RH and absolute humidity
         uint16  avg_ctr_press;      // count the averages for pressure
@@ -136,6 +132,15 @@
         uint32  avg_sum_press;      // sum of values for pressure
 
         uint32  sch_moni_temp;
+    };
+
+    struct SSensorRead
+    {
+        uint32  sch_hygro;          // RTC schedule for the next hygro read
+        uint32  sch_thermo;         // RTC schedule for the next temperature read
+        uint32  sch_press;          // RTC schedule for the next pressure read - if CORE_SCHED_PRESS_ALTIMETER - the sensor is set up for fast read-out
+
+        struct SSensorReadAvgMonitoring moni;   // monitoring
     };
 
     struct SCoreOperation
@@ -241,10 +246,12 @@
     int core_setup_reset( bool save );
     int core_setup_load( void );
 
-    // sensor readout frequency setup. Item points to the measurement type - use SENSOR_XXX defines, real_time - set by UI when value should be acquired at max. rate for screen refresh
-    int core_acquire_set_frequency( uint32 item, bool real_time );
-
-
+    // the selected sensor will update it's readings in real time
+    void core_op_realtime_sensor_select( enum ESensorSelect sensor );
+    // enable or disable the monitoring feature. By disabling - all the tendency values will be cleared
+    void core_op_monitoring_switch( bool enable );
+    // sets the sample timing of the tendency monitoring. This will clear up the tendency graph of the affected sensor
+    void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings timing );
 
 
 

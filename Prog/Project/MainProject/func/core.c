@@ -30,7 +30,7 @@
  *
  *              - monitoring mode: - UI will refresh the readings of the current sensor in real time,
  *                                the other sensors are read at monitoring period (2sec. TBD), min/max values are processed, measurements
- *                                are averaged for monitoring rate (10sec, 30sec, 1min, 5min, 30min)
+ *                                are averaged for monitoring rate (10sec, 30sec, 1min, 5min, 30min) for tendency update
  *
  *              - registering mode: - UI will refresh the readings of the current sensor in real time,
  *                                the other sensors are read at monitoring period (2sec. TBD) in case of high rate or low rate w averaging, values are
@@ -193,6 +193,21 @@ static uint32 internal_time_unit_2_seconds( uint32 time_unit )
     }
 }
 
+static void internal_clear_monitoring(void)
+{
+    // clear monitoring averages and schedules
+    memset( &core.op.sread.moni, 0, sizeof(core.op.sread.moni) );
+
+    // clear tendency graphs
+    core.measure.tendency.temp.c = 0;
+    core.measure.tendency.temp.w = 0;
+    core.measure.tendency.RH.c = 0;
+    core.measure.tendency.RH.w = 0;
+    core.measure.tendency.abshum.c = 0;
+    core.measure.tendency.abshum.w = 0;
+    core.measure.tendency.press.c = 0;
+    core.measure.tendency.press.w = 0;
+}
 
 static void local_update_battery()
 {
@@ -260,15 +275,15 @@ static inline void local_process_temp_sensor_result( uint32 temp )
         if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
             temp = 0x0001;
 
-        core.op.sread.avg_sum_temp += temp;
-        core.op.sread.avg_ctr_temp++;
+        core.op.sread.moni.avg_sum_temp += temp;
+        core.op.sread.moni.avg_ctr_temp++;
         // if scheduled tendency update reached - update the tendency list
-        if ( core.op.sread.sch_moni_temp <= RTCclock )  
+        if ( core.op.sread.moni.sch_moni_temp <= RTCclock )
         {
             int w_temp = core.measure.tendency.temp.w;
             int c_temp = core.measure.tendency.temp.c;
             // store the average of the measurements
-            core.measure.tendency.temp.value[ w_temp++ ] = core.op.sread.avg_sum_temp / core.op.sread.avg_ctr_temp;
+            core.measure.tendency.temp.value[ w_temp++ ] = core.op.sread.moni.avg_sum_temp / core.op.sread.moni.avg_ctr_temp;
             if ( w_temp == STORAGE_TENDENCY )
                 w_temp = 0;
             if ( c_temp < STORAGE_TENDENCY )
@@ -276,9 +291,9 @@ static inline void local_process_temp_sensor_result( uint32 temp )
             core.measure.tendency.temp.w = w_temp;
             core.measure.tendency.temp.c = c_temp;
             // clean up the average and set up for the next session
-            core.op.sread.avg_ctr_temp = 0;
-            core.op.sread.avg_sum_temp = 0;
-            core.op.sread.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+            core.op.sread.moni.avg_ctr_temp = 0;
+            core.op.sread.moni.avg_sum_temp = 0;
+            core.op.sread.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
             // notify the UI to update
             core.measure.dirty.b.upd_th_tendency = 1;
         }
@@ -341,11 +356,11 @@ int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit )
 
     switch ( unit )
     {
-        case ut_C:
+        case tu_C:
             return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) - 4000;
-        case ut_F:
+        case tu_F:
             return (int)( ((int)temp16fp9 * 180) >> TEMP_FP ) - 4000;       // see the mathcad sheet why this formula
-        case ut_K:
+        case tu_K:
             return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) + 23315;              // substract the 40*C from the 273.15*K
     }
     return 0;
@@ -355,19 +370,19 @@ uint32 core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit )
 {
     switch ( unit )
     {
-        case ut_C:
+        case tu_C:
             if ( temp100 >= 8800 )
                 return 0xffff;
             if ( temp100 <= -4000 )
                 return 0x0000;
             return (( temp100 + 4000 ) << TEMP_FP) / 100;
-        case ut_F:
-            if ( temp100 >= 1904 )      // 88*C
+        case tu_F:
+            if ( temp100 >= 19040 )     // 88*C
                 return 0xffff;
             if ( temp100 <= -4000 )     // -40*C
                 return 0x0000;
             return (( temp100 + 4000 ) << TEMP_FP) / 180;
-        case ut_K:
+        case tu_K:
             if ( temp100 >= 36115 )
                 return 0xffff;
             if ( temp100 <= 23315 )
@@ -395,6 +410,15 @@ void core_set_clock_counter( uint32 counter )
     RTCctr = counter;
     //TBD if something needs to be done for alarm setup/etc.
     __enable_interrupt();
+}
+
+
+void core_beep( enum EBeepSequence beep )
+{
+    if ( core.setup.beep_on )
+    {
+        BeepSequence( (uint32)beep );
+    }
 }
 
 //-------------------------------------------------
@@ -438,7 +462,7 @@ int core_setup_reset( bool save )
     setup->beep_hi = 1554;
     setup->beep_low = 2152;
 
-    setup->show_unit_temp = ut_C;
+    setup->show_unit_temp = tu_C;
     setup->show_mm_temp = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_press = mms_set1;
@@ -485,15 +509,58 @@ int core_setup_load( void )
 }
 
 
-void core_beep( enum EBeepSequence beep )
+void core_op_realtime_sensor_select( enum ESensorSelect sensor )
 {
-    if ( core.setup.beep_on )
+    if ( sensor == ss_none )
+        core.op.op_flags.b.sens_real_time = 0;
+    switch ( sensor )
     {
-        BeepSequence( (uint32)beep );
+        case ss_thermo:
+            if ( core.op.sread.sch_thermo < RTCclock )
+                core.op.sread.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            break;
+    }
+
+}
+
+void core_op_monitoring_switch( bool enable )
+{
+    if ( enable == false )
+    {
+        // disabling monitoring - clean up the 
+        core.op.op_flags.b.op_monitoring = 0;
+        internal_clear_monitoring();
+    }
+    else if ( core.op.op_flags.b.op_monitoring == 0 )
+    {
+        internal_clear_monitoring();
+        core.op.sread.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+        core.op.op_flags.b.op_monitoring = 1;
     }
 }
 
-
+void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings timing )
+{
+    if ( sensor == ss_none )
+        return;
+    switch ( sensor )
+    {
+        case ss_thermo: 
+            if ( core.setup.tim_tend_temp != timing )
+            {
+                core.setup.tim_tend_temp = timing;
+                if ( core.op.op_flags.b.op_monitoring )
+                {
+                    core.op.sread.moni.avg_ctr_temp = 0;
+                    core.op.sread.moni.avg_sum_temp = 0;
+                    core.op.sread.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( timing );
+                    core.measure.tendency.temp.c = 0;
+                    core.measure.tendency.temp.w = 0;
+                }
+            }
+            break;
+    }
+}
 
 //-------------------------------------------------
 //     main core interface
@@ -511,12 +578,18 @@ int core_init( struct SCore **instance )
         goto _err_exit;
 
     Sensor_Init();
-
     local_update_battery();
     BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
 
+    // -- set up initial schedule clocks
+    RTCclock = RTCctr;
+    core.op.sread.sch_thermo = RTCclock;
+    core.op.sread.sch_hygro = RTCclock;
+    core.op.sread.sch_press = RTCclock;
+
     // -- move this to the Backup domain simulation
-    core.op.op_flags.b.op_monitoring = 1;
+    core_op_monitoring_rate( ss_thermo, core.setup.tim_tend_temp );
+    core_op_monitoring_switch( true );
 
     return 0;
 
