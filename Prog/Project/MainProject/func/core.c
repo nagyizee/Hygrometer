@@ -1,5 +1,45 @@
 /*
  *
+ *          - Core routines for the Thermo/Hygro/Barograph -
+ *
+ *
+ *      Working sequence:
+ *          - after CPU start-up and initialization:
+ *
+ *              PowerUP case:  - User_Power_Up - when the power button is pressed by user.
+ *                               This initiates the UI, sensor in view begin real time acquisition. If UI stopped - sensor is disabled
+ *                               If monitoring task - all sensors are aquisitioning at low rate except the on-view sensor
+ *                               If registering task - sensor acquisition is done at the set rate
+ *                               At power-save timer out:
+ *                                      - if monitoring task - will stop only - no power down
+ *                                      - if registering task - will power down with alarm set if rate is very low ( 10 min or > )
+ *                                      - if no task - will power down
+ *
+ *                             - Alarm power up - system wake up on RTC alarm.
+ *                               Ui remains dormant - no reaction to buttons
+ *                               Do the scheduled measurements:
+ *                                      - if registering task - register the sensor reading - schedule for the next period
+ *                                      - if no task - read the sensors and battery - schedule for next long period wake-up
+ *
+ *         - Operation modes:
+ *              - standby mode: - UI will refresh the readings of the current sensor in real time,
+ *                                other sensors are checked for long period for alert.
+ *                                - Display off will power down
+ *                                - Power button will power down
+ *                                - power down will schedule for long period sensor reading
+ *
+ *              - monitoring mode: - UI will refresh the readings of the current sensor in real time,
+ *                                the other sensors are read at monitoring period (2sec. TBD), min/max values are processed, measurements
+ *                                are averaged for monitoring rate (10sec, 30sec, 1min, 5min, 30min)
+ *
+ *              - registering mode: - UI will refresh the readings of the current sensor in real time,
+ *                                the other sensors are read at monitoring period (2sec. TBD) in case of high rate or low rate w averaging, values are
+ *                                averaged to the registration rate, and registered.
+ *                                for low rate w/o averaging - sensor read is done at low rate.
+ *
+ *
+ *
+ *
  *
  **/
 
@@ -40,6 +80,8 @@ static volatile uint32 tmr_over = 0;
 static volatile uint32 tmr_over_max = 0;
 static volatile uint32 tmr_under_max = 0;
 #endif
+
+static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
 
 extern void DispHAL_ISR_Poll(void);
@@ -135,6 +177,22 @@ extern void DispHAL_ISR_Poll(void);
 //
 /////////////////////////////////////////////////////
 
+static uint32 internal_time_unit_2_seconds( uint32 time_unit )
+{
+    switch ( time_unit )
+    {
+        case ut_5sec:       return 5;
+        case ut_10sec:      return 10;
+        case ut_30sec:      return 30;
+        case ut_1min:       return 60;
+        case ut_2min:       return 120;
+        case ut_5min:       return 300;
+        case ut_10min:      return 600;
+        case ut_30min:      return 1800;
+        default:            return 0;
+    }
+}
+
 
 static void local_update_battery()
 {
@@ -163,6 +221,72 @@ static int local_calculate_abs_humidity( int temp, int rh )
 }
 
 
+static inline void local_process_temp_sensor_result( uint32 temp )
+{
+    // temperature is provided in 16fp9 + 40*C
+    if ( temp != core.measure.measured.temperature )
+    {
+        core.measure.measured.temperature = temp;
+        core.measure.dirty.b.upd_temp = 1;
+
+        if ( core.op.op_flags.b.op_monitoring )     // check for min/max
+        {
+            int i;
+
+            if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
+                temp = 0x0001;
+
+            for ( i=0; i<STORAGE_MINMAX; i++ )
+            {
+                if ( (core.measure.minmax.temp_min[i] == 0) ||
+                     (core.measure.minmax.temp_min[i] > temp) )
+                {
+                    core.measure.minmax.temp_min[i] = temp;
+                    core.measure.dirty.b.upd_temp_minmax = 1;
+                }
+                if ( (core.measure.minmax.temp_max[i] == 0) ||
+                     (core.measure.minmax.temp_max[i] < temp) )
+                {
+                    core.measure.minmax.temp_max[i] = temp;
+                    core.measure.dirty.b.upd_temp_minmax = 1;
+                }
+            }
+        }
+    }
+
+    // if monitoring - calculate the average for the tendency graph
+    if ( core.op.op_flags.b.op_monitoring )
+    {
+        if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
+            temp = 0x0001;
+
+        core.op.sread.avg_sum_temp += temp;
+        core.op.sread.avg_ctr_temp++;
+        // if scheduled tendency update reached - update the tendency list
+        if ( core.op.sread.sch_moni_temp <= RTCclock )  
+        {
+            int w_temp = core.measure.tendency.temp.w;
+            int c_temp = core.measure.tendency.temp.c;
+            // store the average of the measurements
+            core.measure.tendency.temp.value[ w_temp++ ] = core.op.sread.avg_sum_temp / core.op.sread.avg_ctr_temp;
+            if ( w_temp == STORAGE_TENDENCY )
+                w_temp = 0;
+            if ( c_temp < STORAGE_TENDENCY )
+                c_temp++;
+            core.measure.tendency.temp.w = w_temp;
+            core.measure.tendency.temp.c = c_temp;
+            // clean up the average and set up for the next session
+            core.op.sread.avg_ctr_temp = 0;
+            core.op.sread.avg_sum_temp = 0;
+            core.op.sread.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+            // notify the UI to update
+            core.measure.dirty.b.upd_th_tendency = 1;
+        }
+    }
+}
+
+
+// OBSOLETED - remove it
 static inline void local_poll_measurements( void )
 {
     int msr;
@@ -220,9 +344,35 @@ int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit )
         case ut_C:
             return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) - 4000;
         case ut_F:
-            return (int)( ( ((int)temp16fp9 * 900) / 5 ) >> TEMP_FP ) - 4000;       // see the mathcad sheet why this formula
+            return (int)( ((int)temp16fp9 * 180) >> TEMP_FP ) - 4000;       // see the mathcad sheet why this formula
         case ut_K:
             return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) + 23315;              // substract the 40*C from the 273.15*K
+    }
+    return 0;
+}
+
+uint32 core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit )
+{
+    switch ( unit )
+    {
+        case ut_C:
+            if ( temp100 >= 8800 )
+                return 0xffff;
+            if ( temp100 <= -4000 )
+                return 0x0000;
+            return (( temp100 + 4000 ) << TEMP_FP) / 100;
+        case ut_F:
+            if ( temp100 >= 1904 )      // 88*C
+                return 0xffff;
+            if ( temp100 <= -4000 )     // -40*C
+                return 0x0000;
+            return (( temp100 + 4000 ) << TEMP_FP) / 180;
+        case ut_K:
+            if ( temp100 >= 36115 )
+                return 0xffff;
+            if ( temp100 <= 23315 )
+                return 0x0000;
+            return (( temp100 - 23315 ) << TEMP_FP) / 100;
     }
     return 0;
 }
@@ -293,6 +443,8 @@ int core_setup_reset( bool save )
     setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_press = mms_set1;
 
+    core.setup.tim_tend_temp = ut_5sec;
+
     if ( save )
     {
         return core_setup_save();
@@ -358,10 +510,14 @@ int core_init( struct SCore **instance )
     if ( core_setup_load() )
         goto _err_exit;
 
-    Sensors_Init();
+    Sensor_Init();
 
     local_update_battery();
     BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
+
+    // -- move this to the Backup domain simulation
+    core.op.op_flags.b.op_monitoring = 1;
+
     return 0;
 
 _err_exit:
@@ -371,11 +527,38 @@ _err_exit:
 
 void core_poll( struct SEventStruct *evmask )
 {
+    // if no operation to be done - return
+    if ( core.op.op_flags.val == 0 )
+        return;
+
+    // operations to be executed on RTC tick
     if ( evmask->timer_tick_05sec )
     {
-        // do the measurements at 1/2 seconds
-        local_poll_measurements();
+        RTCclock = RTCctr;      // do a local copy
 
+        if ( (core.op.sread.sch_thermo <= RTCclock) )
+        {
+            if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_thermo) )
+            {
+                Sensor_Acquire( SENSOR_TEMP );
+                core.op.op_flags.b.check_sensor |= SENSOR_TEMP; 
+
+                if (core.op.op_flags.b.sens_real_time == ss_thermo)
+                    core.op.sread.sch_thermo += CORE_SCHED_TEMP_REALTIME;
+                else
+                    core.op.sread.sch_thermo += CORE_SCHED_TEMP_MONITOR;
+            }
+        }
+    }
+
+    // poll the sensor module if waiting data from sensors
+    if ( core.op.op_flags.b.check_sensor )
+    {
+        if ( Sensor_Is_Ready() & SENSOR_TEMP )
+        {
+            local_process_temp_sensor_result( Sensor_Get_Value(SENSOR_TEMP) );
+            core.op.op_flags.b.check_sensor &= ~SENSOR_TEMP;
+        }
     }
 
 
@@ -385,7 +568,7 @@ void core_poll( struct SEventStruct *evmask )
 
 int  core_get_pwrstate()
 {
-    if ( 0 ) // core.op.op_state == 0 )                // if core is stopped we don't care about adc - ui should take care
+    if ( core.op.op_flags.val == 0 )
         return SYSSTAT_CORE_STOPPED;
 }
 

@@ -364,12 +364,12 @@ struct
 
 
 
-void Sensors_Init()
+void Sensor_Init()
 {
     memset( &sens, 0, sizeof(sens));
 }
 
-void Sensors_Shutdown( uint32 mask )
+void Sensor_Shutdown( uint32 mask )
 {
     if ( (mask & ( SENSOR_TEMP | SENSOR_RH )) == ( SENSOR_TEMP | SENSOR_RH ) )
     {
@@ -384,7 +384,7 @@ void Sensors_Shutdown( uint32 mask )
     }
 }
 
-void Sensors_Acquire( uint32 mask )
+void Sensor_Acquire( uint32 mask )
 {
     if ( (mask & SENSOR_TEMP) && ((sens.in_progress & SENSOR_TEMP) == 0) )
     {

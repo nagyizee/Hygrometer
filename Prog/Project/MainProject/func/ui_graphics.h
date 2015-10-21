@@ -56,7 +56,7 @@
     void uigrf_putdate( int x, int y, enum Etextstyle style, int color, datestruct date, bool show_year, bool show_mname );
 
     void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_digits, bool use_plus ); 
-    void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int disp_up_lim, int disp_btm_lim, int digits, int decimalp );
+    void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int shift, int disp_up_lim, int disp_btm_lim, int digits, int decimalp );
 
         /// Utilities
     int poz_2_increment( int poz );

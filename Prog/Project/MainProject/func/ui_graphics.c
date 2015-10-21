@@ -755,9 +755,13 @@ void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_d
 }
 
 
-void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int disp_up_lim, int disp_btm_lim, int digits, int decimalp )
+void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int shift, int disp_up_lim, int disp_btm_lim, int digits, int decimalp )
 {
     int i, j;
+
+    Graphic_SetColor(0);
+    Graphic_FillRectangle( x, y, x+50, y+40, 0 );
+    Graphic_SetColor(1);
 
     grf_setup_font( uitxt_micro | uitxt_MONO, 1, 0 );
 
@@ -776,8 +780,11 @@ void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int disp_up_
 
     for (j=0; j<=5; j++)
     {
-        for (i=0; i<=6; i++)
-            Graphic_PutPixel(x+i*6, y+j*8, 1);
+        int lim = 6;
+        if ((shift % 6) == 0)
+            lim = 5;
+        for (i=0; i<=lim; i++)
+            Graphic_PutPixel(x+i*6+(5-(shift%6)), y+j*8, 1);
     }
 
     for (i=0; i<(length-1); i++)

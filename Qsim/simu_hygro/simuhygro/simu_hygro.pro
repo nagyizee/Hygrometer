@@ -28,7 +28,8 @@ SOURCES += main.cpp\
     ../../../Prog/Project/MainProject/func/ui_elements.c \
     ../../../../../../000_SoftOnly/MyGraphicLibrary/MyGraphicLibrary/graphic_lib_app/graphic_lib/graphic_lib.c \
     ../../../Prog/Project/MainProject/func/ui_graphics.c \
-    ../../../Prog/Project/MainProject/func/utilities.c
+    ../../../Prog/Project/MainProject/func/utilities.c \
+    ../../../Prog/Project/MainProject/func/ui_internals.c
 
 HEADERS  += mainw.h \
     stm32f10x.h \

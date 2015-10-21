@@ -360,6 +360,9 @@
     <property name="maximum">
      <double>88.000000000000000</double>
     </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
    </widget>
    <widget class="QDoubleSpinBox" name="num_humidity">
     <property name="geometry">
@@ -379,6 +382,9 @@
     <property name="maximum">
      <double>100.000000000000000</double>
     </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
    </widget>
    <widget class="QDoubleSpinBox" name="num_pressure">
     <property name="geometry">
@@ -397,6 +403,9 @@
     </property>
     <property name="maximum">
      <double>1100.000000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
     </property>
     <property name="value">
      <double>1013.250000000000000</double>

@@ -22,14 +22,33 @@
 
 
     #define TEMP_FP         9           // use 16bit fixpoint at 9 bits for temperature
-
+    #define RH_FP           8
 
     #define NUM100_MIN      0x20000000  // minimum below value error
     #define NUM100_MAX      0x40000000  // maximum abowe value error
 
-    #define STORAGE_MINMAX  6
+    #define STORAGE_MINMAX      6
+    #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging
 
     #define GET_MM_SET_SELECTOR( value, index )     ( (value >> (4*index)) & 0x0f )
+
+
+    #define CORE_SCHED_TEMP_REALTIME    2       // 2x RTC tick - 1sec. rate for temperature sensor
+    #define CORE_SCHED_TEMP_MONITOR     5       // 2.5sec rate
+    #define CORE_SCHED_RH_REALTIME      2
+    #define CORE_SCHED_RH_MONITOR       5
+    #define CORE_SCHED_PRESS_REALTIME   1       // 0.5 sec for realtime pressure monitor
+    #define CORE_SCHED_PRESS_MONITOR    10      // 5sec for pressure monitoring
+    #define CORE_SCHED_PRESS_ALTIMETER  0xffffffff  // process pressure read at fast rate 
+
+
+    enum ESensorSelect
+    {
+        ss_none = 0,
+        ss_thermo,
+        ss_rh,
+        ss_pressure
+    };
 
     enum EBeepSequence
     {
@@ -57,6 +76,18 @@
         mms_week_bfr                // min/max last week
     };  
 
+    enum EUpdateTimings
+    {
+        ut_5sec = 0,                // 3'15" data
+        ut_10sec,                   // 6'30" data
+        ut_30sec,                   // 19'30" data
+        ut_1min,                    // 39" data
+        ut_2min,                    // 1.3hr data
+        ut_5min,                    // 3.25hr data
+        ut_10min,                   // 6.5hr data
+        ut_30min,                   // 19.5hr data
+    };
+
 
     struct SCoreSetup
     {
@@ -68,18 +99,49 @@
         uint32                  beep_on;            // beep in use
         uint16                  beep_hi;            // high pitch
         uint16                  beep_low;           // low pitch
-                                                    // 
+
         uint8                   show_unit_temp;     // see ETemperatureUnits for values
         uint8                   show_mm_press;      // show min/max set for pressure
         uint16                  show_mm_temp;       // show min/max set for temperature: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
         uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
+
+        uint8                   tim_tend_temp;      // tendency update timing for temperature - see enum EUpdateTimings for values
     };
 
+    union UCoreOperationFlags
+    {
+        struct {
+            uint32  op_monitoring:1;
+            uint32  op_registering:1;
+            uint32  op_altimeter:1;
+            uint32  sens_real_time:2;               // sensor in real time - see enum ESensorSelect
+            uint32  check_sensor:3;                 // check if result is arrived from a sensor (use it as a mask with SENSOR_XXX defines)
+        } b;
+        uint32 val;
+    };
+    
+    struct SSensorRead
+    {
+        uint32  sch_hygro;          // RTC schedule for the next hygro read
+        uint32  sch_thermo;         // RTC schedule for the next temperature read
+        uint32  sch_press;          // RTC schedule for the next pressure read - if CORE_SCHED_PRESS_ALTIMETER - the sensor is set up for fast read-out
+
+        uint16  avg_ctr_temp;       // count the averages for temperature
+        uint16  avg_ctr_hygro;      // count the averages for RH and absolute humidity
+        uint16  avg_ctr_press;      // count the averages for pressure
+
+        uint32  avg_sum_temp;       // sum of values for temperature
+        uint32  avg_sum_rh;         // sum of values for rh
+        uint32  avg_sum_abshum;     // sum of values for absolute humidity
+        uint32  avg_sum_press;      // sum of values for pressure
+
+        uint32  sch_moni_temp;
+    };
 
     struct SCoreOperation
     {
-        uint32      RTC_clock;          // clock counter in 0.5sec. Start date is 2012-Ian-01 00:00:00.0, Max range is 49710 days - 136 years
-
+        union UCoreOperationFlags   op_flags;       // operation flags - see CORE_OP_XXX defines
+        struct SSensorRead          sread;          // sensor read 
     };
 
 
@@ -123,12 +185,27 @@
         uint16  press_max[STORAGE_MINMAX];
     };
 
+    struct STendencyBuffer
+    {
+        uint16 value[STORAGE_TENDENCY];
+        uint8   c;                      // data count
+        uint8   w;                      // write pointer 
+    };
+
+    struct STendencyValues
+    {
+        struct STendencyBuffer temp;
+        struct STendencyBuffer RH;
+        struct STendencyBuffer abshum;
+        struct STendencyBuffer press;
+    };
 
     struct SCoreMeasure
     {
         union UUIdirtybits      dirty;      // flags for new values for user interface update
         struct SMeasurements    measured;   // currently measured and calculated values
         struct SMinimMaxim      minmax;     // minimum and maximum values
+        struct STendencyValues  tendency;   // tendency value list
         uint8       battery;                // 0 - 100 in % adjusted allready
         uint8       batt_rdout;             // seconds tick for battery value read out
     };
@@ -149,33 +226,27 @@
     void core_update_battery();
 
     // convert 16fp9 temperature to the given unit in x100 integer format
-    int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit );
+    int     core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit );
+    uint32  core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit );
 
-
+    // gets or sets the RTC clock
     uint32 core_get_clock_counter();
     void core_set_clock_counter( uint32 counter );
 
-    // save / load / reset setup
+    // generate beeps
+    void core_beep( enum EBeepSequence beep );
+
+    // save / load / reset setup in eeprom
     int core_setup_save( void );
     int core_setup_reset( bool save );
     int core_setup_load( void );
 
-    //
-    void core_reset_longexpo(void);
-    void core_reset_sequential(void);
-    void core_reset_timer(void);
+    // sensor readout frequency setup. Item points to the measurement type - use SENSOR_XXX defines, real_time - set by UI when value should be acquired at max. rate for screen refresh
+    int core_acquire_set_frequency( uint32 item, bool real_time );
 
-    void core_start(void);
-    void core_start_bulb(void);             // valid only for cable release bulb mode
-    void core_stop(void);
 
-    void core_beep( enum EBeepSequence beep );
 
-    void core_analog_start( bool snd );     // if snd = 1 - acquisition is started for sound else for light
-    void core_analog_stop(void);
-    uint32 core_analog_getbuffer();
-    void core_analog_get_raws( uint16* raws );  // raws[7]:  0-low, 1-high, 2-lowmin, 3-highmin, 4-lowmax, 5-highmax, 6-base
-    void core_analog_get_minmax( uint32* maxval, uint32* minval );  // get the minimums and maximums for the selected channel
+
 
 #ifdef __cplusplus
     }

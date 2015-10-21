@@ -46,10 +46,12 @@ struct STIM1
 
 // all these modes are mutally exclussive per group
     #define SYSSTAT_DISP_BUSY           0x0001          // flag indicating that display is busy
+
     #define SYSSTAT_CORE_BULK           0x0002          // core needs bulk calculation, need to run main loop continuously
     #define SYSSTAT_CORE_RUN_FULL       0x0004          // core run with light or sound detection, may sleep at end of main loop
     #define SYSSTAT_CORE_RUN_LOW        0x0008          // core run with low speed operations. execution is needed only in 1sec. interval
     #define SYSSTAT_CORE_STOPPED        0x0010          // core stopped. no operation in progress
+
     #define SYSSTAT_UI_ON               0x0020          // ui is fully functional, display is eventually dimmed 
     #define SYSSTAT_UI_STOPPED          0x0080          // ui stopped, wake up on keypress but keys are not captured
     #define SYSSTAT_UI_STOP_W_ALLKEY    0x0100          // ui stopped, wake up with immediate key action for any key
@@ -110,11 +112,11 @@ void Core_ISR_PretriggerCompleted();
 #define SENSOR_VALUE_FAIL 0xffffffff
 
 // init sensor module
-void Sensors_Init();
+void Sensor_Init();
 // shut down individual sensor block ( RH and temp are in one - they need to be provided in pair )
-void Sensors_Shutdown( uint32 mask );
+void Sensor_Shutdown( uint32 mask );
 // set up acquire request on one or more sensors ( it will wake up the sensor if needed )
-void Sensors_Acquire( uint32 mask );
+void Sensor_Acquire( uint32 mask );
 // check the sensor state - returning a mask with the sensors which have read out value
 uint32 Sensor_Is_Ready(void);
 // check the sensor state - returning a mask busy sensors

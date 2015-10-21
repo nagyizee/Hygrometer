@@ -98,6 +98,14 @@
     };
 
 
+
+    void uist_drawview_mainwindow( int redraw_type );
+    void uist_drawview_debuginputs( int redraw_type, uint32 key_bits );
+
+    void uist_setupview_mainwindow( bool reset );
+    void uist_setupview_debuginputs( void );
+
+
 #ifdef __cplusplus
     }
 #endif
