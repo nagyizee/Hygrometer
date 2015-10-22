@@ -18,7 +18,7 @@ enum EHWAxisPower
 
 
 // Always update from the real hw_stuff.h
-#define SYSTEM_T_10MS_COUNT      20             // 10ms is 40 timer ticks
+#define SYSTEM_T_10MS_COUNT      10             // 10ms is 10 timer ticks
 #define SYSTEM_MAX_TICK          4000           // timer ticks per second  ( 250us )
 
 #define TIMER_SYSTEM            TIM1
@@ -138,14 +138,16 @@ void HW_Buzzer_On(int pulse);   // Pulse is in 8MHz units
 void HW_Buzzer_Off(void);
 
 #define RTC_WaitForLastTask()           do {  } while(0)
-#define RTC_SetAlarm(a)                 do {  } while(0)
-#define RTC_GetCounter()                RTCctr + 1
 #define RCC_AdjustHSICalibrationValue(a)do {  } while(0)
 
 #define VBAT_MIN        0x0000                   // 2.6V
 #define VBAT_MAX        0x0fff                   // 3.1V
 #define VBAT_DIFF       ( VBAT_MAX - VBAT_MIN )
 
+
+uint32 RTC_GetCounter(void);
+void RTC_SetAlarm(uint32);
+void HW_SetRTC(uint32 RTCctr);
 
 uint32 HW_ADC_GetBattery(void);
 

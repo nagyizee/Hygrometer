@@ -29,6 +29,7 @@ uint8 *dispmem = NULL;
 
 void InitHW(void)
 {
+    pClass->RTCalarm = pClass->RTCcounter+1;
 }
 
 
@@ -128,11 +129,24 @@ void HW_Buzzer_Off(void)
 
 bool HW_Sleep(int mode)
 {
-    pClass->hw_power_mode = mode;
-    disp_changed = true;
+    pClass->PwrMode = (enum mainw::EPowerMode) mode;
     return false;
 }
 
+uint32 RTC_GetCounter(void)
+{
+    return pClass->RTCcounter;
+}
+
+void RTC_SetAlarm(uint32 value)
+{
+    pClass->RTCalarm = value;
+}
+
+void HW_SetRTC(uint32 RTCctr)
+{
+    pClass->RTCcounter = RTCctr;
+}
 
 uint32 HW_ADC_GetBattery(void)
 {
@@ -219,34 +233,48 @@ void mainw::HW_wrapper_setup( int interval )
 void mainw::HW_wrapper_update_display()
 {
     static uint32 OldRTC = 0;
-    uint32 RTC;
+    static uint32 OldAlarm = 0;
 
     if ( disp_changed )
     {
         disp_changed = false;
-        ui->num_pwr_mng->setValue( hw_power_mode );
     }
 
-    RTC = core_get_clock_counter();
-    if ( RTC != OldRTC )
+    if ( RTCcounter != OldRTC )
     {
         char timedisp[256];
-        OldRTC = RTC;
+        OldRTC = RTCcounter;
         uint8 mounth, day, hour, minute, second;
         uint16 year;
 
-        utils_convert_counter_2_hms( RTC, &hour, &minute, &second );
-        utils_convert_counter_2_ymd( RTC, &year, &mounth, &day );
+        utils_convert_counter_2_hms( RTCcounter, &hour, &minute, &second );
+        utils_convert_counter_2_ymd( RTCcounter, &year, &mounth, &day );
 
         sprintf( timedisp, "%04d-%02d-%02d %02d:%02d:%02d.%c [0x%08X]",
                  year, mounth, day,
                  hour, minute, second,
-                 (RTC & 0x01) ? '5' : '0',               // 1/2 second
-                 RTC                      );
+                 (RTCcounter & 0x01) ? '5' : '0',               // 1/2 second
+                 RTCcounter                      );
         ui->tb_time->setText(tr(timedisp));
 
     }
+    if ( RTCalarm != OldAlarm )
+    {
+        char timedisp[256];
+        OldAlarm= RTCalarm;
+        uint8 mounth, day, hour, minute, second;
+        uint16 year;
 
+        utils_convert_counter_2_hms( RTCalarm, &hour, &minute, &second );
+        utils_convert_counter_2_ymd( RTCalarm, &year, &mounth, &day );
+
+        sprintf( timedisp, "%04d-%02d-%02d %02d:%02d:%02d.%c [0x%08X]",
+                 year, mounth, day,
+                 hour, minute, second,
+                 (RTCalarm & 0x01) ? '5' : '0',               // 1/2 second
+                 RTCalarm                      );
+        ui->tb_alarm->setText(tr(timedisp));
+    }
 }
 
 

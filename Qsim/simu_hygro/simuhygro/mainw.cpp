@@ -4,10 +4,12 @@
 #include "mainw.h"
 #include "ui_mainw.h"
 #include "hw_stuff.h"
+#include "utilities.h"
 #include "events_ui.h"
 
+
 #define TIMER_INTERVAL          20       // 20ms
-#define TICKS_TO_SIMULATE       60       // to obtain 1sec simulated time ( 1000cycles of 1ms timer )
+#define TICKS_TO_SIMULATE       30       // to obtain 0.5sec simulated time ( 500cycles of 1ms timer )
 
 
 mainw::mainw(QWidget *parent) :
@@ -18,7 +20,6 @@ mainw::mainw(QWidget *parent) :
 
     // init stuff
     btn_pressed = false;
-    hw_power_mode = HWSLEEP_FULL;
     hw_disp_brt = 0x40;
     sec_ctr = 0;
     memset( buttons, 0, sizeof(bool)*8 );
@@ -47,6 +48,18 @@ mainw::mainw(QWidget *parent) :
     ui->num_temperature->setValue( ms_temp );
     ui->num_humidity->setValue( ms_hum );
     ui->num_pressure->setValue( ms_press );
+
+    datestruct date;
+    timestruct time;
+    date.day = 15;
+    date.mounth = 3;
+    date.year = 2015;
+    time.hour = 23;
+    time.minute = 18;
+    time.second = 22;
+    RTCcounter = utils_convert_date_2_counter( &date, &time );
+    RTCalarm = RTCcounter+1;
+    PwrMode = pm_full;
 
     //--- test phase
     qsrand(0x64892354);
@@ -77,72 +90,130 @@ void mainw::Application_MainLoop( bool tick )
 
 void mainw::TimerTick()
 {
+    CPULoopSimulation( true );
+}
+
+void mainw::CPULoopSimulation( bool tick )
+{
     int i;
     int j;
+    int tosim;
 
     if ( ui->cb_stop_time->isChecked() )
         return;
 
-    for (i=0; i<TICKS_TO_SIMULATE; i++)
+    // simulation of power modes:
+    //   operations:     rnd mloop      1 mloop     timerISR    senspoll    rtc_Handle  CheckAllbtns   Continue
+    // - pm_full            y               n           y           y           y            n            y
+    // - pm_sleep           n               y           y           y           y            n            y
+    // - pm_hold_btn        n               n           n           n           y            y            y
+    // - pm_hold            n               n           n           n           y            n            y
+    // - pm_down            n               n           n           n           n            n            n
+
+    ui->num_pwr_mng->setValue( PwrMode );
+
+    for (i=0; i<(tick ? TICKS_TO_SIMULATE : 1); i++)            // maintain this for loop for timing consistency
     {
-
-        // simulated code section ----
-        bool    send_tick   = true;
-        int     loop;
-
-        if ( hw_power_mode == HWSLEEP_FULL )
-            loop = (qrand() & 0x0f) + 1; // it can make 1 - 16 main loops
-        else
-            loop = 1;
-
-        for ( j=0; j<loop; j++ )
+        // process application loop
+        if ( (PwrMode == pm_sleep) || (PwrMode == pm_full) )
         {
-            Application_MainLoop( send_tick );
-            send_tick = false;
+            // simulated code section ----
+            bool    send_tick   = tick;
+            int     loop;
+
+            if ( PwrMode == pm_full )
+                loop = (qrand() & 0x0f) + 1; // it can make 1 - 16 main loops
+            else
+                loop = 1;
+
+            for ( j=0; j<loop; j++ )
+            {
+                Application_MainLoop( send_tick );
+                send_tick = false;
+            }
         }
 
-        TimerSysIntrHandler();    // timer interval - 1ms
-        Sensor_simu_poll();
-        sec_ctr++;
-        if ( sec_ctr == 1000 )
+        // process clocks
+        if ( tick )
         {
-            sec_ctr = 0;
-            TimerRTCIntrHandler();
+            sec_ctr++;
+            // increment RTC and check for alarms
+            if ( sec_ctr == 500 )
+            {
+                sec_ctr = 0;
+                RTCcounter++;
+                if ( RTCcounter == RTCalarm )
+                {
+                    if ( PwrMode == pm_down )       // if power down - means that electonics is just waking up - start it all from beginning
+                        main_entry( NULL );
+                    else                            // otherwise interrupt will be generated from stopped/sleeping/full status
+                        TimerRTCIntrHandler();
+                    PwrMode = pm_full;
+                }
+            }
+            // process system timer
+            if ( (PwrMode == pm_sleep) || (PwrMode == pm_full) )
+            {
+                TimerSysIntrHandler();    // timer interval - 1ms
+                Sensor_simu_poll();
+                PwrMode = pm_full;
+            }
         }
     }
 
-    if ( hw_power_mode == HWSLEEP_OFF )
+    if ( PwrMode == pm_close )
     {
         this->close();
     }
 
     HW_wrapper_update_display();
+
 }
 
+void mainw::CPUWakeUpOnEvent( bool pwrbtn )
+{
+    if ( PwrMode == pm_down )               // if no power 
+    {
+        if ( pwrbtn )                       // and power button pressed - wake it up and start from reset
+        {
+            PwrMode = pm_full;
+            main_entry( NULL );
+            CPULoopSimulation( false );
+        }
+    }
+    else if ( ((PwrMode == pm_hold) && pwrbtn) ||       // if stopped with UI turned off - user should wake it up by power button only
+              (PwrMode == pm_hold_btn)           )      // if stopped with UI on ( no power_off action or power down timeout ) - any button will wake up
+    {
+        PwrMode = pm_full;
+        CPULoopSimulation( false );
+    }
+
+    // Sleep and Full modes are not threated here - those are sysTimer powered
+}
 
 /////////////////////////////////////////////////////////////
 // UI elements
 /////////////////////////////////////////////////////////////
 
-void mainw::on_btn_power_pressed()  { buttons[BTN_MODE] = true; }
+void mainw::on_btn_power_pressed()  { buttons[BTN_MODE] = true; CPUWakeUpOnEvent(true); }
 void mainw::on_btn_power_released() { buttons[BTN_MODE] = false; }
 
-void mainw::on_btn_up_pressed()  { buttons[BTN_UP] = true; }
+void mainw::on_btn_up_pressed()  { buttons[BTN_UP] = true; CPUWakeUpOnEvent(false); }
 void mainw::on_btn_up_released() { buttons[BTN_UP] = false; }
 
-void mainw::on_btn_down_pressed()  { buttons[BTN_DOWN] = true; }
+void mainw::on_btn_down_pressed()  { buttons[BTN_DOWN] = true; CPUWakeUpOnEvent(false);}
 void mainw::on_btn_down_released() { buttons[BTN_DOWN] = false; }
 
-void mainw::on_btn_left_pressed()  { buttons[BTN_LEFT] = true; }
+void mainw::on_btn_left_pressed()  { buttons[BTN_LEFT] = true; CPUWakeUpOnEvent(false);}
 void mainw::on_btn_left_released() { buttons[BTN_LEFT] = false; }
 
-void mainw::on_btn_right_pressed()  { buttons[BTN_RIGHT] = true; }
+void mainw::on_btn_right_pressed()  { buttons[BTN_RIGHT] = true; CPUWakeUpOnEvent(false); }
 void mainw::on_btn_right_released() { buttons[BTN_RIGHT] = false; }
 
-void mainw::on_btn_ok_pressed()  { buttons[BTN_OK] = true; }
+void mainw::on_btn_ok_pressed()  { buttons[BTN_OK] = true; CPUWakeUpOnEvent(false); }
 void mainw::on_btn_ok_released() { buttons[BTN_OK] = false; }
 
-void mainw::on_btn_esc_pressed()  { buttons[BTN_ESC] = true; }
+void mainw::on_btn_esc_pressed()  { buttons[BTN_ESC] = true; CPUWakeUpOnEvent(false); }
 void mainw::on_btn_esc_released() { buttons[BTN_ESC] = false; }
 
 void mainw::on_num_temperature_valueChanged(double arg1) { ms_temp = (arg1 * 100); }

@@ -499,6 +499,16 @@
      <string>StopTime</string>
     </property>
    </widget>
+   <widget class="QLineEdit" name="tb_alarm">
+    <property name="geometry">
+     <rect>
+      <x>370</x>
+      <y>100</y>
+      <width>211</width>
+      <height>20</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>

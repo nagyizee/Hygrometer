@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include "graph_disp.h"
+#include "typedefs.h"
 
 #define DISPSIM_MAX_W      256
 #define DISPSIM_MAX_H      132
@@ -77,6 +78,17 @@ private:
 
 public:
 
+    enum EPowerMode
+    {
+        pm_full = 0,            // full cpu power
+        pm_sleep,               // executes one loop after an interrupt source ( interrupt sources in simu are - 1ms tick timer, 0.5s (or scheduled) RTC timer ticks )
+        pm_hold_btn,            // CPU core/periph. stopped, Exti and RTC wake-up only - wake up uppon button operation and RTC alarm
+        pm_hold,                // CPU core/periph. stopped, RTC wake-up and Pwr button wake up only.
+        pm_down,                // all electronics switched off, RTC alarm will wake it up, Starts from reset state
+                                //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
+        pm_close                // used for simulation only - closes the application
+    };
+   
     void HW_wrapper_DBG(int val);
     int HW_wrapper_get_temperature();
     int HW_wrapper_get_humidity();
@@ -98,9 +110,14 @@ public:
     int hw_disp_brt;
     int sec_ctr;
 
+    uint32  RTCcounter;
+    uint32  RTCalarm;
+    enum EPowerMode PwrMode;
 
 private:
     void Application_MainLoop( bool tick );
+    void CPULoopSimulation( bool tick );
+    void CPUWakeUpOnEvent( bool pwrbtn );
 
 };
 

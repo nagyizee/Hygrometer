@@ -95,7 +95,7 @@ extern void DispHAL_ISR_Poll(void);
         // Clear update interrupt bit
         TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
 
-        if ( sec_ctr < 2000 )  // execute this isr only for useconds inside the 1second interval
+        if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
         {
             counter++;
             sec_ctr++;
@@ -155,14 +155,13 @@ extern void DispHAL_ISR_Poll(void);
         }
     #endif
 
+        // reset everything and signal the events
         tmr_over = 0;
         counter = 0;
         sec_ctr = 0;
         events.timer_tick_system = 1;
         events.timer_tick_10ms = 1;
         events.timer_tick_05sec = 1;
-
-        // reset everything and signal the events
         if ( (RTCctr & 0x01) == 0)
         {
             events.timer_tick_1sec = 1;
@@ -408,6 +407,7 @@ void core_set_clock_counter( uint32 counter )
     uint32 rtc_val;
     __disable_interrupt();
     RTCctr = counter;
+    HW_SetRTC( RTCctr );
     //TBD if something needs to be done for alarm setup/etc.
     __enable_interrupt();
 }
