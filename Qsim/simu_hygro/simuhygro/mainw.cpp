@@ -95,6 +95,9 @@ void mainw::TimerTick()
 
 void mainw::CPULoopSimulation( bool tick )
 {
+    int simuspeed[] = { TICKS_TO_SIMULATE / 10, TICKS_TO_SIMULATE / 8, TICKS_TO_SIMULATE / 6, TICKS_TO_SIMULATE / 4, TICKS_TO_SIMULATE / 2,
+                                                            TICKS_TO_SIMULATE,
+                        TICKS_TO_SIMULATE * 3 / 2, TICKS_TO_SIMULATE * 5 / 2, TICKS_TO_SIMULATE *3, TICKS_TO_SIMULATE * 5, TICKS_TO_SIMULATE * 10 };
     int i;
     int j;
     int tosim;
@@ -112,7 +115,9 @@ void mainw::CPULoopSimulation( bool tick )
 
     ui->num_pwr_mng->setValue( PwrMode );
 
-    for (i=0; i<(tick ? TICKS_TO_SIMULATE : 1); i++)            // maintain this for loop for timing consistency
+    tosim = simuspeed[ui->sl_clock_simu->value()];
+
+    for (i=0; i<(tick ? tosim : 1); i++)            // maintain this for loop for timing consistency
     {
         // process application loop
         if ( (PwrMode == pm_sleep) || (PwrMode == pm_full) )

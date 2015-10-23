@@ -134,7 +134,7 @@ extern void DispHAL_ISR_Poll(void);
                 RCC_AdjustHSICalibrationValue( rcc_comp );
             }
         }
-        else if ( sec_ctr < 1999 )              // timer undershoot
+        else if ( sec_ctr < 499 )              // timer undershoot
         {
             if ( rcc_comp < 0x1F )
             {
@@ -143,15 +143,14 @@ extern void DispHAL_ISR_Poll(void);
             }
         }
 
-
     #ifdef STAT_TMR_CAL
         if ( (tmr_over) && (tmr_over > tmr_over_max) )
         {
             tmr_over_max = tmr_over;
         }
-        else if ( (sec_ctr < 1999) && ( (1999-sec_ctr) > tmr_under_max ) && (sec_ctr > 1250) )
+        else if ( (sec_ctr < 499) && ( (499-sec_ctr) > tmr_under_max ) && (sec_ctr > 312) )
         {
-            tmr_under_max = (1999-sec_ctr);
+            tmr_under_max = (499-sec_ctr);
         }
     #endif
 
@@ -395,11 +394,7 @@ uint32 core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit )
 
 uint32 core_get_clock_counter()
 {
-    uint32 rtc_val;
-    __disable_interrupt();
-    rtc_val = RTCctr;
-    __enable_interrupt();
-    return rtc_val;
+    return RTCctr;
 }
 
 void core_set_clock_counter( uint32 counter )
@@ -521,6 +516,7 @@ void core_op_realtime_sensor_select( enum ESensorSelect sensor )
             break;
     }
 
+    core.op.op_flags.b.sens_real_time = sensor;
 }
 
 void core_op_monitoring_switch( bool enable )
@@ -582,7 +578,8 @@ int core_init( struct SCore **instance )
     BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
 
     // -- set up initial schedule clocks
-    RTCclock = RTCctr;
+    RTCclock = RTC_GetCounter();
+    RTCctr = RTCclock;
     core.op.sread.sch_thermo = RTCclock;
     core.op.sread.sch_hygro = RTCclock;
     core.op.sread.sch_press = RTCclock;
