@@ -70,7 +70,7 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
             }
             else
             {
-                int val = uiel_control_list_get_index( ui.ui_elems[ui.focus-1] );
+                int val = uiel_control_list_get_value( ui.ui_elems[ui.focus-1] );
                 if ( val != GET_MM_SET_SELECTOR( core.setup.show_mm_temp, ui.focus - 2 ) )
                 {
                     SET_MM_SET_SELECTOR( core.setup.show_mm_temp, val, ui.focus - 2 );
@@ -146,6 +146,11 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
                 update |= RDRW_BATTERY;
             }
             update |= RDRW_CLOCKTICK;
+            if ( ui.upd_time != (core_get_clock_counter() / (60*2)) )
+            {
+                ui.upd_time = (core_get_clock_counter() / (60*2));
+                update |= RDRW_STATUSBAR;
+            }
         }
         return update;
     }

@@ -97,7 +97,7 @@ void mainw::CPULoopSimulation( bool tick )
 {
     int simuspeed[] = { TICKS_TO_SIMULATE / 10, TICKS_TO_SIMULATE / 8, TICKS_TO_SIMULATE / 6, TICKS_TO_SIMULATE / 4, TICKS_TO_SIMULATE / 2,
                                                             TICKS_TO_SIMULATE,
-                        TICKS_TO_SIMULATE * 3 / 2, TICKS_TO_SIMULATE * 5 / 2, TICKS_TO_SIMULATE *3, TICKS_TO_SIMULATE * 5, TICKS_TO_SIMULATE * 10 };
+                        TICKS_TO_SIMULATE * 3 / 2, TICKS_TO_SIMULATE * 5 / 2, TICKS_TO_SIMULATE *5, TICKS_TO_SIMULATE * 10, TICKS_TO_SIMULATE * 50 };
     int i;
     int j;
     int tosim;

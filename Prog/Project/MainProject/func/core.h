@@ -133,6 +133,9 @@
         uint32  avg_sum_press;      // sum of values for pressure
 
         uint32  sch_moni_temp;
+
+        uint16  clk_last_day;       // saved day for checking if day border is passed
+        uint16  clk_last_week;      // saved week for checking if week border is passed
     };
 
     struct SSensorRead

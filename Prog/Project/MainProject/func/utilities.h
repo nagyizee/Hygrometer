@@ -10,6 +10,13 @@
 #include "typedefs.h"
 
 
+// Start date is 2013-01-01 00:00:00.0
+// increments are in 0.5 sec
+
+#define WEEK_START          1               // the start date is a Tuesday (2nd day from a week)
+#define DAY_TICKS       (2 * 3600 * 24)
+#define WEEK_TICKS      (DAY_TICKS * 7)
+
 // convert RTC counter to hour / minute / second
 void utils_convert_counter_2_hms( uint32 counter, uint8 *phour, uint8 *pminute, uint8 *psecond);
 

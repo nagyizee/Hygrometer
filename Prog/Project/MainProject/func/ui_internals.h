@@ -95,6 +95,7 @@
 
         uint16 upd_batt;        // battery update counter
         uint16 upd_dynamics;    // update dynamic stuff
+        uint32 upd_time;        // old saved clock- used to compare with current one and update display if needed
     };
 
 

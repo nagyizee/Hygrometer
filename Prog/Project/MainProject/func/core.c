@@ -49,6 +49,7 @@
 #include "events_ui.h"
 #include "hw_stuff.h"
 #include "eeprom_spi.h"
+#include "utilities.h"
 
 #ifdef ON_QT_PLATFORM
 struct STIM1 stim;
@@ -249,7 +250,7 @@ static inline void local_process_temp_sensor_result( uint32 temp )
             if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
                 temp = 0x0001;
 
-            for ( i=0; i<STORAGE_MINMAX; i++ )
+            for ( i=0; i<mms_day_bfr; i++ )     // set up only the current values
             {
                 if ( (core.measure.minmax.temp_min[i] == 0) ||
                      (core.measure.minmax.temp_min[i] > temp) )
@@ -299,45 +300,54 @@ static inline void local_process_temp_sensor_result( uint32 temp )
 }
 
 
-// OBSOLETED - remove it
-static inline void local_poll_measurements( void )
+static inline void local_push_minmax_set_if_needed(void)
 {
-    int msr;
+    uint32 check_val;
 
-    // acquire the measured parameters
-    msr = HWDBG_Get_Temp();
-    if ( msr != core.measure.measured.temperature )
+    // check for passing day
+    check_val = RTCclock / DAY_TICKS;
+    if ( check_val != core.op.sread.moni.clk_last_day )
     {
-        core.measure.measured.temperature = msr;
-        core.measure.dirty.b.upd_temp = 1;
-    }
-    msr = HWDBG_Get_Humidity();
-    if ( msr != core.measure.measured.rh )
-    {
-        core.measure.measured.rh = msr;
-        core.measure.dirty.b.upd_hum = 1;
-    }
-    msr = HWDBG_Get_Pressure();
-    if ( msr != core.measure.measured.pressure )
-    {
-        core.measure.measured.pressure = msr;
-        core.measure.dirty.b.upd_pressure = 1;
+        // shift the min/max values to day before and reset the day
+        core.op.sread.moni.clk_last_day = check_val;
+
+        core.measure.minmax.absh_max[ mms_day_bfr ] = core.measure.minmax.absh_max[ mms_day_crt ];
+        core.measure.minmax.absh_min[ mms_day_bfr ] = core.measure.minmax.absh_min[ mms_day_crt ];
+        core.measure.minmax.press_max[ mms_day_bfr ] = core.measure.minmax.press_max[ mms_day_crt ];
+        core.measure.minmax.press_min[ mms_day_bfr ] = core.measure.minmax.press_min[ mms_day_crt ];
+        core.measure.minmax.rh_max[ mms_day_bfr ] = core.measure.minmax.rh_max[ mms_day_crt ];
+        core.measure.minmax.rh_min[ mms_day_bfr ] = core.measure.minmax.rh_min[ mms_day_crt ];
+        core.measure.minmax.temp_max[ mms_day_bfr ] = core.measure.minmax.temp_max[ mms_day_crt ];
+        core.measure.minmax.temp_min[ mms_day_bfr ] = core.measure.minmax.temp_min[ mms_day_crt ];
+
+        core_op_monitoring_reset_minmax( ss_thermo, mms_day_crt );
+        core_op_monitoring_reset_minmax( ss_pressure, mms_day_crt );
+        core_op_monitoring_reset_minmax( ss_rh, mms_day_crt );
     }
 
-    // calculate derivated values
-    msr = local_calculate_dewpoint( core.measure.measured.temperature, core.measure.measured.rh );
-    if ( msr != core.measure.measured.dewpoint )
+    // check for passing week
+    check_val = (RTCclock + DAY_TICKS) / WEEK_TICKS;        // add 1 day_ticks because the counter = 0x0000 starts on Thuesday
+    if ( check_val != core.op.sread.moni.clk_last_week )
     {
-        core.measure.measured.dewpoint = msr;
-        core.measure.dirty.b.upd_hum = 1;
-    }
-    msr = local_calculate_abs_humidity( core.measure.measured.temperature, core.measure.measured.rh );
-    if ( msr != core.measure.measured.absh )
-    {
-        core.measure.measured.absh = msr;
-        core.measure.dirty.b.upd_hum = 1;
+        // shift the min/max values to day before and reset the day
+        core.op.sread.moni.clk_last_week = check_val;
+
+        core.measure.minmax.absh_max[ mms_week_bfr ] = core.measure.minmax.absh_max[ mms_week_crt ];
+        core.measure.minmax.absh_min[ mms_week_bfr ] = core.measure.minmax.absh_min[ mms_week_crt ];
+        core.measure.minmax.press_max[ mms_week_bfr ] = core.measure.minmax.press_max[ mms_week_crt ];
+        core.measure.minmax.press_min[ mms_week_bfr ] = core.measure.minmax.press_min[ mms_week_crt ];
+        core.measure.minmax.rh_max[ mms_week_bfr ] = core.measure.minmax.rh_max[ mms_week_crt ];
+        core.measure.minmax.rh_min[ mms_week_bfr ] = core.measure.minmax.rh_min[ mms_week_crt ];
+        core.measure.minmax.temp_max[ mms_week_bfr ] = core.measure.minmax.temp_max[ mms_week_crt ];
+        core.measure.minmax.temp_min[ mms_week_bfr ] = core.measure.minmax.temp_min[ mms_week_crt ];
+
+        core_op_monitoring_reset_minmax( ss_thermo, mms_week_bfr );
+        core_op_monitoring_reset_minmax( ss_pressure, mms_week_bfr );
+        core_op_monitoring_reset_minmax( ss_rh, mms_week_bfr );
     }
 }
+
+
 
 /////////////////////////////////////////////////////
 //
@@ -403,6 +413,7 @@ void core_set_clock_counter( uint32 counter )
     __disable_interrupt();
     RTCctr = counter;
     HW_SetRTC( RTCctr );
+    RTC_SetAlarm( RTCctr + 1 );
     //TBD if something needs to be done for alarm setup/etc.
     __enable_interrupt();
 }
@@ -531,6 +542,8 @@ void core_op_monitoring_switch( bool enable )
     {
         internal_clear_monitoring();
         core.op.sread.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+        core.op.sread.moni.clk_last_day = RTCclock / DAY_TICKS;
+        core.op.sread.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
         core.op.op_flags.b.op_monitoring = 1;
     }
 }
@@ -560,22 +573,47 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
 
 void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
 {
-    switch (sensor)
+    if ( mmset > mms_week_crt )
     {
-        case ss_thermo:
-            core.measure.minmax.temp_max[mmset] = 0;
-            core.measure.minmax.temp_min[mmset] = 0;
-            break;
-        case ss_rh:
-            core.measure.minmax.absh_max[mmset] = 0;
-            core.measure.minmax.absh_min[mmset] = 0;
-            core.measure.minmax.rh_max[mmset] = 0;
-            core.measure.minmax.rh_min[mmset] = 0;
-            break;
-        case ss_pressure:
-            core.measure.minmax.press_max[mmset] = 0;
-            core.measure.minmax.press_min[mmset] = 0;
-            break;
+        // for last day / last week we set up <uninitialized>
+        switch (sensor)
+        {
+            case ss_thermo:
+                core.measure.minmax.temp_max[mmset] = 0;
+                core.measure.minmax.temp_min[mmset] = 0;
+                break;
+            case ss_rh:
+                core.measure.minmax.absh_max[mmset] = 0;
+                core.measure.minmax.absh_min[mmset] = 0;
+                core.measure.minmax.rh_max[mmset] = 0;
+                core.measure.minmax.rh_min[mmset] = 0;
+                break;
+            case ss_pressure:
+                core.measure.minmax.press_max[mmset] = 0;
+                core.measure.minmax.press_min[mmset] = 0;
+                break;
+        }
+    }
+    else
+    {
+        // for current min/max sets we are using the current measured values as start point
+        switch (sensor)
+        {
+            case ss_thermo:
+                core.measure.minmax.temp_max[mmset] = core.measure.measured.temperature;
+                core.measure.minmax.temp_min[mmset] = core.measure.measured.temperature;
+                break;
+            case ss_rh:
+                core.measure.minmax.absh_max[mmset] = core.measure.measured.absh;
+                core.measure.minmax.absh_min[mmset] = core.measure.measured.absh;
+                core.measure.minmax.rh_max[mmset] = core.measure.measured.rh;
+                core.measure.minmax.rh_min[mmset] = core.measure.measured.rh;
+                break;
+            case ss_pressure:
+                core.measure.minmax.press_max[mmset] = core.measure.measured.pressure;
+                core.measure.minmax.press_min[mmset] = core.measure.measured.pressure;
+                break;
+        }
     }
 }
 
@@ -640,6 +678,11 @@ void core_poll( struct SEventStruct *evmask )
                 else
                     core.op.sread.sch_thermo += CORE_SCHED_TEMP_MONITOR;
             }
+        }
+
+        if ( core.op.op_flags.b.op_monitoring )
+        {
+            local_push_minmax_set_if_needed();
         }
     }
 
