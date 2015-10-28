@@ -449,9 +449,9 @@ int core_setup_reset( bool save )
 
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
-    setup->pwr_stdby = 30;       // 30sec standby
-    setup->pwr_disp_off = 60;    // 1min standby
-    setup->pwr_off = 300;        // 5min pwr off
+    setup->pwr_stdby = 3000;          // 30sec standby
+    setup->pwr_disp_off = 6000;     // 1min standby
+    setup->pwr_off = 30000;         // 5min pwr off
 
     setup->beep_on = 1;
     setup->beep_hi = 1554;
@@ -557,6 +557,28 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
             break;
     }
 }
+
+void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
+{
+    switch (sensor)
+    {
+        case ss_thermo:
+            core.measure.minmax.temp_max[mmset] = 0;
+            core.measure.minmax.temp_min[mmset] = 0;
+            break;
+        case ss_rh:
+            core.measure.minmax.absh_max[mmset] = 0;
+            core.measure.minmax.absh_min[mmset] = 0;
+            core.measure.minmax.rh_max[mmset] = 0;
+            core.measure.minmax.rh_min[mmset] = 0;
+            break;
+        case ss_pressure:
+            core.measure.minmax.press_max[mmset] = 0;
+            core.measure.minmax.press_min[mmset] = 0;
+            break;
+    }
+}
+
 
 //-------------------------------------------------
 //     main core interface

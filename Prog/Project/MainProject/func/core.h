@@ -30,7 +30,8 @@
     #define STORAGE_MINMAX      6
     #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging
 
-    #define GET_MM_SET_SELECTOR( value, index )     ( (value >> (4*index)) & 0x0f )
+    #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
+    #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
 
 
     #define CORE_SCHED_TEMP_REALTIME    2       // 2x RTC tick - 1sec. rate for temperature sensor
@@ -252,6 +253,8 @@
     void core_op_monitoring_switch( bool enable );
     // sets the sample timing of the tendency monitoring. This will clear up the tendency graph of the affected sensor
     void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings timing );
+    // reset min/max value set for a specified sensor
+    void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset );
 
 
 

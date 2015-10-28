@@ -295,6 +295,8 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         mms = core.setup.show_mm_temp;
         unit = ui.p.mgThermo.unitT;
 
+        Graphic_SetColor( 0 );
+        Graphic_FillRectangle( x, y+7, x + 75, y + 22, 0 );
         Graphic_SetColor( 1 );
         Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 

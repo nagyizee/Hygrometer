@@ -39,25 +39,45 @@ extern struct SCore core;
 
 static inline bool ui_imchanges_gauge_thermo( bool to_default )
 {
-    if ( ui.focus == 1 )        // check for units changed
+    switch ( ui.focus )
     {
-        if ( to_default )
-        {
-            ui.p.mgThermo.unitT = core.setup.show_unit_temp;
-            uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
-            core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
-            return true;
-        }
-        else
-        {
-            int val = uiel_control_list_get_index( &ui.p.mgThermo.units );
-            if ( val != ui.p.mgThermo.unitT )
+        case 1:                 // temperature measurement unit change actions
+            if ( to_default )
             {
-                ui.p.mgThermo.unitT = val;
-                core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
+                ui.p.mgThermo.unitT = core.setup.show_unit_temp;
+                uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
+                core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
                 return true;
             }
-        }
+            else
+            {
+                int val = uiel_control_list_get_index( &ui.p.mgThermo.units );
+                if ( val != ui.p.mgThermo.unitT )
+                {
+                    ui.p.mgThermo.unitT = val;
+                    core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
+                    return true;
+                }
+            }
+            break;
+        case 2:
+        case 3:
+        case 4:
+            if ( to_default )
+            {
+                core_op_monitoring_reset_minmax( ss_thermo, GET_MM_SET_SELECTOR( core.setup.show_mm_temp, ui.focus - 2 ) );
+                return true;
+            }
+            else
+            {
+                int val = uiel_control_list_get_index( ui.ui_elems[ui.focus-1] );
+                if ( val != GET_MM_SET_SELECTOR( core.setup.show_mm_temp, ui.focus - 2 ) )
+                {
+                    SET_MM_SET_SELECTOR( core.setup.show_mm_temp, val, ui.focus - 2 );
+                    return true;
+                }
+            }
+            break;
     }
     return false;
 }
@@ -468,13 +488,6 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
-        }
-
-        // esc button
-        if ( evmask->key_pressed & KEY_ESC )
-        {
-            ui.focus = 0;
-            disp_update |= RDRW_UI_CONTENT;
         }
     }
 
