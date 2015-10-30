@@ -123,18 +123,22 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
     {
         int update = 0;
         
-        if ( ui.m_state == UI_STATE_MAIN_GAUGE )
+        switch ( ui.m_state )
         {
-            switch ( ui.main_mode )
-            {
-                case UImm_gauge_thermo:
-                    if ( core.measure.dirty.b.upd_temp )
-                        update |= RDRW_UI_DYNAMIC;
-                    if ( core.measure.dirty.b.upd_temp_minmax ||
-                         core.measure.dirty.b.upd_th_tendency )
-                        update |= RDRW_UI_CONTENT;
-                    break;
-            }
+            case UI_STATE_MAIN_GAUGE:
+                switch ( ui.main_mode )
+                {
+                    case UImm_gauge_thermo:
+                        if ( core.measure.dirty.b.upd_temp )
+                            update |= RDRW_UI_DYNAMIC;
+                        if ( core.measure.dirty.b.upd_temp_minmax ||
+                             core.measure.dirty.b.upd_th_tendency )
+                            update |= RDRW_UI_CONTENT;
+                        break;
+                }
+                break;
+            case UI_STATE_MODE_SELECT:
+                break;
         }
     
         if ( evmask->timer_tick_05sec )
@@ -237,7 +241,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
 void uist_startup_entry( void )
 {
     Graphics_ClearScreen(0);
-    uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
+//    uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
     DispHAL_UpdateScreen();
     core_beep( beep_pwron );
     ui.m_substate = 50;    // 0.5sec. startup screen
@@ -394,6 +398,38 @@ void uist_shutdown( struct SEventStruct *evmask )
     DispHAL_UpdateScreen();
 }
 
+/// OPMODE SELECTOR WINDOW
+
+void uist_opmodeselect_entry( void )
+{
+    uist_setupview_modeselect( true );
+    uist_drawview_modeselect( RDRW_ALL );
+    DispHAL_UpdateScreen();
+    ui.m_substate ++;
+}
+
+void uist_opmodeselect( struct SEventStruct *evmask )
+{
+    int disp_update = 0;
+    if ( evmask->key_event )
+    {
+        if ( evmask->key_pressed & KEY_UP )
+        {
+            ui.m_state = UI_STATE_MAIN_GAUGE;
+            ui.m_substate = UI_SUBST_ENTRY;
+        }
+        if ( evmask->key_longpressed & KEY_MODE )
+        {
+            uist_goto_shutdown();
+        }
+    }
+
+    // update screen on timebase
+    disp_update |= uist_timebased_updates( evmask );
+    uist_update_display( disp_update );
+}
+
+
 /// UI MAIN GAUGE WINDOW
 
 void uist_mainwindowgauge_entry( void )
@@ -494,6 +530,13 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         {
             uist_goto_shutdown();
         }
+        if ( evmask->key_released & KEY_MODE )
+        {
+            ui_process_intermediate_changes( false );
+            core_op_realtime_sensor_select( ss_none );
+            ui.m_state = UI_STATE_MODE_SELECT;
+            ui.m_substate = UI_SUBST_ENTRY;
+        }
     }
 
     // update screen on timebase
@@ -533,14 +576,17 @@ int ui_poll( struct SEventStruct *evmask )
     {
         switch ( ui.m_state )
         {
+            case UI_STATE_MAIN_GAUGE:
+                uist_mainwindowgauge_entry();
+                break;
+            case UI_STATE_MODE_SELECT:
+                uist_opmodeselect_entry();
+                break;
             case UI_STATE_STARTUP:
                 uist_startup_entry();
                 break;
             case UI_STATE_SHUTDOWN:
                 uist_shutdown_entry();
-                break;
-            case UI_STATE_MAIN_GAUGE:
-                uist_mainwindowgauge_entry();
                 break;
             case UI_STATE_DBG_INPUTS:
                 uist_debuginputs_entry();
@@ -551,14 +597,17 @@ int ui_poll( struct SEventStruct *evmask )
     {
         switch ( ui.m_state )
         {
+            case UI_STATE_MAIN_GAUGE:
+                uist_mainwindowgauge( evmask );
+                break;
+            case UI_STATE_MODE_SELECT:
+                uist_opmodeselect( evmask );
+                break;
             case UI_STATE_STARTUP:
                 uist_startup( evmask );
                 break;
             case UI_STATE_SHUTDOWN:
                 uist_shutdown( evmask );
-                break;
-            case UI_STATE_MAIN_GAUGE:
-                uist_mainwindowgauge( evmask );
                 break;
             case UI_STATE_DBG_INPUTS:
                 uist_debuginputs( evmask );

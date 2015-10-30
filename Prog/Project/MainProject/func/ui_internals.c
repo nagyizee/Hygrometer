@@ -560,6 +560,20 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 //
 ////////////////////////////////////////////////////
 
+void uist_drawview_modeselect( int redraw_type )
+{
+    if ( redraw_type == RDRW_ALL )
+        Graphics_ClearScreen(0);
+    if ( redraw_type & RDRW_STATUSBAR )
+        uist_mainwindow_statusbar( ui.main_mode, redraw_type );
+
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uibm_put_bitmap( 0, 16, BMP_MAIN_SELECTOR );
+    }
+}
+
+
 void uist_drawview_mainwindow( int redraw_type )
 {
     // if all the content should be redrawn
@@ -640,6 +654,12 @@ void uist_drawview_debuginputs( int redraw_type, uint32 key_bits )
 
 }
 
+
+void uist_setupview_modeselect( bool reset )
+{
+    ui.focus = 0;
+    ui.ui_elem_nr = 0;
+}
 
 
 void uist_setupview_mainwindow( bool reset )

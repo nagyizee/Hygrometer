@@ -6,21 +6,8 @@
 #endif
 
 
-    #define BMP_START_SCREEN    0
-    #define BMP_ICON_LIGHTNING  1
-    #define BMP_ICON_LONGEXPO   2
-    #define BMP_ICON_SEQUENTIAL 3
-    #define BMP_ICON_TIMER      4
-    #define BMP_ICON_SOUND      5
-    #define BMP_ICON_PRETRIGGER 6
-    #define BMP_ICON_STARTED    7
-    #define BMP_ICON_MLOCKUP    8
-    #define BMP_GRF_SELECTED    9
-    #define BMP_GRF_POINTER     10
-    #define BMP_ICON_CABLEREL   11
-    #define BMP_ICON_TR_LIGHT   12
-    #define BMP_ICON_TR_SHADE   13
-    #define BMP_ICON_BRIGHT     14
+    #define BMP_MAIN_SELECTOR   0
+    #define BMP_GRF_SELECTED    1
 
     enum Etextstyle
     {
@@ -37,8 +24,6 @@
     void uibm_put_bitmap( int x, int y, int bmp );
 
     void uigrf_draw_battery( int x, int y, int fullness );
-
-    void uigrf_draw_scale( int y, int thold, int maxptr, int minptr, bool centered, bool redraw );
 
     void uigrf_text( int x, int y, enum Etextstyle style, char *text );
     void uigrf_text_inv( int x, int y, enum Etextstyle style, char *text );
