@@ -24,7 +24,7 @@ static bool wake_up = false;
 static uint32 *stack_limit;
 
 static uint32 sys_st = 0;
-static uint32 ui_st = SYSSTAT_UI_ON;
+static uint32 ui_st = SYSSTAT_UI_WAKEUP;
 
 static inline void CheckStack(void)
 {
@@ -46,33 +46,43 @@ static inline void CheckStack(void)
 
 static inline void System_Poll( void )
 {
-    uint32 pwr_mode = HWSLEEP_STOP;
+    enum EPowerMode pwr_mode = pm_hold;
 
     CheckStack();
     sys_st |= DispHAL_App_Poll();
-    sys_st |= core_get_pwrstate();
+    sys_st |= core_pwr_getstate();
     if ( BeepIsRunning() )
         sys_st |= SYSSTAT_UI_ON;
 
     // decide power management model
     if ( pwr_check(SYSSTAT_CORE_BULK) )
         // full run mode - no sleeping
-        pwr_mode = HWSLEEP_FULL;
+        pwr_mode = pm_full;
     else 
     {   
-        if ( pwr_check( SYSSTAT_DISP_BUSY | SYSSTAT_CORE_RUN_FULL | SYSSTAT_UI_ON ) )
-            // when display is processed, ui is working or core runs with short timing needs ( 10ms and 250us )
-            pwr_mode = HWSLEEP_WAIT;
+        if ( pwr_check( SYSSTAT_DISP_BUSY | SYSSTAT_CORE_RUN_FULL | SYSSTAT_UI_ON | SYSSTAT_UI_WAKEUP ) )
+            // when display is processed, ui is working or core runs with short timing needs ( 10ms )
+            pwr_mode = pm_sleep;
+        else if ( pwr_check ( SYSYTAT_CORE_MONITOR ) )
+        {
+            // core in monitoring/fast registering mode - need to maintain memory, or to listen to sensor IRQ, so no full power down possible
+            if ( sys_st == ( SYSYTAT_CORE_MONITOR | SYSSTAT_UI_PWROFF ) )
+                pwr_mode = pm_hold;         // ui is off - only long press on power/mode button will wake it up - must behave like in full power down
+            else
+                pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
+            core_pwr_setup_alarm(pwr_mode);
+        }
         else if ( sys_st == ( SYSSTAT_CORE_STOPPED | SYSSTAT_UI_PWROFF ) )
-            // power off condition
-            pwr_mode = HWSLEEP_OFF;
-        // otherwise remains with stopped state - wake up at every 1 second or at user action
+        {
+            // core is stopped or long term registering, ui is off - we can cut the power
+            pwr_mode = pm_down;
+            core_pwr_setup_alarm(pwr_mode);
+        }
         else
         {
-            if ( pwr_check( SYSSTAT_UI_STOP_W_ALLKEY ) )
-                pwr_mode = HWSLEEP_STOP_W_ALLKEYS;
-            else if ( pwr_check( SYSSTAT_UI_STOP_W_SKEY ) )
-                pwr_mode = HWSLEEP_STOP_W_SKEY;
+            // for the remained cases we will use hold with all buttons, this includes the UI stopped case when core doesn't do anything
+            pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
+            core_pwr_setup_alarm(pwr_mode);
         }
     }
 
@@ -105,8 +115,6 @@ void main_entry( uint32 *stack_top )
     }
 
     ui_init( NULL );
-    DispHAL_Display_On( );
-    DispHAL_SetContrast( 0x30 );
 }
 
 

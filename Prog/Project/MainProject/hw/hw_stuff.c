@@ -619,7 +619,7 @@
                     rising = mask;
                     falling = mask;
                     break;
-                case HWSLEEP_STOP_W_SKEY:
+                case HWSLEEP_STOP_W_PKEY:
                     // 'Start' and 'OK' to be active when waking up UI: use both fronts for START and OK
                     rising = IO_IN_BTN_ESC | IO_IN_BTN_START | IO_IN_BTN_MENU | IO_IN_BTN_OK | IO_IN_DIAL_P1 | IO_IN_DIAL_P2;
                     falling = IO_IN_BTN_MODE | IO_IN_DIAL_P1 | IO_IN_DIAL_P2  | IO_IN_BTN_OK | IO_IN_BTN_START;
@@ -675,7 +675,7 @@
                 break;
             case HWSLEEP_STOP:                      // stop cpu and peripheral clocks - wakes up at 1sec intervals or on EXTI event
             case HWSLEEP_STOP_W_ALLKEYS:
-            case HWSLEEP_STOP_W_SKEY:
+            case HWSLEEP_STOP_W_PKEY:
                 // for the moment STOP mode isn't working - we will simulate it by disabling the system timer
                 TIM_Cmd( TIMER_SYSTEM, DISABLE);
                 // set up EXTI interrupt handling for buttons

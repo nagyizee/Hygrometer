@@ -701,10 +701,22 @@ void core_poll( struct SEventStruct *evmask )
 }
 
 
-int  core_get_pwrstate()
+void core_pwr_setup_alarm( enum EPowerMode pwr_mode )
+{
+
+}
+
+int  core_pwr_getstate(void)
 {
     if ( core.op.op_flags.val == 0 )
         return SYSSTAT_CORE_STOPPED;
+    else
+    {
+        if ( core.op.op_flags.b.check_sensor )
+            return SYSSTAT_CORE_RUN_FULL;
+        if ( core.op.op_flags.b.op_monitoring )
+            return SYSYTAT_CORE_MONITOR;
+    }
 }
 
 

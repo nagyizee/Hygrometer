@@ -127,9 +127,10 @@ void HW_Buzzer_Off(void)
     pClass->HW_wrapper_Beep(0);
 }
 
-bool HW_Sleep(int mode)
+bool HW_Sleep( enum EPowerMode mode)
 {
-    pClass->PwrMode = (enum mainw::EPowerMode) mode;
+    pClass->PwrMode = mode;
+    pClass->PwrModeToDisp = mode;
     return false;
 }
 

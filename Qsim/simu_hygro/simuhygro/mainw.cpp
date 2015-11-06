@@ -58,12 +58,12 @@ mainw::mainw(QWidget *parent) :
     time.minute = 18;
     time.second = 22;
     RTCcounter = utils_convert_date_2_counter( &date, &time );
-    RTCalarm = RTCcounter+1;
-    PwrMode = pm_full;
+    RTCalarm = 0xffffffff;
+    PwrMode = pm_down;
+    PwrModeToDisp = pm_down;
 
     //--- test phase
     qsrand(0x64892354);
-    main_entry( NULL );
 }
 
 mainw::~mainw()
@@ -113,7 +113,7 @@ void mainw::CPULoopSimulation( bool tick )
     // - pm_hold            n               n           n           n           y            n            y
     // - pm_down            n               n           n           n           n            n            n
 
-    ui->num_pwr_mng->setValue( PwrMode );
+    ui->num_pwr_mng->setValue( PwrModeToDisp );
 
     tosim = simuspeed[ui->sl_clock_simu->value()];
 
@@ -134,6 +134,9 @@ void mainw::CPULoopSimulation( bool tick )
             for ( j=0; j<loop; j++ )
             {
                 Application_MainLoop( send_tick );
+                if ( PwrMode > pm_sleep )
+                    break;                   // break the multi-main-loop if power mode changed to anything but spleep or full
+
                 send_tick = false;
             }
         }

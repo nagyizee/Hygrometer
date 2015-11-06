@@ -48,23 +48,27 @@ struct STIM1
     #define SYSSTAT_DISP_BUSY           0x0001          // flag indicating that display is busy
 
     #define SYSSTAT_CORE_BULK           0x0002          // core needs bulk calculation, need to run main loop continuously
-    #define SYSSTAT_CORE_RUN_FULL       0x0004          // core run with light or sound detection, may sleep at end of main loop
-    #define SYSSTAT_CORE_RUN_LOW        0x0008          // core run with low speed operations. execution is needed only in 1sec. interval
-    #define SYSSTAT_CORE_STOPPED        0x0010          // core stopped. no operation in progress
+    #define SYSSTAT_CORE_RUN_FULL       0x0004          // core run with high speed clock needed (1ms ticks)
+    #define SYSYTAT_CORE_MONITOR        0x0010          // core in monitoring / fast registering mode, maintain memory - no full power down possible
+    #define SYSSTAT_CORE_STOPPED        0x0020          // core stopped, no operation in progress
 
-    #define SYSSTAT_UI_ON               0x0020          // ui is fully functional, display is eventually dimmed 
-    #define SYSSTAT_UI_STOPPED          0x0080          // ui stopped, wake up on keypress but keys are not captured
-    #define SYSSTAT_UI_STOP_W_ALLKEY    0x0100          // ui stopped, wake up with immediate key action for any key
-    #define SYSSTAT_UI_STOP_W_SKEY      0x0200          // ui stopped, wake up with immediate key action for 'Start' key
-    #define SYSSTAT_UI_PWROFF           0x8000          // ui.pwroff timeout reached and no user action and no core run. OR power button (long press on pwr/mode button)
+    #define SYSSTAT_UI_ON               0x0100          // ui is fully functional, display is eventually dimmed 
+    #define SYSSTAT_UI_WAKEUP           0x0200          // ui is in wake-up state after pm_down / pm_hold power mode - if long press on power button or UI wakeup event - UI will be up and running, otherwise is considered as 
+    #define SYSSTAT_UI_STOPPED          0x0400          // ui stopped, wake up on keypress but keys are not captured
+    #define SYSSTAT_UI_STOP_W_ALLKEY    0x0800          // ui stopped, wake up with immediate key action for any key
+    #define SYSSTAT_UI_PWROFF           0x1000          // ui is in off mode, or power off requested
 
 
-    #define HWSLEEP_FULL            0x00            // continuous main loop, no sleep mode in use
-    #define HWSLEEP_WAIT            0x01            // sleepmode - wait for irq - cpu clock down only - sysclock is working
-    #define HWSLEEP_STOP            0x02            // stop mode - wake-up at keypress or rtc 1sec. clock
-    #define HWSLEEP_STOP_W_ALLKEYS  0x03            // same as the mode abowe - but all keys are detected with rising edge - to generate UI keyboard event also 
-    #define HWSLEEP_STOP_W_SKEY     0x04            // same as HWSLEEP_STOP - but 'Start' key will be detected with rising edge
-    #define HWSLEEP_OFF             0x05            // shuts down the system
+    enum EPowerMode
+    {
+        pm_full = 0,            // full cpu power
+        pm_sleep,               // executes one loop after an interrupt source ( interrupt sources in simu are - 1ms tick timer, 0.5s (or scheduled) RTC timer ticks )
+        pm_hold_btn,            // CPU core/periph. stopped, Exti and RTC wake-up only - wake up uppon button operation and RTC alarm
+        pm_hold,                // CPU core/periph. stopped, RTC wake-up and Pwr button wake up only.
+        pm_down,                // all electronics switched off, RTC alarm will wake it up, Starts from reset state
+                                //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
+        pm_close                // used for simulation only - closes the application
+    };
 
 
 void InitHW(void);
@@ -157,7 +161,7 @@ void HW_PWR_An_Off( void );
 void ADC_ISR_simulation(void);
 
 void HW_EXTI_ISR( void );
-bool HW_Sleep(int mode);
+bool HW_Sleep( enum EPowerMode mode);
 
 void HWDBG( int val );
 

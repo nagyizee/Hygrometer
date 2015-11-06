@@ -15,6 +15,7 @@
     #include "stm32f10x.h"
     #include "typedefs.h"
     #include "events_ui.h"
+    #include "hw_stuff.h"
 
     /*
      *
@@ -231,7 +232,8 @@
 
     int  core_init( struct SCore **instance );
     void core_poll( struct SEventStruct *evmask );
-    int  core_get_pwrstate();
+    void core_pwr_setup_alarm( enum EPowerMode pwr_mode );
+    int  core_pwr_getstate(void);
     void core_update_battery();
 
     // convert 16fp9 temperature to the given unit in x100 integer format

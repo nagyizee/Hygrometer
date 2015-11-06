@@ -171,6 +171,36 @@ static void uist_goto_shutdown(void)
 
 static inline void ui_power_management( struct SEventStruct *evmask )
 {
+    if (ui.pwr_state == SYSSTAT_UI_WAKEUP)
+    {
+        // UI is set in wake-up mode after a power down when power button is pressed (wake up by reset from power down or EXTI event from stop)
+        // if power/mode key is long pressed in a given interval then the UI wake up is valid and UI is set to ON,
+        // else on timeout, UI will be set to OFF.
+        if ( evmask->key_event && (evmask->key_longpressed & KEY_MODE) )
+        {
+            DispHAL_Display_On( );
+            DispHAL_SetContrast( core.setup.disp_brt_on );
+            ui.pwr_state = SYSSTAT_UI_ON;
+            ui.pwr_dispdim = false;
+            ui.pwr_dispoff = false;
+            // clear the key events since ui was in off state - just wake it up
+            evmask->key_event = 0;
+            evmask->key_released = 0;
+            evmask->key_pressed = 0;
+            evmask->key_longpressed = 0;
+            core_op_realtime_sensor_select( ui.main_mode + 1 );
+        }
+        else if ( evmask->timer_tick_05sec )
+        {
+            ui.incativity++;
+            if ( ui.incativity > 3 )        // 1.5sec
+            {
+                ui.pwr_state = SYSSTAT_UI_PWROFF;
+            }
+        }
+        return;
+    }
+
     if ( evmask->key_event )
     {
         ui.incativity = 0;          // reset inactivity counter
@@ -218,7 +248,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             ui.pwr_state = SYSSTAT_UI_STOPPED;
             core_op_realtime_sensor_select( 0 );
         }
-        else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY | SYSSTAT_UI_STOP_W_SKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
+        else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
                   ( core.setup.pwr_stdby ) &&
                   ( core.setup.pwr_stdby < ui.incativity) )
@@ -559,7 +589,7 @@ void ui_init( struct SCore *instance )
     Graphics_Init( NULL, NULL );
 
     memset( &ui, 0, sizeof(ui) );
-    ui.pwr_state = SYSSTAT_UI_ON;
+    ui.pwr_state = SYSSTAT_UI_WAKEUP;
 
 }//END: ui_init
 
@@ -572,46 +602,49 @@ int ui_poll( struct SEventStruct *evmask )
     ui_power_management( evmask );
 
     // ui state machine
-    if ( ui.m_substate == UI_SUBST_ENTRY )
+    if ( (ui.pwr_state & (SYSSTAT_UI_WAKEUP | SYSSTAT_UI_PWROFF)) == 0 )
     {
-        switch ( ui.m_state )
+        if ( ui.m_substate == UI_SUBST_ENTRY )
         {
-            case UI_STATE_MAIN_GAUGE:
-                uist_mainwindowgauge_entry();
-                break;
-            case UI_STATE_MODE_SELECT:
-                uist_opmodeselect_entry();
-                break;
-            case UI_STATE_STARTUP:
-                uist_startup_entry();
-                break;
-            case UI_STATE_SHUTDOWN:
-                uist_shutdown_entry();
-                break;
-            case UI_STATE_DBG_INPUTS:
-                uist_debuginputs_entry();
-                break;
+            switch ( ui.m_state )
+            {
+                case UI_STATE_MAIN_GAUGE:
+                    uist_mainwindowgauge_entry();
+                    break;
+                case UI_STATE_MODE_SELECT:
+                    uist_opmodeselect_entry();
+                    break;
+                case UI_STATE_STARTUP:
+                    uist_startup_entry();
+                    break;
+                case UI_STATE_SHUTDOWN:
+                    uist_shutdown_entry();
+                    break;
+                case UI_STATE_DBG_INPUTS:
+                    uist_debuginputs_entry();
+                    break;
+            }
         }
-    }
-    else
-    {
-        switch ( ui.m_state )
+        else
         {
-            case UI_STATE_MAIN_GAUGE:
-                uist_mainwindowgauge( evmask );
-                break;
-            case UI_STATE_MODE_SELECT:
-                uist_opmodeselect( evmask );
-                break;
-            case UI_STATE_STARTUP:
-                uist_startup( evmask );
-                break;
-            case UI_STATE_SHUTDOWN:
-                uist_shutdown( evmask );
-                break;
-            case UI_STATE_DBG_INPUTS:
-                uist_debuginputs( evmask );
-                break;
+            switch ( ui.m_state )
+            {
+                case UI_STATE_MAIN_GAUGE:
+                    uist_mainwindowgauge( evmask );
+                    break;
+                case UI_STATE_MODE_SELECT:
+                    uist_opmodeselect( evmask );
+                    break;
+                case UI_STATE_STARTUP:
+                    uist_startup( evmask );
+                    break;
+                case UI_STATE_SHUTDOWN:
+                    uist_shutdown( evmask );
+                    break;
+                case UI_STATE_DBG_INPUTS:
+                    uist_debuginputs( evmask );
+                    break;
+            }
         }
     }
 
