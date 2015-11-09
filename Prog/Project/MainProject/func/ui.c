@@ -203,6 +203,16 @@ static inline void ui_power_management( struct SEventStruct *evmask )
 
     if ( evmask->key_event )
     {
+        // for the case when UI was shut down - ony longpress on pwr/mode button is allowed
+        // if key activity detected (most probably from pwr/mode - because evnets are set up for this only) then start up in
+        // wake-up mode
+        if ( ui.pwr_state == SYSSTAT_UI_PWROFF )
+        {
+            ui.incativity = 0;
+            ui.pwr_state = SYSSTAT_UI_WAKEUP;
+            return;
+        }
+
         ui.incativity = 0;          // reset inactivity counter
         if ( ui.pwr_state != SYSSTAT_UI_ON )
         {
@@ -274,7 +284,7 @@ void uist_startup_entry( void )
 //    uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
     DispHAL_UpdateScreen();
     core_beep( beep_pwron );
-    ui.m_substate = 50;    // 0.5sec. startup screen
+    ui.m_substate = 1;
 }
 
 
@@ -386,6 +396,8 @@ void uist_shutdown( struct SEventStruct *evmask )
     if ( ui.m_substate <= 2 )
     { 
         ui.pwr_state = SYSSTAT_UI_PWROFF;
+        ui.m_state = UI_STATE_STARTUP;
+        ui.m_substate = UI_SUBST_ENTRY;
         return;
     }
 

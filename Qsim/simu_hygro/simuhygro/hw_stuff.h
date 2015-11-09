@@ -102,6 +102,7 @@ void HW_ASSERT();
 
 void main_entry(uint32 *stack_top);
 void main_loop(void);
+void Set_WakeUp(void);
 
 void DispHAL_UpdateScreen();
 void DispHAL_ISR_Poll();

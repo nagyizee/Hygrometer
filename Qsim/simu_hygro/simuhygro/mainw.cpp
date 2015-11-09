@@ -193,6 +193,7 @@ void mainw::CPUWakeUpOnEvent( bool pwrbtn )
               (PwrMode == pm_hold_btn)           )      // if stopped with UI on ( no power_off action or power down timeout ) - any button will wake up
     {
         PwrMode = pm_full;
+        Set_WakeUp();                   // simulate the wake-up by buttons EXTI
         CPULoopSimulation( false );
     }
 

@@ -71,18 +71,21 @@ static inline void System_Poll( void )
             else
                 pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
             core_pwr_setup_alarm(pwr_mode);
+            EventBtnClear();
         }
         else if ( sys_st == ( SYSSTAT_CORE_STOPPED | SYSSTAT_UI_PWROFF ) )
         {
             // core is stopped or long term registering, ui is off - we can cut the power
             pwr_mode = pm_down;
             core_pwr_setup_alarm(pwr_mode);
+            EventBtnClear();
         }
         else
         {
             // for the remained cases we will use hold with all buttons, this includes the UI stopped case when core doesn't do anything
             pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
             core_pwr_setup_alarm(pwr_mode);
+            EventBtnClear();
         }
     }
 
@@ -153,3 +156,13 @@ void main_loop(void)
         System_Poll( );
     }
 }
+
+
+#ifdef ON_QT_PLATFORM
+void Set_WakeUp(void)
+{
+    wake_up = true;
+}
+#endif
+
+

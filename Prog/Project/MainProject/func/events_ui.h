@@ -67,6 +67,9 @@
     // parameters: - evmask: events which are confirmed by application
     void Event_Clear( struct SEventStruct evmask );
 
+    // clear button status
+    void EventBtnClear(void);
+
 #ifdef __cplusplus
     }
 #endif

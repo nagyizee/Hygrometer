@@ -226,3 +226,9 @@ struct SBeep
         __enable_interrupt();
 
     }//END: Event_Clear
+
+
+    void EventBtnClear(void)
+    {
+        keys_old        = 0;    // reset bitmask with previous key state
+    }

@@ -187,25 +187,26 @@ static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
     if ( (rdrw & RDRW_STATUSBAR) == RDRW_STATUSBAR )
     {
         // redraw everything
-        Graphic_SetColor(1);
-        Graphic_FillRectangle( 0, 0, 118, 15, 1);
         Graphic_SetColor(0);
+        Graphic_FillRectangle( 0, 0, 118, 15, 0);
+        Graphic_SetColor(0);
+
+        Graphic_SetColor(1);
+        Graphic_Line(13,15,127,15);
         // draw the page selection
         for ( x=0; x<3; x++ )
         {
             if ( x == ui.main_mode )
-                Graphic_Rectangle( 1+x*5, 13, 3+x*5, 14 );
+                Graphic_Rectangle( 1+x*4, 14, 3+x*4, 15 );
             else
-                Graphic_PutPixel( 2+x*5, 14, 0 );
+                Graphic_PutPixel( 2+x*4, 15, 1 );
         }
-        Graphic_PutPixel( 0, 0, 0 );
-        Graphic_PutPixel( 118, 0, 0 );
 
         switch ( opmode )
         {
-            case UImm_gauge_thermo:     uigrf_text_inv( 2, 4, uitxt_smallbold, "Thermo:" ); break;
-            case UImm_gauge_hygro:      uigrf_text_inv( 2, 4, uitxt_smallbold, "Hygro:" );  break;
-            case UImm_gauge_pressure:   uigrf_text_inv( 2, 4, uitxt_smallbold, "Baro:" );   break;
+            case UImm_gauge_thermo:     uigrf_text( 2, 4, uitxt_smallbold, "Thermo:" ); break;
+            case UImm_gauge_hygro:      uigrf_text( 2, 4, uitxt_smallbold, "Hygro:" );  break;
+            case UImm_gauge_pressure:   uigrf_text( 2, 4, uitxt_smallbold, "Baro:" );   break;
         }
 
         // draw time
@@ -214,21 +215,21 @@ static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
             datestruct dt;
             utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, NULL );
             utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
-            uigrf_puttime( 92, 1, uitxt_small, 0, tm, true, false );
-            uigrf_putdate( 93, 10, uitxt_micro, 0, dt, false, true );
+            uigrf_puttime( 92, 0, uitxt_small, 1, tm, true, false );
+            uigrf_putdate( 93, 9, uitxt_micro, 1, dt, false, true );
         }
     }
 
     // clock blink
     if ( clock & 0x01 )
     {
-        Graphic_PutPixel( 104, 3, 1 );
-        Graphic_PutPixel( 104, 6, 1 );
+        Graphic_PutPixel( 104, 2, 1 );
+        Graphic_PutPixel( 104, 5, 1 );
     }
     else
     {
-        Graphic_PutPixel( 104, 3, 0 );
-        Graphic_PutPixel( 104, 6, 0 );
+        Graphic_PutPixel( 104, 2, 0 );
+        Graphic_PutPixel( 104, 5, 0 );
     }
 }
 
