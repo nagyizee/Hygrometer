@@ -36,7 +36,6 @@ struct SBeep
     static uint32 internal_get_keys()
     {
         uint32 keys = 0;
-        uint32 enc;
 
         if ( BtnGet_OK() )
             keys |= KEY_OK;

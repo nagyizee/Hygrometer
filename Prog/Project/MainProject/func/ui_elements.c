@@ -273,7 +273,7 @@ static inline void uiel_control_list_display( struct Suiel_control_list *handle,
     Graphic_FillRectangle( handle->poz_x, y, xend, yend, 1 - handle->color );
 
     // draw the content
-    grf_setup_font( handle->textstyle, handle->color, -1 );
+    grf_setup_font( (enum Etextstyle)handle->textstyle, handle->color, -1 );
 
     Graphic_Window( handle->poz_x, y, xend, yend );
     crt_poz = uiel_internal_menu_find_index( handle->labels, handle->elem_crt );

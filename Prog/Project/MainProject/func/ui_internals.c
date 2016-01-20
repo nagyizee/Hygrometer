@@ -248,9 +248,9 @@ static void uist_internal_disp_all_with_focus()
 void internal_drawthermo_minmaxval( int x, int y, int value )
 {
     if ( value == NUM100_MAX )
-        uigrf_text( x, y, uitxt_small | uitxt_MONO, " HI" );
+        uigrf_text( x, y, (enum Etextstyle)(uitxt_small | uitxt_MONO), " HI" );
     else if ( value == NUM100_MIN )
-        uigrf_text( x, y, uitxt_small | uitxt_MONO, " --" );
+        uigrf_text( x, y, (enum Etextstyle)(uitxt_small | uitxt_MONO), " --" );
     else
         uigrf_putfixpoint( x, y, uitxt_small, value / 10, 3, 1, 0x00, false );
 }
@@ -273,9 +273,9 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
 
         // temperature display
         if ( temp == NUM100_MAX )
-            uigrf_text( 13, 17, uitxt_smallbold | uitxt_MONO, "HI" );
+            uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "HI" );
         else if ( temp == NUM100_MIN )
-            uigrf_text( 13, 17, uitxt_smallbold | uitxt_MONO, "LO" );
+            uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "LO" );
         else
             uigrf_putvalue_impact( 13, 17, temp, 3, 2, true );
 
@@ -301,12 +301,12 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         Graphic_SetColor( 1 );
         Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 
-        internal_drawthermo_minmaxval( x, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 0 )], unit ) );
-        internal_drawthermo_minmaxval( x, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 0 )], unit ) );
-        internal_drawthermo_minmaxval( x+28, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 1 )], unit ) );
-        internal_drawthermo_minmaxval( x+28, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 1 )], unit ) );
-        internal_drawthermo_minmaxval( x+54, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 2 )], unit ) );
-        internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], unit ) );
+        internal_drawthermo_minmaxval( x, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+27, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+27, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+54, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
 
         // for tendency meter
         switch ( unit )
@@ -337,66 +337,108 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
 
 static inline void uist_draw_gauge_hygro( int redraw_all )
 {
-    int hum = ( 98.6 * 10 );       // testing purpose
-    int hum_int = hum / 10;
-    int hum_fract = hum % 10;
-
-    // humidity display
-    int x = 13;
-    int y = 17;
-    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, hum_int, 3, ' ', false );
-    uigrf_putnr(x+37, y+14, uitxt_smallbold | uitxt_MONO, hum_fract, 1, '0', false );
-    Graphic_SetColor( 1 );
-    Graphic_Rectangle( x+33, y+19, x+34, y+20 );
-    uigrf_text( x+45, y+2, uitxt_small,  "%" );
-
-    // min/max set display
-    x = 0;
-    y = 41;
-
-    uigrf_text( x, y+1, uitxt_micro,  "  SET1     SET2      DAY-" );
-    Graphic_SetColor( -1 );
-    Graphic_FillRectangle( x, y, x + 75, y + 6, -1 );
-
-    uigrf_putfixpoint( x, y+8, uitxt_small, 1000, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x, y+16, uitxt_small, 607, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+28, y+8, uitxt_small, 889, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+28, y+16, uitxt_small, 561, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+54, y+8, uitxt_small, 567, 3, 1, 0x00, false );
-    uigrf_putfixpoint( x+54, y+16, uitxt_small, 600, 3, 1, 0x00, false );
-
-    // tendency meter
-    x = 77;
-    y = 16;
-    uigrf_putfixpoint( x+4, y+43, uitxt_micro, -246, 3, 1, 0x00, false );
-    uigrf_text( x+32, y+43, uitxt_micro, "%/MIN" );
-
-    // tendency graph
-    uigrf_putnr( x+40, y, uitxt_micro, 100, 2, 0x00, false );
-    uigrf_putnr( x+40, y+36, uitxt_micro, 40, 3, 0x00, false );
-    Graphic_Rectangle( x+40, y+6, x+41, y+34 );
-    Graphic_Rectangle( x, y, x, y+40 );
-
+    if ( redraw_all & RDRW_UI_DYNAMIC )
     {
-        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
-                            12,14,15,30,33,39,40,40,38,34,
-                            30,32,33,33,35,36,32,28,24,23,
-                            22,22,21,18,19,25,26,27,26 };
-        int i, j;
+        // convert temperature from base unit to the selected one
+        int hygro;
 
+        if ( ui.p.mgHygro.unitH == hu_dew )
+        {
+            hygro = core_utils_temperature2unit( core.measure.measured.dewpoint, (enum ETemperatureUnits)core.setup.show_unit_temp );
+            // temperature display
+            if ( hygro == NUM100_MAX )
+                uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "HI" );
+            else if ( hygro == NUM100_MIN )
+                uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "LO" );
+            else
+                uigrf_putvalue_impact( 13, 17, hygro, 3, 2, true );
+        }
+        else
+        {
+            if ( ui.p.mgHygro.unitH == hu_rh )
+                hygro = core.measure.measured.rh;
+            else
+                hygro = core.measure.measured.absh;
+            uigrf_putvalue_impact( 13, 17, hygro, 3, 2, false );
+        }
+
+        // tendency meter
+        uigrf_putfixpoint( 81, 59, uitxt_micro, -2253, 3, 2, 0x00, false );
+        core.measure.dirty.b.upd_hum = 0;
+    }
+    if ( redraw_all & RDRW_UI_CONTENT )
+    {
+        int x, y, i;
+        uint32 mms;
+        // min/max set display
+        x = 0;
+        y = 41;
+
+        mms = core.setup.show_mm_hygro;
+
+        Graphic_SetColor( 0 );
+        Graphic_FillRectangle( x, y+7, x + 75, y + 22, 0 );
         Graphic_SetColor( 1 );
+        Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 
-        for (j=0; j<=5; j++)
+        switch ( ui.p.mgHygro.unitH )
         {
-            for (i=0; i<=6; i++)
-                Graphic_PutPixel(x+i*6, y+j*8, 1);
+            case hu_rh:
+                for ( i=0; i<3; i++ )
+                {
+                    internal_drawthermo_minmaxval( x+i*27, y+8, core.measure.minmax.rh_max[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+16, core.measure.minmax.rh_min[GET_MM_SET_SELECTOR( mms, i )] );
+                }
+                break;
+            case hu_dew:
+                for ( i=0; i<3; i++ )
+                {
+                    internal_drawthermo_minmaxval( x+i*27, y+8, NUM100_MIN );       // no min/max for dew point
+                    internal_drawthermo_minmaxval( x+i*27, y+16, NUM100_MIN );
+                }
+                break;
+            case hu_abs:
+                for ( i=0; i<3; i++ )
+                {
+                    internal_drawthermo_minmaxval( x+i*27, y+8, core.measure.minmax.absh_max[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+16, core.measure.minmax.absh_min[GET_MM_SET_SELECTOR( mms, i )] );
+                }
+                break;
         }
 
-        for (i=0; i<38; i++)
+        // for tendency meter
+        switch ( ui.p.mgHygro.unitH )
         {
-            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
+            case hu_rh:  uigrf_text( 104, 59, uitxt_micro, "% RH" ); break;
+            case hu_dew: uigrf_text( 104, 59, uitxt_micro, "DEW*" ); break;
+            case hu_abs: uigrf_text( 104, 59, uitxt_micro, "G/M3" ); break;
         }
 
+        // tendency graph
+        {
+            if ( ui.p.mgHygro.unitH == hu_dew )
+            {
+                // display empty graph since we don't measure this
+                uigrf_put_graph_small( 77, 16, grf_values, 0, 0, grf_up_lim, grf_dn_lim, 3, grf_decpts );
+            }
+            else
+            {
+                if ( core.measure.dirty.b.upd_th_tendency )
+                {
+                    if ( ui.p.mgHygro.unitH == hu_rh )
+                        uist_internal_tendencyval2pixels( &core.measure.tendency.RH );
+                    else
+                        uist_internal_tendencyval2pixels( &core.measure.tendency.abshum );
+                }
+                uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
+                                       core.measure.tendency.RH.w,                  // should be the same for RH and abs hum.
+                                       grf_up_lim, grf_dn_lim, 3, grf_decpts );
+                core.measure.dirty.b.upd_th_tendency = 0;
+            }
+        }
+        core.measure.dirty.b.upd_hum_minmax = 0;
+        core.measure.dirty.b.upd_abshum_minmax = 0;
+        uist_internal_disp_all_with_focus();
     }
 }
 
@@ -410,8 +452,8 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
     // pressure display
     int x = 7;
     int y = 17;
-    uigrf_putnr(x, y, uitxt_large_num | uitxt_MONO, press_int, 4, ' ', false );
-    uigrf_putnr(x+48, y+14, uitxt_smallbold | uitxt_MONO, press_fract, 2, '0', false );
+    uigrf_putnr(x, y, (enum Etextstyle)(uitxt_large_num | uitxt_MONO), press_int, 4, ' ', false );
+    uigrf_putnr(x+48, y+14, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), press_fract, 2, '0', false );
     Graphic_SetColor( 1 );
     Graphic_Rectangle( x+44, y+19, x+45, y+20 );
     uigrf_text( x+48, y+2, uitxt_small,  "hPa" );
@@ -454,8 +496,8 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
     uigrf_text( x+32, y+43, uitxt_micro, "U/MIN" );
 
     // tendency graph
-    uigrf_putfixpoint( x+40, y, uitxt_micro, 2.9, 2, 1, 0x00, false );
-    uigrf_putfixpoint( x+40, y+36, uitxt_micro, 0.1, 2, 1, 0x00, false );
+    uigrf_putfixpoint( x+40, y, uitxt_micro, 29, 2, 1, 0x00, false );
+    uigrf_putfixpoint( x+40, y+36, uitxt_micro, 01, 2, 1, 0x00, false );
     Graphic_Rectangle( x+40, y+6, x+41, y+34 );
     Graphic_Rectangle( x, y, x, y+40 );
 
@@ -518,7 +560,7 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
 
     ui.ui_elem_nr = 4;
 
-    ui.p.mgThermo.unitT = core.setup.show_unit_temp;
+    ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.setup.show_unit_temp;
 }
 
 
@@ -526,23 +568,23 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
 {
     int i;
     uiel_control_list_init( &ui.p.mgHygro.units, 52, 16, 20, uitxt_small, 1, false );
-    uiel_control_list_add_item( &ui.p.mgHygro.units, " %", 0 );
+    uiel_control_list_add_item( &ui.p.mgHygro.units, "%RH", 0 );
     uiel_control_list_add_item( &ui.p.mgHygro.units, "dew", 1 );
     uiel_control_list_add_item( &ui.p.mgHygro.units, "g/m3", 2 );
-    uiel_control_list_set_index( &ui.p.mgThermo.units, 0 );
-    ui.ui_elems[0] = &ui.p.mgThermo.units;
+    uiel_control_list_set_index( &ui.p.mgHygro.units, core.setup.show_unit_hygro );
+    ui.ui_elems[0] = &ui.p.mgHygro.units;
 
     for (i=0; i<3; i++)
     {
-        uiel_control_list_init( &ui.p.mgThermo.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", mms_set1 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", mms_set2 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", mms_day_crt );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", mms_day_bfr );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
-        uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], i );
-        ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
+        uiel_control_list_init( &ui.p.mgHygro.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "SET1", mms_set1 );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "SET2", mms_set2 );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "DAY", mms_day_crt );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "DAY-", mms_day_bfr );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WEEK", mms_week_crt );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WK-", mms_week_bfr );
+        uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], i );
+        ui.ui_elems[i+1] = &ui.p.mgHygro.minmaxset[i];
     }
 
     ui.ui_elem_nr = 4;

@@ -50,6 +50,7 @@
 #include "hw_stuff.h"
 #include "eeprom_spi.h"
 #include "utilities.h"
+#include "sensors.h"
 
 #ifdef ON_QT_PLATFORM
 struct STIM1 stim;
@@ -91,7 +92,7 @@ extern void DispHAL_ISR_Poll(void);
     void TimerSysIntrHandler(void)
     {
         // !!!!!!! IMPORTANT NOTE !!!!!!!!
-        // IF timer 16 in use - check for the interrupt flag
+        // IF timer 15 in use - check for the interrupt flag
 
         // Clear update interrupt bit
         TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
@@ -224,16 +225,17 @@ static void local_update_battery()
     core.measure.battery = (uint8)((battery * 100) / VBAT_DIFF);     
 }
 
-static int local_calculate_dewpoint( int temp, int rh )
+static int local_calculate_dewpoint( uint32 temp, uint32 rh )
 {
 
+    return 0;
 }
 
-static int local_calculate_abs_humidity( int temp, int rh )
+static int local_calculate_abs_humidity( uint32 temp, uint32 rh )
 {
 
+    return 0;
 }
-
 
 static inline void local_process_temp_sensor_result( uint32 temp )
 {
@@ -300,6 +302,98 @@ static inline void local_process_temp_sensor_result( uint32 temp )
 }
 
 
+static inline void local_process_hygro_sensor_result( uint32 rh )
+{
+    uint32 dew;     // calculated dew point temperature in 16FP9+40*
+    uint32 abs;     // calculated absolute humidity in g/m3*100
+
+    dew = local_calculate_dewpoint( core.measure.measured.temperature, rh );
+    abs = local_calculate_abs_humidity( core.measure.measured.temperature, rh );
+    rh = ((rh * 100) >> RH_FP);     // calculate the x100 % value from 16FP8
+
+    // temperature is provided in 16fp9 + 40*C
+    if ( (rh != core.measure.measured.temperature) ||
+         (dew != core.measure.measured.dewpoint) ||
+         (abs != core.measure.measured.absh) )
+    {
+        core.measure.measured.rh = rh;
+        core.measure.measured.absh = abs;
+        core.measure.measured.dewpoint = dew;
+        core.measure.dirty.b.upd_hum = 1;
+
+        if ( core.op.op_flags.b.op_monitoring )     // check for min/max
+        {
+            int i;
+
+            if ( rh == 0 )       // rh 0 % marks also uninitted temperature min/max - omit this value
+                rh = 1;
+            if ( abs == 0 )
+                abs = 1;
+
+            for ( i=0; i<mms_day_bfr; i++ )     // set up only the current values
+            {
+                if ( (core.measure.minmax.rh_min[i] == 0) ||
+                     (core.measure.minmax.rh_min[i] > rh) )
+                {
+                    core.measure.minmax.rh_min[i] = rh;
+                    core.measure.dirty.b.upd_hum_minmax = 1;
+                }
+                if ( (core.measure.minmax.rh_max[i] == 0) ||
+                     (core.measure.minmax.rh_max[i] < rh) )
+                {
+                    core.measure.minmax.rh_max[i] = rh;
+                    core.measure.dirty.b.upd_hum_minmax = 1;
+                }
+
+                if ( (core.measure.minmax.absh_min[i] == 0) ||
+                     (core.measure.minmax.absh_min[i] > abs) )
+                {
+                    core.measure.minmax.absh_min[i] = abs;
+                    core.measure.dirty.b.upd_abshum_minmax = 1;
+                }
+                if ( (core.measure.minmax.absh_max[i] == 0) ||
+                     (core.measure.minmax.absh_max[i] < abs) )
+                {
+                    core.measure.minmax.absh_max[i] = abs;
+                    core.measure.dirty.b.upd_abshum_minmax = 1;
+                }
+            }
+        }
+    }
+
+    // if monitoring - calculate the average for the tendency graph
+    if ( core.op.op_flags.b.op_monitoring )
+    {
+/*rewritte        if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
+            temp = 0x0001;
+
+        core.op.sread.moni.avg_sum_temp += temp;
+        core.op.sread.moni.avg_ctr_temp++;
+        // if scheduled tendency update reached - update the tendency list
+        if ( core.op.sread.moni.sch_moni_temp <= RTCclock )
+        {
+            int w_temp = core.measure.tendency.temp.w;
+            int c_temp = core.measure.tendency.temp.c;
+            // store the average of the measurements
+            core.measure.tendency.temp.value[ w_temp++ ] = core.op.sread.moni.avg_sum_temp / core.op.sread.moni.avg_ctr_temp;
+            if ( w_temp == STORAGE_TENDENCY )
+                w_temp = 0;
+            if ( c_temp < STORAGE_TENDENCY )
+                c_temp++;
+            core.measure.tendency.temp.w = w_temp;
+            core.measure.tendency.temp.c = c_temp;
+            // clean up the average and set up for the next session
+            core.op.sread.moni.avg_ctr_temp = 0;
+            core.op.sread.moni.avg_sum_temp = 0;
+            core.op.sread.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+            // notify the UI to update
+            core.measure.dirty.b.upd_th_tendency = 1;
+        }
+        */
+    }
+}
+
+
 static inline void local_push_minmax_set_if_needed(void)
 {
     uint32 check_val;
@@ -348,6 +442,37 @@ static inline void local_push_minmax_set_if_needed(void)
 }
 
 
+static inline void local_check_sensor_read_schedules(void)
+{
+    if ( (core.op.sread.sch_thermo <= RTCclock) )
+    {
+        if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_thermo) )
+        {
+            Sensor_Acquire( SENSOR_TEMP );
+            core.op.op_flags.b.check_sensor |= SENSOR_TEMP; 
+
+            if (core.op.op_flags.b.sens_real_time == ss_thermo)
+                core.op.sread.sch_thermo += CORE_SCHED_TEMP_REALTIME;
+            else
+                core.op.sread.sch_thermo += CORE_SCHED_TEMP_MONITOR;
+        }
+    }
+
+    if ( (core.op.sread.sch_hygro <= RTCclock) )
+    {
+        if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_rh) )
+        {
+            Sensor_Acquire( SENSOR_RH );
+            core.op.op_flags.b.check_sensor |= SENSOR_RH; 
+
+            if (core.op.op_flags.b.sens_real_time == ss_rh)
+                core.op.sread.sch_hygro += CORE_SCHED_RH_REALTIME;
+            else
+                core.op.sread.sch_hygro += CORE_SCHED_RH_MONITOR;
+        }
+    }
+
+}
 
 /////////////////////////////////////////////////////
 //
@@ -409,7 +534,6 @@ uint32 core_get_clock_counter()
 
 void core_set_clock_counter( uint32 counter )
 {
-    uint32 rtc_val;
     __disable_interrupt();
     RTCctr = counter;
     HW_SetRTC( RTCctr );
@@ -469,6 +593,7 @@ int core_setup_reset( bool save )
     setup->beep_low = 2152;
 
     setup->show_unit_temp = tu_C;
+    setup->show_unit_hygro = hu_rh;
     setup->show_mm_temp = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_press = mms_set1;
@@ -525,8 +650,15 @@ void core_op_realtime_sensor_select( enum ESensorSelect sensor )
             if ( core.op.sread.sch_thermo < RTCclock )
                 core.op.sread.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
+        case ss_rh:
+            if ( core.op.sread.sch_hygro < RTCclock )
+                core.op.sread.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            break;
+        case ss_pressure:
+            if ( core.op.sread.sch_press < RTCclock )
+                core.op.sread.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            break;
     }
-
     core.op.op_flags.b.sens_real_time = sensor;
 }
 
@@ -645,7 +777,7 @@ int core_init( struct SCore **instance )
     core.op.sread.sch_press = RTCclock;
 
     // -- move this to the Backup domain simulation
-    core_op_monitoring_rate( ss_thermo, core.setup.tim_tend_temp );
+    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.setup.tim_tend_temp );
     core_op_monitoring_switch( true );
 
     return 0;
@@ -666,19 +798,8 @@ void core_poll( struct SEventStruct *evmask )
     {
         RTCclock = RTCctr;      // do a local copy
 
-        if ( (core.op.sread.sch_thermo <= RTCclock) )
-        {
-            if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_thermo) )
-            {
-                Sensor_Acquire( SENSOR_TEMP );
-                core.op.op_flags.b.check_sensor |= SENSOR_TEMP; 
-
-                if (core.op.op_flags.b.sens_real_time == ss_thermo)
-                    core.op.sread.sch_thermo += CORE_SCHED_TEMP_REALTIME;
-                else
-                    core.op.sread.sch_thermo += CORE_SCHED_TEMP_MONITOR;
-            }
-        }
+        // check sensor read schedules and initiate read sequences
+        local_check_sensor_read_schedules();
 
         if ( core.op.op_flags.b.op_monitoring )
         {
@@ -693,6 +814,11 @@ void core_poll( struct SEventStruct *evmask )
         {
             local_process_temp_sensor_result( Sensor_Get_Value(SENSOR_TEMP) );
             core.op.op_flags.b.check_sensor &= ~SENSOR_TEMP;
+        }
+        if ( Sensor_Is_Ready() & SENSOR_RH )
+        {
+            local_process_hygro_sensor_result( Sensor_Get_Value(SENSOR_RH) );
+            core.op.op_flags.b.check_sensor &= ~SENSOR_RH;
         }
     }
 
@@ -709,14 +835,15 @@ void core_pwr_setup_alarm( enum EPowerMode pwr_mode )
 int  core_pwr_getstate(void)
 {
     if ( core.op.op_flags.val == 0 )
-        return SYSSTAT_CORE_STOPPED;
+        return SYSSTAT_CORE_STOPPED;                // core is stopped - no operation is done
     else
     {
         if ( core.op.op_flags.b.check_sensor )
-            return SYSSTAT_CORE_RUN_FULL;
+            return SYSSTAT_CORE_RUN_FULL;           // operate with full 1ms interrupt interval for checking sensor result
         if ( core.op.op_flags.b.op_monitoring )
-            return SYSYTAT_CORE_MONITOR;
+            return SYSYTAT_CORE_MONITOR;            // operate on RTC alarm basis
     }
+    return 0;
 }
 
 

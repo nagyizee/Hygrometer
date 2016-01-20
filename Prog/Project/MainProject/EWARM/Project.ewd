@@ -77,15 +77,15 @@
         </option>
         <option>
           <name>OCDownloadVerifyAll</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCProductVersion</name>
-          <state>5.30.0.51236</state>
+          <state>6.50.3.4744</state>
         </option>
         <option>
           <name>OCDynDriverList</name>
-          <state>JLINK_ID</state>
+          <state>ARMSIM_ID</state>
         </option>
         <option>
           <name>OCLastSavedByProductVersion</name>
@@ -245,7 +245,7 @@
         </option>
         <option>
           <name>AngelLogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>OCDriverInfo</name>
@@ -421,7 +421,7 @@
         </option>
         <option>
           <name>LogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCJTagBreakpointRadio</name>
@@ -433,7 +433,7 @@
         </option>
         <option>
           <name>CCJTagUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
       </data>
     </settings>
@@ -450,7 +450,7 @@
         </option>
         <option>
           <name>CRomLogFileEditB</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CRomCommPort</name>
@@ -685,7 +685,7 @@
         </option>
         <option>
           <name>CCJLinkLogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCJLinkHWResetDelay</name>
@@ -770,11 +770,11 @@
         </option>
         <option>
           <name>CCJLinkUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -783,7 +783,7 @@
         <option>
           <name>CCJLinkResetList</name>
           <version>6</version>
-          <state>7</state>
+          <state>5</state>
         </option>
         <option>
           <name>CCJLinkInterfaceCmdLine</name>
@@ -844,7 +844,7 @@
         </option>
         <option>
           <name>CCCpuClockEdit</name>
-          <state>8.0</state>
+          <state>72.0</state>
         </option>
         <option>
           <name>CCSwoClockAuto</name>
@@ -927,7 +927,7 @@
         </option>
         <option>
           <name>LogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>DoEmuMultiTarget</name>
@@ -978,7 +978,7 @@
         </option>
         <option>
           <name>CCJTagUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
         <option>
           <name>CCMacraigorInterfaceRadio</name>
@@ -1071,7 +1071,7 @@
         <debug>1</debug>
         <option>
           <name>CRDIDriverDll</name>
-          <state>Browse to your RDI driver</state>
+          <state>###Uninitialized###</state>
         </option>
         <option>
           <name>CRDILogFileCheck</name>
@@ -1079,7 +1079,7 @@
         </option>
         <option>
           <name>CRDILogFileEdit</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCRDIHWReset</name>
@@ -1132,7 +1132,7 @@
         </option>
         <option>
           <name>CCSTLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSTLinkInterfaceCmdLine</name>
@@ -1145,11 +1145,11 @@
         </option>
         <option>
           <name>CCCpuClockEdit</name>
-          <state>8</state>
+          <state>72.0</state>
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -1166,7 +1166,7 @@
         <debug>1</debug>
         <option>
           <name>CThirdPartyDriverDll</name>
-          <state>Browse to your third-party driver</state>
+          <state>###Uninitialized###</state>
         </option>
         <option>
           <name>CThirdPartyLogFileCheck</name>
@@ -1174,7 +1174,7 @@
         </option>
         <option>
           <name>CThirdPartyLogFileEditB</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>OCDriverInfo</name>
@@ -1374,11 +1374,11 @@
         </option>
         <option>
           <name>OCDownloadVerifyAll</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCProductVersion</name>
-          <state>5.30.0.51236</state>
+          <state>6.50.3.4744</state>
         </option>
         <option>
           <name>OCDynDriverList</name>
@@ -1414,7 +1414,7 @@
         </option>
         <option>
           <name>FlashLoadersV3</name>
-          <state>$TOOLKIT_DIR$\config\flashloader\ST\FlashSTM32F100x6.board</state>
+          <state>$TOOLKIT_DIR$\config\flashloader\ST\FlashSTM32F100x8.board</state>
         </option>
         <option>
           <name>OCImagesSuppressCheck1</name>
@@ -1442,7 +1442,7 @@
         </option>
         <option>
           <name>OverrideDefFlashBoard</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCImagesOffset1</name>
@@ -1542,7 +1542,7 @@
         </option>
         <option>
           <name>AngelLogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>OCDriverInfo</name>
@@ -1718,7 +1718,7 @@
         </option>
         <option>
           <name>LogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCJTagBreakpointRadio</name>
@@ -1730,7 +1730,7 @@
         </option>
         <option>
           <name>CCJTagUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
       </data>
     </settings>
@@ -1747,7 +1747,7 @@
         </option>
         <option>
           <name>CRomLogFileEditB</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CRomCommPort</name>
@@ -1982,7 +1982,7 @@
         </option>
         <option>
           <name>CCJLinkLogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCJLinkHWResetDelay</name>
@@ -2067,11 +2067,11 @@
         </option>
         <option>
           <name>CCJLinkUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -2141,11 +2141,11 @@
         </option>
         <option>
           <name>CCCpuClockEdit</name>
-          <state>8.0</state>
+          <state>72.0</state>
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -2224,7 +2224,7 @@
         </option>
         <option>
           <name>LogFile</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>DoEmuMultiTarget</name>
@@ -2275,7 +2275,7 @@
         </option>
         <option>
           <name>CCJTagUpdateBreakpoints</name>
-          <state>main</state>
+          <state>_call_main</state>
         </option>
         <option>
           <name>CCMacraigorInterfaceRadio</name>
@@ -2368,7 +2368,7 @@
         <debug>1</debug>
         <option>
           <name>CRDIDriverDll</name>
-          <state>Browse to your RDI driver</state>
+          <state>###Uninitialized###</state>
         </option>
         <option>
           <name>CRDILogFileCheck</name>
@@ -2376,7 +2376,7 @@
         </option>
         <option>
           <name>CRDILogFileEdit</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>CCRDIHWReset</name>
@@ -2429,7 +2429,7 @@
         </option>
         <option>
           <name>CCSTLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSTLinkInterfaceCmdLine</name>
@@ -2442,11 +2442,11 @@
         </option>
         <option>
           <name>CCCpuClockEdit</name>
-          <state>8</state>
+          <state>72.0</state>
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -2463,7 +2463,7 @@
         <debug>1</debug>
         <option>
           <name>CThirdPartyDriverDll</name>
-          <state>Browse to your third-party driver</state>
+          <state>###Uninitialized###</state>
         </option>
         <option>
           <name>CThirdPartyLogFileCheck</name>
@@ -2471,7 +2471,7 @@
         </option>
         <option>
           <name>CThirdPartyLogFileEditB</name>
-          <state>$TOOLKIT_DIR$\cspycomm.log</state>
+          <state>$PROJ_DIR$\cspycomm.log</state>
         </option>
         <option>
           <name>OCDriverInfo</name>

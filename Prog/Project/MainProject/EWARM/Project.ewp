@@ -3,7 +3,7 @@
 <project>
   <fileVersion>2</fileVersion>
   <configuration>
-    <name>CAMHEAD_RAM</name>
+    <name>HYGRO_RAM</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -17,15 +17,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>CAMHEAD_RAM\Exe</state>
+          <state>HYGRO_RAM\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>CAMHEAD_RAM\Obj</state>
+          <state>HYGRO_RAM\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>CAMHEAD_RAM\List</state>
+          <state>HYGRO_RAM\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -927,7 +927,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>CAMHEAD_FLASH</name>
+    <name>HYGRO_FLASH</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -941,11 +941,11 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>CAMHEAD_FLASH\Exe</state>
+          <state>HYGRO_FLASH\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>CAMHEAD_FLASH\Obj</state>
+          <state>HYGRO_FLASH\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
@@ -1229,6 +1229,7 @@
           <state>$PROJ_DIR$\..\..\..\..\..\..\000_SoftOnly\MyGraphicLibrary\MyGraphicLibrary\graphic_lib_app\graphic_lib</state>
           <state>$PROJ_DIR$\..\hw</state>
           <state>$PROJ_DIR$\..\func</state>
+          <state>$PROJ_DIR$\..\graphic_lib</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1977,6 +1978,12 @@
         <name>$PROJ_DIR$\..\func\events_ui.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\..\func\sensors.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\func\sensors.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\..\func\ui.c</name>
       </file>
       <file>
@@ -1995,16 +2002,25 @@
         <name>$PROJ_DIR$\..\func\ui_graphics.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\..\func\ui_internals.c</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\..\func\ui_internals.h</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\func\utilities.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\func\utilities.h</name>
       </file>
     </group>
     <group>
-      <name>graphic_lib</name>
+      <name>Graphic_lib</name>
       <file>
-        <name>$PROJ_DIR$\..\..\..\..\..\..\000_SoftOnly\MyGraphicLibrary\MyGraphicLibrary\graphic_lib_app\graphic_lib\graphic_lib.c</name>
+        <name>$PROJ_DIR$\..\graphic_lib\graphic_lib.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\..\..\..\..\000_SoftOnly\MyGraphicLibrary\MyGraphicLibrary\graphic_lib_app\graphic_lib\graphic_lib.h</name>
+        <name>$PROJ_DIR$\..\graphic_lib\graphic_lib.h</name>
       </file>
     </group>
     <group>

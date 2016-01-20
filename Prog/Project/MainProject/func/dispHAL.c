@@ -120,7 +120,7 @@ static void disp_spi_take_over( void )
     // init the DMA for TX
     HW_SPI_DMA_Uninit();            // for refresh
     HW_SPI_DMA_Init();              // init the DMA channel - just need to set address and start
-    HW_SPI_DMA_Enable();            // enable the SPI port's dma request
+    HW_DMA_Disp_Enable(DMAREQ_TX);  // enable the SPI port's dma request
 }
 
 
@@ -130,7 +130,7 @@ static void disp_spi_release( void )
         return;
 
     // uninit dma
-    HW_SPI_DMA_Disable();           // disable the SPI port's dma request
+    HW_DMA_Disp_Disable(DMAREQ_TX); // disable the SPI port's dma request
     HW_SPI_DMA_Uninit();            // uninit the DMA channel
     hal.status.spi_owner = 0;
 }
@@ -163,8 +163,8 @@ static void disp_isr_internal_setup_display_page_command( void )
 // !!!! NOTE !!!! it is used by ISR only, never call it from application !!!!
 static inline void disp_isr_internal_run_update_gmem( void )
 {
-    HW_Disp_Enable();           // chip select
-    HW_Disp_BusData();          // assert the command signal
+    HW_Chip_Disp_Enable();           // chip select
+    HW_Chip_Disp_BusData();          // assert the data signal
 
     HW_SPI_DMA_Send( gmem + hal.send.gmem_line_start * GDISP_MAX_MEM_W, GDISP_MAX_MEM_W );
 
@@ -187,7 +187,7 @@ static bool disp_isr_internal_run_cmd_sequence( void )
     // -- if all the commands are sent - finalize the operation
     if ( hal.send.cmd_idx == hal.send.cmd_len )
     {
-        HW_Disp_Disable();
+        HW_Chip_Disp_Disable();
         return true;            // notify the finishing of operations
     }
 
@@ -201,15 +201,15 @@ static bool disp_isr_internal_run_cmd_sequence( void )
                 hal.send.tmr = 20;     // 5 ms timeout
                 break;
             case CSPEC_RESET:           // assert reset signal
-                HW_Disp_Reset();
+                HW_Chip_Disp_Reset();
                 hal.send.tmr = 1;       // 250us timeout
                 break;
             case CSPEC_VPOFF:
-                HW_Disp_VPanelOff();
+                HW_PWR_Disp_Off();
                 hal.send.tmr = 200;    // 50ms timeout. This is needed for capacitors to be discharged
                 break;
             case CSPEC_VPON:
-                HW_Disp_VPanelOn();
+                HW_PWR_Disp_On();
                 hal.send.tmr = 20;    // 5ms timeout. Chargepump normally starts at 450us (measurd)
                 break;
             case CSPEC_UMEM:
@@ -221,8 +221,8 @@ static bool disp_isr_internal_run_cmd_sequence( void )
     }
 
     // -- otherwise it is normal display command
-    HW_Disp_Enable();           // chip select
-    HW_Disp_BusCommand();       // assert the command signal
+    HW_Chip_Disp_Enable();           // chip select
+    HW_Chip_Disp_BusCommand();       // assert the command signal
 
     // find the end of the contiguous display command stream
     while ( (to_send + hal.send.cmd_idx) < hal.send.cmd_len )
@@ -265,11 +265,11 @@ void DispHAL_ISR_Poll(void)
 void DispHAL_ISR_DMA_Complete(void)
 {
     // clear the interrupt request
-    DMA1->IFCR |= SPI_DMA_IRQ_FLAGS;
+    DMA1->IFCR |= DMA_DISP_IRQ_FLAGS;
 
-    while ( EE_SPI->SR & SPI_I2S_FLAG_BSY );    // wait the data to be transmitted for sure
-    HW_Disp_Disable();                          // unselect display
-    SPI_DMA_Channel->CCR     &= (uint16_t)(~DMA_IT_TC); // disable IRQ. It will be reenabled with a new data packet
+    while ( SPI_PORT_DISP->SR & SPI_I2S_FLAG_BSY );         // wait the data to be transmitted for sure
+    HW_Chip_Disp_Disable();                                 // unselect display
+    DMA_DISP_TX_Channel->CCR     &= (uint16_t)(~DMA_IT_TC); // disable IRQ. It will be reenabled with a new data packet
 
     if ( disp_isr_internal_run_cmd_sequence() )
     {
@@ -352,9 +352,9 @@ uint32 DispHAL_Init(uint8 *Gmem)
 {
     memset( (void*)(&hal), 0, sizeof(hal) );
 
-    HW_Disp_VPanelOff();
-    HW_Disp_Disable();
-    HW_Disp_Reset();
+    HW_PWR_Disp_Off();
+    HW_Chip_Disp_Disable();
+    HW_Chip_Disp_Reset();
 
     gmem = Gmem;
     hal.contrast = 0x80;
@@ -397,7 +397,7 @@ int DispHAL_Display_On( void )
     hal.status.disp_iniprog = 1;                                // initialization in progress
     hal.status.disp_updating = 1;                               // mark this because display content will be updated also
 
-    HW_Disp_UnReset();      // de-assert the reset signal
+    HW_Chip_Disp_UnReset();      // de-assert the reset signal
     disp_spi_take_over();   // take the spdif control
 
     disp_internal_launch_onoff_sequence( true );
@@ -455,7 +455,7 @@ bool DispHAL_ReleaseSPI( void )
     if ( hal.status.busy )
         return false;
 
-    HW_Disp_Disable();
+    HW_Chip_Disp_Disable();
     disp_spi_release();
     return true;
 }

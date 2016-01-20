@@ -42,7 +42,7 @@
     // call fails if display is allready busy transferring data or command
     bool DispHAL_ReleaseSPI( void );
 
-    // ISR routine - should be called in fixed periods from a timer ISR - timing is important (250us is used currently)
+    // ISR routine - should be called in fixed periods from a timer ISR - timing is important (minimum timing: 250us)
     void DispHAL_ISR_Poll(void);
 
     // Application polling routine. Should be called periodically. Returns true for display busy

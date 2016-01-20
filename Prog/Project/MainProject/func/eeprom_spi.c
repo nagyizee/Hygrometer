@@ -22,32 +22,32 @@
     static void internal_set_write_enable( bool status )
     {
         volatile uint32 dummy;
-        dummy = SPI_I2S_ReceiveData( EE_SPI );   // clean RXNE flag
-        HW_EEProm_Enable();
+        dummy = SPI_I2S_ReceiveData( SPI_PORT_EE );   // clean RXNE flag
+        HW_Chip_EEProm_Enable();
         if ( status )
-            EE_SPI->DR  = 0x06;         // write enable command
+            SPI_PORT_EE->DR  = 0x06;         // write enable command
         else
-            EE_SPI->DR  = 0x04;         // write disable command
+            SPI_PORT_EE->DR  = 0x04;         // write disable command
 
-        while( (EE_SPI->SR & SPI_I2S_FLAG_RXNE) == 0 );
-        HW_EEProm_Disable();
+        while( (SPI_PORT_EE->SR & SPI_I2S_FLAG_RXNE) == 0 );
+        HW_Chip_EEProm_Disable();
     }
 
     static uint32 internal_get_status(void)
     {
         volatile uint32 result;
-        HW_EEProm_Enable();
+        HW_Chip_EEProm_Enable();
         // write read status command
-        EE_SPI->DR  = 0x05;
-        while ( (EE_SPI->SR & SPI_I2S_FLAG_TXE) == 0 );
-        while ( EE_SPI->SR & SPI_I2S_FLAG_BSY );    // need this - timing for receiving result
+        SPI_PORT_EE->DR  = 0x05;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );    // need this - timing for receiving result
         // read the response
-        result = SPI_I2S_ReceiveData( EE_SPI );     // need this - timing for receiving result 
-        EE_SPI->DR  = 0x00;
-        while ( EE_SPI->SR & SPI_I2S_FLAG_BSY );
-        while ( (EE_SPI->SR & SPI_I2S_FLAG_RXNE) == 0 );
-        result = SPI_I2S_ReceiveData( EE_SPI );
-        HW_EEProm_Disable();
+        result = SPI_I2S_ReceiveData( SPI_PORT_EE );     // need this - timing for receiving result 
+        SPI_PORT_EE->DR  = 0x00;
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_RXNE) == 0 );
+        result = SPI_I2S_ReceiveData( SPI_PORT_EE );
+        HW_Chip_EEProm_Disable();
         return result;
     }
 
@@ -58,25 +58,25 @@
 
         internal_set_write_enable(true);
 
-        HW_EEProm_Enable();
+        HW_Chip_EEProm_Enable();
         // send the command with the high address bit
-        EE_SPI->DR  = 0x02 | ((address & 0x100) ? 0x08 : 0x00);
-        while ( (EE_SPI->SR & SPI_I2S_FLAG_TXE) == 0 );
+        SPI_PORT_EE->DR  = 0x02 | ((address & 0x100) ? 0x08 : 0x00);
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
         // sent the remaining address byte
-        EE_SPI->DR  = address & 0xff;
-        while ( (EE_SPI->SR & SPI_I2S_FLAG_TXE) == 0 );
+        SPI_PORT_EE->DR  = address & 0xff;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
 
         // write the data
         for (i=0; i<len; i++)
         {
-            EE_SPI->DR  = *buff;
+            SPI_PORT_EE->DR  = *buff;
             buff++;
-            while ( (EE_SPI->SR & SPI_I2S_FLAG_TXE) == 0 );
+            while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
         }
 
         // wait till data is sent out
-        while ( EE_SPI->SR & SPI_I2S_FLAG_BSY );
-        HW_EEProm_Disable();
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );
+        HW_Chip_EEProm_Disable();
 
         do
         {
@@ -90,7 +90,7 @@
     uint32 eeprom_init()
     {
         // Deselect the FLASH: Chip Select high
-        HW_EEProm_Disable();
+        HW_Chip_EEProm_Disable();
 
         HW_SPI_interface_init(SPI_BaudRatePrescaler_2);     // 4MHz 
 
@@ -126,7 +126,7 @@
 
     uint32 eeprom_disable()
     {
-        HW_EEProm_Disable();
+        HW_Chip_EEProm_Disable();
         ee_status = EE_DISABLED;
         return 0;
     }
@@ -146,24 +146,24 @@
         if ( count <= 0 )
             return 0;
 
-        HW_EEProm_Enable();
+        HW_Chip_EEProm_Enable();
         // send the command with the high address bit
-        EE_SPI->DR  = 0x03 | ((address & 0x100) ? 0x08 : 0x00);
-        while ( (EE_SPI->SR & SPI_I2S_FLAG_TXE) == 0 );
+        SPI_PORT_EE->DR  = 0x03 | ((address & 0x100) ? 0x08 : 0x00);
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
         // sent the remaining address byte
-        EE_SPI->DR  = address & 0xff;
-        while ( EE_SPI->SR & SPI_I2S_FLAG_BSY );    // wait till address is sent completely
-        result = SPI_I2S_ReceiveData( EE_SPI );     // need this otherwise it will not receive the first data byte
+        SPI_PORT_EE->DR  = address & 0xff;
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );    // wait till address is sent completely
+        result = SPI_I2S_ReceiveData( SPI_PORT_EE );     // need this otherwise it will not receive the first data byte
         // read the amount of data
         for (i=0; i<count; i++)
         {
-            EE_SPI->DR  = 0;                                    // push dummy data to generate clock
-            while ( (EE_SPI->SR & SPI_I2S_FLAG_RXNE) == 0 );    // and wait for data to be received
-            *buff = EE_SPI->DR;
+            SPI_PORT_EE->DR  = 0;                                    // push dummy data to generate clock
+            while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_RXNE) == 0 );    // and wait for data to be received
+            *buff = SPI_PORT_EE->DR;
             buff++;
         }
 
-        HW_EEProm_Disable();
+        HW_Chip_EEProm_Disable();
         return count;
     }
 

@@ -60,6 +60,7 @@
     {
         struct Suiel_control_list    units;
         struct Suiel_control_list    minmaxset[3];
+        enum EHumidityUnits          unitH;
     };
 
 

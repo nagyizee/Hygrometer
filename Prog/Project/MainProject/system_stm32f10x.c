@@ -139,7 +139,7 @@ __I uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9}
 
 static void SetSysClock(void);
 
-  static void SetSysClockTo8HSI(void);
+  static void SetSysClockTo16HSI(void);
 
 #ifdef DATA_IN_ExtSRAM
   static void SystemInit_ExtMemCtl(void); 
@@ -370,7 +370,7 @@ void SystemCoreClockUpdate (void)
   */
 static void SetSysClock(void)
 {
-  SetSysClockTo8HSI();
+  SetSysClockTo16HSI();
  
  /* If none of the define above is enabled, the HSI is used as System clock
     source (default after reset) */ 
@@ -430,7 +430,7 @@ void SystemInit_ExtMemCtl(void)
 #endif /* DATA_IN_ExtSRAM */
 
 
-static void SetSysClockTo8HSI(void)
+static void SetSysClockTo16HSI(void)
 {
     /* Select PLL as system clock source */
     RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_SW));

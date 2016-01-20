@@ -300,7 +300,8 @@ int mainw::HW_wrapper_get_temperature()
 
 int mainw::HW_wrapper_get_humidity()
 {
-    return ms_hum;
+    double val =ui->num_humidity->value();
+    return (int)(val * (1<<RH_FP));
 }
 
 int mainw::HW_wrapper_get_pressure()

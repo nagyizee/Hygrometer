@@ -68,6 +68,13 @@
         tu_K                        // *K
     };
 
+    enum EHumidityUnits
+    {
+        hu_rh = 0,                  // %RH
+        hu_dew,                     // dew point (use units from temperature)
+        hu_abs                      // absolute humidity in g/m3
+    };
+
     enum EMinimumMaximumStorage     // NOTE: keep the nr of elements in sync with STORAGE_MINMAX
     {
         mms_set1 = 0,               // generic location 1
@@ -103,6 +110,7 @@
         uint16                  beep_low;           // low pitch
 
         uint8                   show_unit_temp;     // see ETemperatureUnits for values
+        uint8                   show_unit_hygro;    // humidity display selector
         uint8                   show_mm_press;      // show min/max set for pressure
         uint16                  show_mm_temp;       // show min/max set for temperature: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
         uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
@@ -176,7 +184,7 @@
     struct SMeasurements
     {
         uint16  temperature;        // current temperature in 16fp9 + 40*C base. 0x0000 - means low error, 0xFFFF - means high error
-        int16   dewpoint;           // current dewpoint in x100 *C units
+        int16   dewpoint;           // current dewpoint in 16fp9+40*C
         uint16  rh;                 // current humidity in x100 %
         uint16  absh;               // absolute humidity in x100 g/m3
         uint32  pressure;           // current barometric pressure in x100 hPa
@@ -232,8 +240,12 @@
 
     int  core_init( struct SCore **instance );
     void core_poll( struct SEventStruct *evmask );
+
+    // set up RTC alarm for the next operation after low power op.
     void core_pwr_setup_alarm( enum EPowerMode pwr_mode );
+    // get the core's power state
     int  core_pwr_getstate(void);
+    // measure battery
     void core_update_battery();
 
     // convert 16fp9 temperature to the given unit in x100 integer format

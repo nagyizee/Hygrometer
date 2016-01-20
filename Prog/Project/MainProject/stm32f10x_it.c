@@ -198,7 +198,7 @@ void SysTick_Handler(void)
 #endif
 
 
-#if 1
+#if 0
 
 #define  DBG_PIN_SYSTIM_ENTER   do {  GPIOB->BSRR = GPIO_Pin_8; } while(0)//GPIOB->BSRR = GPIO_Pin_7; } while(0)      // dbg led (43)
 #define  DBG_PIN_SYSTIM_EXIT    do {  GPIOB->BRR = GPIO_Pin_8; } while(0)//GPIOB->BRR = GPIO_Pin_7; } while(0)
@@ -247,8 +247,10 @@ void SysTick_Handler(void)
 {
 }*/
 
-void TIM1_UP_TIM16_IRQHandler(void)
+// Timer ISR routines
+void TIM1_BRK_TIM15_IRQHandler(void)
 {
+    // System timer
     DBG_ENTER_2;
     DBG_PIN_SYSTIM_ENTER;
     TimerSysIntrHandler();
@@ -265,7 +267,9 @@ void RTC_IRQHandler(void)
     DBG_EXIT_4;
 }
 
-void DMA1_Channel3_IRQHandler(void)
+
+// DMA isr routine for the display
+void DMA1_Channel5_IRQHandler(void)
 {
     DBG_ENTER_3;
     DBG_PIN_DMA_ENTER;
@@ -274,18 +278,15 @@ void DMA1_Channel3_IRQHandler(void)
     DBG_EXIT_3;
 }
 
-void ADC1_IRQHandler(void)
-{
-    DBG_ENTER_1;
-    DBG_PIN_ADC_ENTER;
-    CoreADC_ISR_Complete();
-    DBG_PIN_ADC_EXIT;
-    DBG_EXIT_1;
-}
 
-void TIM3_IRQHandler(void)
+// We need for the switches the following EXTI handlers: 1,3,4,5,11,12,15
+void EXTI1_IRQHandler(void)
 {
-    Core_ISR_PretriggerCompleted();
+    DBG_ENTER_0;
+    DBG_PIN_EXTI_ENTER;
+    HW_EXTI_ISR();
+    DBG_PIN_EXTI_EXIT;
+    DBG_EXIT_0;
 }
 
 void EXTI3_IRQHandler(void)

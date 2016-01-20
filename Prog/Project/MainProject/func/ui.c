@@ -44,7 +44,7 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
         case 1:                 // temperature measurement unit change actions
             if ( to_default )
             {
-                ui.p.mgThermo.unitT = core.setup.show_unit_temp;
+                ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.setup.show_unit_temp;
                 uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
                 core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
                 return true;
@@ -54,7 +54,7 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
                 int val = uiel_control_list_get_index( &ui.p.mgThermo.units );
                 if ( val != ui.p.mgThermo.unitT )
                 {
-                    ui.p.mgThermo.unitT = val;
+                    ui.p.mgThermo.unitT = (enum ETemperatureUnits)val;
                     core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
                     return true;
                 }
@@ -188,7 +188,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             evmask->key_released = 0;
             evmask->key_pressed = 0;
             evmask->key_longpressed = 0;
-            core_op_realtime_sensor_select( ui.main_mode + 1 );
+            core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
         }
         else if ( evmask->timer_tick_05sec )
         {
@@ -233,7 +233,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             DispHAL_Display_On();
             ui.pwr_dispoff = false;
         }
-        core_op_realtime_sensor_select( ui.main_mode + 1 );
+        core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
     }
     else if ( evmask->timer_tick_1sec )
     {
@@ -256,7 +256,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             ui.pwr_dispdim = true;
             ui.pwr_dispoff = true;
             ui.pwr_state = SYSSTAT_UI_STOPPED;
-            core_op_realtime_sensor_select( 0 );
+            core_op_realtime_sensor_select( ss_none );
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
@@ -480,7 +480,7 @@ void uist_mainwindowgauge_entry( void )
     uist_setupview_mainwindow( true );
     uist_drawview_mainwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
-    core_op_realtime_sensor_select( ui.main_mode + 1 );
+    core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
     ui.m_substate ++;
 }
 
@@ -543,7 +543,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 uist_setupview_mainwindow( true );
                 disp_update = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
-                core_op_realtime_sensor_select( ui.main_mode + 1 );
+                core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
             }
             if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UImm_gauge_pressure) )
             {
@@ -551,7 +551,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 uist_setupview_mainwindow( true );
                 disp_update = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
-                core_op_realtime_sensor_select( ui.main_mode + 1 );
+                core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
             }
             if ( evmask->key_pressed & KEY_OK )    // enter in edit mode
             {

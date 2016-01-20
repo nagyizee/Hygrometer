@@ -22,14 +22,6 @@
     typedef int64_t     int64;
     typedef uint32_t    bool;
 
-    typedef struct Stime
-    {
-        uint8 hour;
-        uint8 minute;
-        uint8 second;
-        uint8 t100;
-    } timestruct;
-
     #define true    1
     #define false   0
 
@@ -47,27 +39,28 @@
  typedef int                    bool;
 #endif
 
- typedef struct Stime
- {
-    uint8 hour;
-    uint8 minute;
-    uint8 second;
-    uint8 t100;
- } timestruct;
-
-
- typedef struct SDate
- {
-    uint16 year;
-    uint8 mounth;
-    uint8 day;
- } datestruct;
-
-
 #define true    1
 #define false   0
 
 #endif
+ 
+typedef struct Stime
+{
+    uint8 hour;
+    uint8 minute;
+    uint8 second;
+    uint8 t100;
+} timestruct;
+
+
+typedef struct SDate
+{
+    uint16 year;
+    uint8 mounth;
+    uint8 day;
+} datestruct;
+
+
 
 
 #ifdef __cplusplus

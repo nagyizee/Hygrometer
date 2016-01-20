@@ -26,7 +26,7 @@ void utils_convert_counter_2_ymd( uint32 counter, uint16 *pyear, uint8 *pmounth,
     uint32 year;
     uint32 mounth;
     uint32 day;
-    int *mounthLUT;
+    const int *mounthLUT;
     int i;
     counter = (counter>>1) / (3600*24);     // get the day nr from 2013
 

@@ -528,7 +528,7 @@ void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_d
     int fract_val;
     int i;
 
-    grf_setup_font( uitxt_large_num | uitxt_MONO , 1, 0 );
+    grf_setup_font( (enum Etextstyle)(uitxt_large_num | uitxt_MONO) , 1, 0 );
     Gtext_SetCoordinates( x, y );
 
     int_val = value / poz_2_increment(small_digits);
@@ -564,7 +564,7 @@ void uigrf_putvalue_impact( int x, int y, int value, int big_digits, int small_d
     Graphic_SetColor( 1 );
     Graphic_Rectangle( x+char_w, y+char_h-3, x+char_w+1, y+char_h-2 );
 
-    grf_setup_font( uitxt_smallbold | uitxt_MONO , 1, 0 );
+    grf_setup_font( (enum Etextstyle)(uitxt_smallbold | uitxt_MONO) , 1, 0 );
     char_h = char_h - Gtext_GetCharacterHeight();
     Gtext_SetCoordinates( x+char_w+3, y+char_h );
 
@@ -588,7 +588,7 @@ void uigrf_put_graph_small( int x, int y, uint8 *array, int length, int shift, i
     Graphic_FillRectangle( x, y, x+50, y+40, 0 );
     Graphic_SetColor(1);
 
-    grf_setup_font( uitxt_micro | uitxt_MONO, 1, 0 );
+    grf_setup_font( (enum Etextstyle)(uitxt_micro | uitxt_MONO), 1, 0 );
 
     Gtext_SetCoordinates( x+40, y );
     if ( decimalp == 0 )
