@@ -97,12 +97,14 @@ static inline void System_Poll( void )
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
+/*dev
     core_poll( evmask );
 
     if ( evmask->timer_tick_10ms || evmask->key_event )
     {
         ui_st = ui_poll( evmask );
     }
+*/
     sys_st |= ui_st;
 }
 
@@ -111,13 +113,13 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
-    if ( core_init( NULL ) )
+/*dev    if ( core_init( NULL ) )
     {
         failure = true;
         return;
     }
-
     ui_init( NULL );
+*/
 }
 
 

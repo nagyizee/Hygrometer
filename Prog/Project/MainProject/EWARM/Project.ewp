@@ -306,6 +306,7 @@
           <state>$PROJ_DIR$\..\..\..\..\..\..\000_SoftOnly\MyGraphicLibrary\MyGraphicLibrary\graphic_lib_app\graphic_lib</state>
           <state>$PROJ_DIR$\..\hw</state>
           <state>$PROJ_DIR$\..\func</state>
+          <state>$PROJ_DIR$\..\graphic_lib</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
