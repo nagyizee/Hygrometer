@@ -99,7 +99,7 @@
     #define PORTB_INPUT_MODE_BTN    GPIO_Mode_IPU
     #define PORTB_INPUT_PINS_BTN    ( IO_IN_BTN_1 | IO_IN_BTN_4 | IO_IN_BTN_6 )
     #define PORTB_INPUT_MODE        GPIO_Mode_IN_FLOATING
-    #define PORTB_INPUT_PIN         ( IO_IN_SENS_SDA | IO_IN_SENS_IRQ | IO_IN_CHARGE )
+    #define PORTB_INPUT_PINS        ( IO_IN_SENS_SDA | IO_IN_SENS_IRQ | IO_IN_CHARGE )
 
     // port C
     #define PORTC_OUTPUT_MODE       GPIO_Mode_Out_PP
@@ -180,7 +180,7 @@
 
     void InitHW(void);
 
-    void HW_SPI_interface_init(uint16 baudrate);
+    void HW_SPI_interface_init( SPI_TypeDef* spi, uint16 baudrate);
 
     // get button status
     bool BtnGet_OK();
@@ -188,7 +188,7 @@
     bool BtnGet_Down();
     bool BtnGet_Left();
     bool BtnGet_Right();
-    bool BtnPollStick();                // the stick used for directional control uses combination of signals - this routine polls it's status and prevents faulty reads
+    void BtnPollStick();
 
     #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) ==0 )
     #define BtnGet_Mode()      ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_PP) )

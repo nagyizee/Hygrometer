@@ -1,9 +1,5 @@
-
-
 #include "hw_stuff.h"
 
-    uint32 enc_dir = 0;
-    uint32 enc_old = 0;
     static volatile bool btn_wakeup = false;
 
     void InitHW(void)
@@ -26,14 +22,7 @@
 
         __disable_interrupt();
 
-        // startup timeout
-        {
-            volatile uint32 start_dly = 150000;
-            while (start_dly--);
-        }
-
         // Vectors are set up at SystemInit, set up only priority group
-        //TODO: see if we need this
         NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0);
 
         // ----- Setup HW modules -----
@@ -45,7 +34,7 @@
         RCC_APB2PeriphResetCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOC |
                                RCC_APB2Periph_TIM15 | RCC_APB2Periph_TIM16 | RCC_APB2Periph_ADC1 , DISABLE);
 
-        RCC_ADCCLKConfig(RCC_PCLK2_Div2);   // set up ADC clock
+        RCC_ADCCLKConfig(RCC_PCLK2_Div4);   // set up ADC clock
 
         // Make the remapping and Disable JTDI (PA15), JTDO (PB3), JTRST (PB4)
         GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable , ENABLE);
@@ -55,19 +44,21 @@
         GPIO_InitStructure.GPIO_Pin     = PORTC_OUTPUT_PINS;
         GPIO_Init(GPIOC, &GPIO_InitStructure);
 
-        HW_PWR_Dig_On();        // hold the 2.5V regulator power on
-        HW_PWR_An_Off();
-        HW_Disp_VPanelOff();    
+        HW_PWR_Main_On();                                           // hold the main regulator power on
+        HW_PWR_Disp_Off();    
 
         GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_10MHz;
         GPIO_InitStructure.GPIO_Mode    = PORTA_OUTPUT_MODE;
         GPIO_InitStructure.GPIO_Pin     = PORTA_OUTPUT_PINS;
         GPIO_Init(GPIOA, &GPIO_InitStructure);
-        GPIO_InitStructure.GPIO_Mode    = PORTA_INPUT_MODE;
-        GPIO_InitStructure.GPIO_Pin     = PORTA_INPUT_PINS;
+        GPIO_InitStructure.GPIO_Mode    = PORTA_INPUT_MODE_BTN;
+        GPIO_InitStructure.GPIO_Pin     = PORTA_INPUT_PINS_BTN;
         GPIO_Init(GPIOA, &GPIO_InitStructure);
-        GPIO_InitStructure.GPIO_Mode    = PORTA_INPUT_MODE_SB;
-        GPIO_InitStructure.GPIO_Pin     = PORTA_INPUT_PINS_SB;
+        GPIO_InitStructure.GPIO_Mode    = PORTA_INPUT_MODE_EE;
+        GPIO_InitStructure.GPIO_Pin     = PORTA_INPUT_PINS_EE;
+        GPIO_Init(GPIOA, &GPIO_InitStructure);
+        GPIO_InitStructure.GPIO_Mode    = PORTA_INPUT_MODE_FLOAT;
+        GPIO_InitStructure.GPIO_Pin     = PORTA_INPUT_PINS_FLOAT;
         GPIO_Init(GPIOA, &GPIO_InitStructure);
         GPIO_InitStructure.GPIO_Mode    = PORTA_ANALOG_MODE;
         GPIO_InitStructure.GPIO_Pin     = PORTA_ANALOG_PINS;
@@ -76,24 +67,25 @@
         GPIO_InitStructure.GPIO_Mode    = PORTB_OUTPUT_MODE;
         GPIO_InitStructure.GPIO_Pin     = PORTB_OUTPUT_PINS;
         GPIO_Init(GPIOB, &GPIO_InitStructure);
+        GPIO_InitStructure.GPIO_Mode    = PORTB_OUTPUT_MODE_I2C;
+        GPIO_InitStructure.GPIO_Pin     = PORTB_OUTPUT_PINS_I2C;
+        GPIO_Init(GPIOB, &GPIO_InitStructure);
         GPIO_InitStructure.GPIO_Mode    = PORTB_INPUT_MODE;
         GPIO_InitStructure.GPIO_Pin     = PORTB_INPUT_PINS;
         GPIO_Init(GPIOB, &GPIO_InitStructure);
-        GPIO_InitStructure.GPIO_Mode    = PORTB_INPUT_MODE_M;
-        GPIO_InitStructure.GPIO_Pin     = PORTB_INPUT_PIN_M;
+        GPIO_InitStructure.GPIO_Mode    = PORTB_INPUT_MODE_BTN;
+        GPIO_InitStructure.GPIO_Pin     = PORTB_INPUT_PINS_BTN;
         GPIO_Init(GPIOB, &GPIO_InitStructure);
 
         // set up exti pins for portB, portA is by default:
         GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource3 );
         GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource4 );
         GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource5 );
-        GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource6 );
         
-
         HW_LED_On();
 
         // wait for button release
-        while( BtnGet_Power() )
+        while( BtnGet_Mode() )
         { }
 
         // RTC setup
@@ -109,13 +101,12 @@
         NVIC_Init(&NVIC_InitStructure);
 
         // program the RTC    ( 372 bytes of code)
-        // TODO: if off-power clock will be used - check if backup registers are OK, only otherwise do the RTC init
 
         // activate the backup domain after reset
         RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);        // enable APB clocks for RTC and Backup Domanin
         PWR_BackupAccessCmd(ENABLE);
 
-        if ( BKP_ReadBackupRegister(BKP_DR1) != 0xA957 )
+        if ( BKP_ReadBackupRegister(BKP_DR1) != 0xA957 )            // magic nr. for init testing purposes
         {
             // reset the RTC/BCP block
             BKP_DeInit();
@@ -148,7 +139,7 @@
             RTC_WaitForLastTask();
             RTC_SetPrescaler(31);
             RTC_WaitForLastTask();
-            RTC_SetAlarm( RTC_GetCounter() + 1024 ); 
+            RTC_SetAlarm( RTC_GetCounter() + 512 );     // obtain 1/2 second pulses
             RTC_WaitForLastTask();
         }
 
@@ -158,7 +149,7 @@
         // Enable Timer1 clock and release reset
         // done abowe at RCC_APB2PeriphClockCmd / Reset
 
-        // Set timer period 62.5us
+        // Set timer period 1ms
         TIM_tb.TIM_Prescaler           = 0;   //1;
         TIM_tb.TIM_CounterMode         = TIM_CounterMode_Up;
         TIM_tb.TIM_Period              = SYSTEM_MAX_TICK;
@@ -173,15 +164,14 @@
         TIM_oc.TIM_OCMode       = TIM_OCMode_PWM1;
         TIM_oc.TIM_OutputState  = TIM_OutputState_Enable;
         TIM_oc.TIM_OCPolarity   = TIM_OCPolarity_High;
-        TIM_oc.TIM_Pulse        = BUZZER_FREQ/2;
+        TIM_oc.TIM_Pulse        = BUZZER_FREQ/4;
         TIM_OC1Init(TIMER_BUZZER, &TIM_oc);
         TIM_ARRPreloadConfig(TIMER_BUZZER, ENABLE);
         TIM_CtrlPWMOutputs( TIMER_BUZZER, ENABLE ); 
         // set up AFIO for PWM OUTPUTS
-        GPIO_PinRemapConfig(GPIO_Remap_TIM15, ENABLE);
         GPIO_InitStructure.GPIO_Pin     = IO_OUT_BUZZER;
         GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_AF_PP;
-        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_10MHz;
+        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_2MHz;
         GPIO_Init(IO_PORT_BUZZER, &GPIO_InitStructure);
 
 
@@ -197,8 +187,7 @@
         NVIC_Init( &NVIC_InitStructure );
 
         // stop timer counter when debugging
-        DBGMCU_Config( DBGMCU_TIM15_STOP, ENABLE );
-        DBGMCU_Config( DBGMCU_TIM16_STOP, ENABLE );
+        DBGMCU_Config( DBGMCU_TIM15_STOP, ENABLE );         // stop only the system timer
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);
@@ -210,30 +199,57 @@
     }//END: InitHW
 
 
-    void HW_SPI_interface_init( uint16 baudrate )
+    void HW_SPI_interface_init( SPI_TypeDef* spi, uint16 baudrate )
     {
         SPI_InitTypeDef  SPI_InitStructure;
         GPIO_InitTypeDef GPIO_InitStructure;
+        uint16 pin_mosi_ck;
+        uint16 pin_miso;
+        uint16 pin_cs;
+        GPIO_TypeDef *port_sckmiso;
+        GPIO_TypeDef *port_cs;
 
         // activate the SPI APB module
-        RCC_APB2PeriphClockCmd( EE_APB, ENABLE );
-        RCC_APB2PeriphResetCmd( EE_APB, ENABLE );
-        RCC_APB2PeriphResetCmd( EE_APB, DISABLE );
+        if ( spi == SPI_PORT_EE )
+        {
+            RCC_APB2PeriphClockCmd( SPI_APB_EE, ENABLE );
+            RCC_APB2PeriphResetCmd( SPI_APB_EE, ENABLE );
+            RCC_APB2PeriphResetCmd( SPI_APB_EE, DISABLE );
+            pin_mosi_ck = IO_OUT_EE_SCK | IO_OUT_EE_MOSI;
+            pin_miso = IO_IN_EE_MISO;
+            pin_cs = IO_OUT_EE_CS;
+            port_sckmiso = IO_PORT_EE_SPI;
+            port_cs = IO_PORT_EE_CS;
+        }
+        else
+        {
+            RCC_APB1PeriphClockCmd( SPI_APB_DISP, ENABLE );
+            RCC_APB1PeriphResetCmd( SPI_APB_DISP, ENABLE );
+            RCC_APB1PeriphResetCmd( SPI_APB_DISP, DISABLE );
+            pin_mosi_ck = IO_OUT_DISP_SCK | IO_OUT_DISP_MOSI;
+            pin_miso = 0;
+            pin_cs = IO_OUT_DISP_CS;
+            port_sckmiso = IO_PORT_DISP_SPI;
+            port_cs = IO_PORT_DISP_CS;
+        }
 
         // Configure Pins 
         // high speed alt1 push-pull for SPI clock and MOSI
-        GPIO_InitStructure.GPIO_Pin     = IO_OUT_EE_SCK | IO_OUT_EE_MOSI;
         GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_50MHz;
+        GPIO_InitStructure.GPIO_Pin     = pin_mosi_ck;
         GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_AF_PP;
-        GPIO_Init(IO_PORT_EE_SB, &GPIO_InitStructure);
+        GPIO_Init(port_sckmiso, &GPIO_InitStructure);
         // high speed input for SPI MISO
-        GPIO_InitStructure.GPIO_Pin     = IO_IN_SB_MISO;
-        GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_IN_FLOATING;  
-        GPIO_Init(IO_PORT_EEPROM_IN, &GPIO_InitStructure);
+        if ( pin_miso )
+        {
+            GPIO_InitStructure.GPIO_Pin     = pin_miso;
+            GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_IN_FLOATING;  
+            GPIO_Init(port_sckmiso, &GPIO_InitStructure);
+        }
         // set up chip select
-        GPIO_InitStructure.GPIO_Pin     = IO_OUT_EE_SEL;
+        GPIO_InitStructure.GPIO_Pin     = pin_cs;
         GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_Out_PP;  
-        GPIO_Init(IO_PORT_EE_CTRL, &GPIO_InitStructure);
+        GPIO_Init(port_cs, &GPIO_InitStructure);
 
         // SPI configuration
         SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
@@ -245,28 +261,26 @@
         SPI_InitStructure.SPI_FirstBit  = SPI_FirstBit_MSB;
         SPI_InitStructure.SPI_CRCPolynomial = 7;
         SPI_InitStructure.SPI_BaudRatePrescaler = baudrate;
-        SPI_Init(EE_SPI, &SPI_InitStructure);
+        SPI_Init(spi, &SPI_InitStructure);
 
         // enable the spi interface for eeprom
-        SPI_Cmd(EE_SPI, ENABLE);
-
+        SPI_Cmd(spi, ENABLE);
     }
-
 
 
     void HW_SPI_DMA_Init(void)
     {
-        NVIC_InitTypeDef            NVIC_InitStructure;
+        NVIC_InitTypeDef    NVIC_InitStructure;
 
-        SPI_DMA_Channel->CCR = ( SPI_DMA_Channel->CCR & 0xFFFF800F ) |      // number copied from stm32f10x_dma.c
-                                ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
-                                  DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
-                                  DMA_Priority_High         | DMA_M2M_Disable );
+        DMA_DISP_TX_Channel->CCR = ( DMA_DISP_TX_Channel->CCR & 0xFFFF800F ) |      // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                   ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                     DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                     DMA_Priority_High         | DMA_M2M_Disable );
 
-        SPI_DMA_Channel->CPAR     = (uint32_t)(&EE_SPI->DR );             // base address for SPI data register
+        DMA_DISP_TX_Channel->CPAR     = (uint32_t)(&SPI_PORT_DISP->DR );             // base address for SPI data register
 
         // set up the interrupt request channel
-        NVIC_InitStructure.NVIC_IRQChannel              = SPI_DMA_IRQ;
+        NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
         NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 6;
         NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
         NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
@@ -279,28 +293,28 @@
         // uninit interrupt request channel
         NVIC_InitTypeDef            NVIC_InitStructure;
 
-        NVIC_InitStructure.NVIC_IRQChannel              = SPI_DMA_IRQ;
+        NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
         NVIC_InitStructure.NVIC_IRQChannelCmd           = DISABLE;
         NVIC_Init( &NVIC_InitStructure );
 
-        SPI_DMA_Channel->CCR &= (uint16_t)(~DMA_CCR1_EN);
-        SPI_DMA_Channel->CCR  = 0;
-        SPI_DMA_Channel->CNDTR = 0;
-        SPI_DMA_Channel->CPAR  = 0;
-        SPI_DMA_Channel->CMAR = 0;
-        DMA1->IFCR |= SPI_DMA_IRQ_FLAGS;
+        DMA_DISP_TX_Channel->CCR &= (uint16_t)(~DMA_CCR1_EN);
+        DMA_DISP_TX_Channel->CCR  = 0;
+        DMA_DISP_TX_Channel->CNDTR = 0;
+        DMA_DISP_TX_Channel->CPAR  = 0;
+        DMA_DISP_TX_Channel->CMAR = 0;
+        DMA1->IFCR |= DMA_DISP_IRQ_FLAGS;
 
     }
 
     void HW_SPI_DMA_Send( const uint8 *ptr, uint32 size )
     {
-        SPI_DMA_Channel->CCR     &= (uint16_t)(~DMA_CCR1_EN);   // to be able to reload the count register
-        SPI_DMA_Channel->CMAR     = (uint32_t)ptr;          // base address for uart fifo
-        SPI_DMA_Channel->CNDTR    = size;                   // maximum memory size
-        SPI_DMA_Channel->CCR     |= DMA_CCR1_EN;            // enable dma channel - transmission begins
+        DMA_DISP_TX_Channel->CCR     &= (uint16_t)(~DMA_CCR1_EN);   // to be able to reload the count register
+        DMA_DISP_TX_Channel->CMAR     = (uint32_t)ptr;          // base address for uart fifo
+        DMA_DISP_TX_Channel->CNDTR    = size;                   // maximum memory size
+        DMA_DISP_TX_Channel->CCR     |= DMA_CCR1_EN;            // enable dma channel - transmission begins
 
         // enable ISR for transfer complete interrupt
-        SPI_DMA_Channel->CCR     |= DMA_IT_TC;
+        DMA_DISP_TX_Channel->CCR     |= DMA_IT_TC;
     }
 
 
@@ -325,8 +339,6 @@
         ADC1->CR2 |= CR2_CAL_Set;
         while( ADC1->CR2 & CR2_CAL_Set );
     }
-
-
 
     uint32 HW_ADC_GetBattery(void)
     {   
@@ -366,150 +378,6 @@
     }
 
 
-    void HW_ADC_StartAcquisition( uint32 buffer_addr, int group )
-    {
-        uint32 value;
-        TIM_TimeBaseInitTypeDef     TIM_tb;
-        
-        // setup DMA 
-
-        NVIC_InitTypeDef            NVIC_InitStructure;
-
-        ADC_DMA_Channel->CCR = ( SPI_DMA_Channel->CCR & 0xFFFF800F ) |      // number copied from stm32f10x_dma.c
-                                ( DMA_DIR_PeripheralSRC     | DMA_Mode_Circular                 | DMA_PeripheralInc_Disable |
-                                  DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_HalfWord   | DMA_MemoryDataSize_Word   |
-                                  DMA_Priority_VeryHigh     | DMA_M2M_Disable );
-
-        ADC_DMA_Channel->CPAR     = (uint32_t)(&ADC1->DR );     // peripheral address
-        ADC_DMA_Channel->CMAR     = (uint32_t)buffer_addr;       // memory address
-        ADC_DMA_Channel->CCR     &= (uint16_t)(~DMA_CCR1_EN);   // to be able to reload the count register
-        ADC_DMA_Channel->CNDTR    = 4;                          // maximum memory size
-        ADC_DMA_Channel->CCR     |= DMA_CCR1_EN;                // enable dma channel - transmission begins
-
-        // set up ADC
-
-        // clear interrupt flag
-        ADC1->SR &= ~( ADC_IF_EOC );
-        // setup CR1
-        value = ADC1->CR1;
-        value &= ( CR1_CLEAR_Mask );
-        value |= (( 1 << 8 ) | ADC_IE_EOC); // enable Scan mode and interrupt
-        ADC1->CR1 = value;
-
-        // setup CR2
-        value = ADC1->CR2;
-        value &= CR2_CLEAR_Mask;
-        value |= (ADC_ExternalTrigConv_T3_TRGO | CR2_DMA_Set | CR2_EXTTRIG_Set);  // Timer3 trigger output used - set up timer 3 with CR2->MMS = 010b (trigger out event on timer counter reload)
-        ADC1->CR2 = value;
-        // setup sequence register for 1 conversion with channel 0
-        ADC1->SQR1 = (0x03 << 20);              // L3:0 = 0011b => 4 conversion, rest of fields doesn't matter
-        // setup channel parameters
-        if ( group == 0 )       // light sensor
-        {
-            ADC1->SMPR2 = ADC_SampleTime_7Cycles5 | (ADC_SampleTime_7Cycles5 << (3*1)) | (ADC_SampleTime_7Cycles5 << (3*2));     //  sample timer for channel 0  (shift << 3*chnl applies for other channels)
-            ADC1->SQR3 = ( 4 << 0 ) | ( 2 << 5 ) | ( 3 << 10 ) | ( 16 << 15 );      // Vbat, LightL, LightH, Temp
-        }
-        else
-        {
-            ADC1->SMPR2 = ADC_SampleTime_7Cycles5 | (ADC_SampleTime_7Cycles5 << (3*3)) | (ADC_SampleTime_7Cycles5 << (3*4));     //  sample timer for channel 0  (shift << 3*chnl applies for other channels)
-            ADC1->SQR3 = ( 4 << 0 ) | ( 1 << 5 ) | ( 0 << 10 ) | ( 16 << 15 );      // Vbat, SndL, SndH, Temp
-        }
-
-        // Power up the ADC and calibrate
-        ADC1->CR2 |= CR2_ADON_Set;
-        HW_internal_ADC_recalibrate();
-
-        // set up the interrupt request for ADC dma channel
-        NVIC_InitStructure.NVIC_IRQChannel              = ADC1_IRQn;
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 4;
-        NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
-        NVIC_Init( &NVIC_InitStructure );
-
-        // Set up Timer3 for triggering the ADC at 100us obtaining 10kHz on each channel
-        // enable timer clock
-        RCC_APB1PeriphClockCmd( RCC_APB1Periph_TIM3, ENABLE);
-        RCC_APB1PeriphResetCmd( RCC_APB1Periph_TIM3, DISABLE);
-        // init timer
-        TIM_tb.TIM_Prescaler           = 0;                 //1;
-        TIM_tb.TIM_CounterMode         = TIM_CounterMode_Up;
-        TIM_tb.TIM_Period              = ( 800 - 1 );       // 100us -> 10kHz sampling rate
-        TIM_tb.TIM_ClockDivision       = TIM_CKD_DIV1;
-        TIM_tb.TIM_RepetitionCounter   = 0;
-        TIM_TimeBaseInit(TIMER_ADC, &TIM_tb);
-        TIM_SelectOutputTrigger( TIMER_ADC, TIM_TRGOSource_Update );
-        DBGMCU_Config( DBGMCU_TIM3_STOP, ENABLE );
-        // Enable timer counting
-        TIM_Cmd( TIMER_ADC, ENABLE);
-    }
-
-
-    void HW_ADC_StopAcquisition( void )
-    {
-        // stop the trigger timer
-        TIM_Cmd( TIMER_ADC, DISABLE );
-        RCC_APB1PeriphClockCmd( RCC_APB1Periph_TIM3, DISABLE );
-
-        // power down the ADC
-        ADC1->CR2 &= CR2_ADON_Reset;
-        ADC1->SR &= ~( ADC_IF_EOC );
-
-        // stop the DMA channel
-        ADC_DMA_Channel->CCR     &= (uint16_t)(~DMA_CCR1_EN);
-    }
-
-
-    void HW_ADC_SetupPretrigger( uint32 value )
-    {
-        TIM_TimeBaseInitTypeDef     TIM_tb;
-        NVIC_InitTypeDef            NVIC_InitStructure;
-
-        if ( value == 1 )
-            value++;        // timer doesn't like 1 values
-
-        // pretrigger is using ADC sample timer
-        RCC_APB1PeriphClockCmd( RCC_APB1Periph_TIM3, ENABLE );
-        TIM_tb.TIM_Prescaler           = ( 800 - 1 );           // 100us timer pulse;
-        TIM_tb.TIM_CounterMode         = TIM_CounterMode_Up;
-        TIM_tb.TIM_Period              = ( value - 1 );         // 100us -> 10kHz sampling rate
-        TIM_tb.TIM_ClockDivision       = TIM_CKD_DIV1;
-        TIM_tb.TIM_RepetitionCounter   = 0;
-        TIM_TimeBaseInit(TIMER_ADC, &TIM_tb);
-        TIMER_ADC->CNT = 0;  
-
-        // Clear update interrupt bit
-        TIM_ClearITPendingBit( TIMER_ADC, TIM_FLAG_Update );
-        // Enable update interrupt
-        TIM_ITConfig( TIMER_ADC, TIM_FLAG_Update, ENABLE );
-
-        NVIC_InitStructure.NVIC_IRQChannel              = TIMER_PRETRIGGER_IRQ;
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-        NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
-        NVIC_Init( &NVIC_InitStructure );
-
-        // set counter to 0
-        TIM_Cmd( TIMER_ADC, ENABLE );
-    }
-
-
-    void HW_ADC_ResetPretrigger()
-    {
-        NVIC_InitTypeDef            NVIC_InitStructure;
-
-        // stop the trigger timer
-        TIM_Cmd( TIMER_ADC, DISABLE );
-
-        // disable intrerupt
-        TIM_ITConfig( TIMER_ADC, TIM_FLAG_Update, DISABLE );
-        NVIC_InitStructure.NVIC_IRQChannel              = TIMER_PRETRIGGER_IRQ;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = DISABLE;
-        NVIC_Init( &NVIC_InitStructure );
-
-        RCC_APB1PeriphClockCmd( RCC_APB1Periph_TIM3, DISABLE );
-    }
-
-
     void HW_Seconds_Start(void)
     {
         RTC_WaitForSynchro();
@@ -530,7 +398,7 @@
 
         GPIO_InitStructure.GPIO_Pin     = IO_OUT_BUZZER;
         GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_AF_PP;
-        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_10MHz;
+        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_2MHz;
         GPIO_Init(IO_PORT_BUZZER, &GPIO_InitStructure);
 
         TIMER_BUZZER->ARR = (uint16)pulse;
@@ -542,66 +410,48 @@
     {
         GPIO_InitTypeDef            GPIO_InitStructure;
 
+        // disable PWM timer
         TIM_Cmd( TIMER_BUZZER, DISABLE);
 
+        // disconnect pin - leave it HiZ
         GPIO_InitStructure.GPIO_Pin     = IO_OUT_BUZZER;
         GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_IN_FLOATING;
-        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_10MHz;
+        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_2MHz;
         GPIO_Init(IO_PORT_BUZZER, &GPIO_InitStructure);
     }
 
 
-
-
-
-
-    uint32 BtnGet_Encoder()
+    bool BtnGet_OK()
     {
-        uint32 res = enc_dir;
-        enc_dir = 0;
-        return res;
+        return false;
     }
 
-    void HW_Encoder_Poll(void)
+    bool BtnGet_Up()
     {
-        uint32 enc_crt = 0;
+        return false;
+    }
 
-        if ( IO_PORT_BTN_MDO->IDR & IO_IN_DIAL_P2 )
-            enc_crt = 0x01;
-        if ( IO_PORT_BTN_MDO->IDR & IO_IN_DIAL_P1 )
-            enc_crt |= 0x02;
+    bool BtnGet_Down()
+    {
+        return false;
+    }
 
-        if ( enc_crt == enc_old) 
-             return;
+    bool BtnGet_Left()
+    {
+        return false;
+    }
 
-        if ( (enc_crt ^ enc_old) == 0x03 ) // check if sensor state is updated
-        {
-            enc_old = enc_crt;
-            return;                        
-        }
+    bool BtnGet_Right()
+    {
+        return false;
+    }
 
-        if ( ((enc_crt == 0x00) && (enc_old == 0x02)) ||
-             ((enc_crt == 0x03) && (enc_old == 0x01))   )
-        {
-            enc_dir = 1;    // plus
-        }
-
-        else if ( ((enc_crt == 0x00) && (enc_old == 0x01)) ||
-                  ((enc_crt == 0x03) && (enc_old == 0x02))  )
-        {
-            enc_dir = 2;    // minus
-        }
-        else if ( (enc_crt ^ enc_old) == 0x03 )
-        {
-            enc_dir = 3;    // woke up from stopped state by dial action
-        }
-
-        enc_old = enc_crt;
+    void BtnPollStick()
+    {
 
     }
 
-
-    static inline void internal_HW_set_EXTI( uint32 mode )
+    static void internal_HW_set_EXTI( enum EPowerMode mode )
     {
         NVIC_InitTypeDef    NVIC_InitStructure;
         uint32              mask = 0;
@@ -610,54 +460,69 @@
 
         if ( mode )
         {
-            // enable for all
-            mask = IO_IN_BTN_ESC | IO_IN_BTN_START | IO_IN_BTN_MENU | IO_IN_BTN_OK | IO_IN_DIAL_P1 | IO_IN_DIAL_P2 | IO_IN_BTN_MODE;
             switch ( mode )
             {
-                case HWSLEEP_STOP_W_ALLKEYS:
+                case pm_hold_btn:
                     // all keys to be active when waking up UI: rising or falling for all
+                    mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;    // all the buttons + 
                     rising = mask;
                     falling = mask;
                     break;
-/*rewr                case HWSLEEP_STOP_W_PKEY:
-                    // 'Start' and 'OK' to be active when waking up UI: use both fronts for START and OK
-                    rising = IO_IN_BTN_ESC | IO_IN_BTN_START | IO_IN_BTN_MENU | IO_IN_BTN_OK | IO_IN_DIAL_P1 | IO_IN_DIAL_P2;
-                    falling = IO_IN_BTN_MODE | IO_IN_DIAL_P1 | IO_IN_DIAL_P2  | IO_IN_BTN_OK | IO_IN_BTN_START;
-                    break;
-                    */
-                case HWSLEEP_STOP:
+                case pm_hold:
                     // keys to be inactive when waking up UI: rising front for esc, start, menu, ok; falling for mode; any for p1 and p2
-                    rising = IO_IN_BTN_ESC | IO_IN_BTN_START | IO_IN_BTN_MENU | IO_IN_BTN_OK | IO_IN_DIAL_P1 | IO_IN_DIAL_P2;
-                    falling = IO_IN_BTN_MODE | IO_IN_DIAL_P1 | IO_IN_DIAL_P2;
+                    mask = IO_IN_BTN_PP | 0x00020000;           // just power button / RTC alarm
+                    rising = IO_IN_BTN_PP | 0x00020000;
+                    falling = 0x00;
                     break;
             }
         }
 
-        EXTI->IMR = mask;
+        EXTI->IMR = mask;           // interrupt mask register
         EXTI->EMR = 0;
         EXTI->RTSR = rising;
         EXTI->FTSR = falling;
-        EXTI->PR = mask;
+        EXTI->PR = mask;            // clear the flags on the selected EXTI lines
 
         NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 9;
         NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = mode ? ENABLE : DISABLE;
-        NVIC_InitStructure.NVIC_IRQChannel              = EXTI3_IRQn;       // OK button
+        NVIC_InitStructure.NVIC_IRQChannelCmd           = mask ? ENABLE : DISABLE;
+        NVIC_InitStructure.NVIC_IRQChannel              = EXTI1_IRQn;       // ESC
         NVIC_Init( &NVIC_InitStructure );
-        NVIC_InitStructure.NVIC_IRQChannel              = EXTI4_IRQn;       // Encoder P1
+        NVIC_InitStructure.NVIC_IRQChannel              = EXTI3_IRQn;       // BTN1
         NVIC_Init( &NVIC_InitStructure );
-        NVIC_InitStructure.NVIC_IRQChannel              = EXTI9_5_IRQn;     // Encoder P2 and Power button
+        NVIC_InitStructure.NVIC_IRQChannel              = EXTI4_IRQn;       // BTN4
         NVIC_Init( &NVIC_InitStructure );
-        NVIC_InitStructure.NVIC_IRQChannel              = EXTI15_10_IRQn;   // ESC, START, MENU buttons
+        NVIC_InitStructure.NVIC_IRQChannel              = EXTI9_5_IRQn;     // BTN6 / SensorIRQ
         NVIC_Init( &NVIC_InitStructure );
+        NVIC_InitStructure.NVIC_IRQChannel              = EXTI15_10_IRQn;   // BTN_PP / BTN3 / BTN_OK
+        NVIC_Init( &NVIC_InitStructure );
+
+        NVIC_InitStructure.NVIC_IRQChannel              = RTCAlarm_IRQn;    // RTC alarm
+        NVIC_Init( &NVIC_InitStructure );
+    }
+
+
+    static inline void internal_setup_stop_mode(void)
+    {
+        uint32_t tmpreg = 0;
+
+        tmpreg = PWR->CR;
+        tmpreg &= 0xFFFFFFFC;
+        tmpreg |= PWR_Regulator_LowPower;
+        PWR->CR = tmpreg;
+        SCB->SCR |= SCB_SCR_SLEEPDEEP;
     }
 
 
     void HW_EXTI_ISR( void )
     {
+        uint32 irq_source;
         // clean up the interrupt flags and notify that wake up reason was a button action
-        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_START | IO_IN_BTN_MENU | IO_IN_BTN_OK | IO_IN_DIAL_P1 | IO_IN_DIAL_P2 | IO_IN_BTN_MODE;
-        btn_wakeup = true;
+        HW_LED_On();
+        irq_source = EXTI->PR;
+        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;
+        if ( (irq_source & ~0x00020000) != 0 )
+            btn_wakeup = true;
     }
 
 
@@ -667,33 +532,26 @@
 
         switch ( mode )
         {
-            case HWSLEEP_FULL:                      // does nothing - full cpu power
+            case pm_full:                       // full cpu power - does nothing
                 break;
-            case HWSLEEP_WAIT:                      // wait for interrupt sleep (stop cpu clock, peripehrals are running)
+            case pm_sleep:                      // wait for interrupt sleep (stop cpu clock, but peripherals are running)
                 HW_LED_Off();
-                __asm("    wfi\n");                 // 3.6mA in standby with everything fully functional, 6.12mA in full time cpu clock mode
-                HW_LED_On();
+                __asm("    wfi\n");             // 3.6mA in standby with everything fully functional, 6.12mA in full time cpu clock mode
                 break;
-            case HWSLEEP_STOP:                      // stop cpu and peripheral clocks - wakes up at 1sec intervals or on EXTI event
-            case HWSLEEP_STOP_W_ALLKEYS:
-/*rewr            case HWSLEEP_STOP_W_PKEY:
-                // for the moment STOP mode isn't working - we will simulate it by disabling the system timer
-                TIM_Cmd( TIMER_SYSTEM, DISABLE);
+            case pm_hold:                      // stop cpu and peripheral clocks - wakes up at 1sec intervals or on EXTI event
+            case pm_hold_btn:
                 // set up EXTI interrupt handling for buttons
                 internal_HW_set_EXTI( mode );
                 // enter in low power mode
+                internal_setup_stop_mode();
                 HW_LED_Off();
                 __asm("    wfi\n");       
-                HW_LED_On();
                 // exit from low power mode
-                internal_HW_set_EXTI( 0 );
-                // start the system timer
-                TIM_Cmd( TIMER_SYSTEM, ENABLE);
-                ret = true;
+                SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);  
+                internal_HW_set_EXTI( pm_full );
                 break;
-              */
-            case HWSLEEP_OFF:
-                HW_PWR_Dig_Off();                   // powers off the system
+            case pm_down:
+                HW_PWR_Main_Off();                   // powers off the system
                 break;
         }
 

@@ -279,7 +279,7 @@ void DMA1_Channel5_IRQHandler(void)
 }
 
 
-// We need for the switches the following EXTI handlers: 1,3,4,5,11,12,15
+// We need for the switches the following EXTI handlers: 1,3,4,5,11,12,15,17
 void EXTI1_IRQHandler(void)
 {
     DBG_ENTER_0;
@@ -323,6 +323,11 @@ void EXTI15_10_IRQHandler(void)
     HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
+}
+
+void RTCAlarm_IRQHandler()
+{
+
 }
 
 /**

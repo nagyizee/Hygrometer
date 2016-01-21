@@ -115,7 +115,7 @@ static void disp_spi_take_over( void )
     hal.status.spi_owner = 1;
 
     // init SPI port
-    HW_SPI_interface_init(SPI_BaudRatePrescaler_2);     // gives 4MHz
+    HW_SPI_interface_init( SPI_PORT_DISP, SPI_BaudRatePrescaler_4);     // gives 4MHz
 
     // init the DMA for TX
     HW_SPI_DMA_Uninit();            // for refresh
@@ -265,6 +265,7 @@ void DispHAL_ISR_Poll(void)
 void DispHAL_ISR_DMA_Complete(void)
 {
     // clear the interrupt request
+    HW_LED_On();
     DMA1->IFCR |= DMA_DISP_IRQ_FLAGS;
 
     while ( SPI_PORT_DISP->SR & SPI_I2S_FLAG_BSY );         // wait the data to be transmitted for sure

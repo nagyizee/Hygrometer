@@ -78,6 +78,11 @@ bool BtnPollStick()
 
 }
 
+void HW_LED_On()
+{
+
+}
+
 
 int encoder_dir = 0;
 

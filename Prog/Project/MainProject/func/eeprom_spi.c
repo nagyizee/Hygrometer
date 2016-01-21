@@ -92,7 +92,7 @@
         // Deselect the FLASH: Chip Select high
         HW_Chip_EEProm_Disable();
 
-        HW_SPI_interface_init(SPI_BaudRatePrescaler_2);     // 4MHz 
+        HW_SPI_interface_init( SPI_PORT_EE, SPI_BaudRatePrescaler_2);     // 8MHz 
 
         ee_status = EE_DISABLED;
 

@@ -82,12 +82,14 @@ bool BtnGet_Left();
 bool BtnGet_Right();
 bool BtnPollStick();                // the stick used for directional control uses combination of signals - this routine polls it's status and prevents faulty reads
 
+void HW_LED_On();
 
 void TimerSysIntrHandler(void);
 void TimerRTCIntrHandler(void);
 
 
 void HW_ASSERT();
+
 
 
 // just a wrapper solution
@@ -149,15 +151,11 @@ void HW_Buzzer_Off(void);
 #define VBAT_MAX        0x0fff                   // 3.1V
 #define VBAT_DIFF       ( VBAT_MAX - VBAT_MIN )
 
-
 uint32 RTC_GetCounter(void);
 void RTC_SetAlarm(uint32);
 void HW_SetRTC(uint32 RTCctr);
 
 uint32 HW_ADC_GetBattery(void);
-
-void HW_PWR_An_On( void );
-void HW_PWR_An_Off( void );
 
 void ADC_ISR_simulation(void);
 
