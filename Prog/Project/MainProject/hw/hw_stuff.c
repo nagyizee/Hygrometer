@@ -85,8 +85,8 @@
         HW_LED_On();
 
         // wait for button release
-        while( BtnGet_Mode() )
-        { }
+//        while( BtnGet_Mode() )
+//        { }
 
         // RTC setup
         // -- use external 32*1024 crystal. Clock divider ck/32 -> 1024 ticks / second ( ~1ms )
@@ -105,6 +105,7 @@
         // activate the backup domain after reset
         RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);        // enable APB clocks for RTC and Backup Domanin
         PWR_BackupAccessCmd(ENABLE);
+        BKP_RTCOutputConfig( BKP_RTCOutputSource_None );
 
         if ( BKP_ReadBackupRegister(BKP_DR1) != 0xA957 )            // magic nr. for init testing purposes
         {
@@ -139,9 +140,19 @@
             RTC_WaitForLastTask();
             RTC_SetPrescaler(31);
             RTC_WaitForLastTask();
-            RTC_SetAlarm( RTC_GetCounter() + 512 );     // obtain 1/2 second pulses
+            RTC_SetAlarm( RTC_GetCounter() + 1024 );     // obtain 1/2 second pulses
             RTC_WaitForLastTask();
         }
+
+HW_LED_Off();
+BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
+while (1)
+{
+}
+
+HW_PWR_Main_Off();        
+
+
 
         // setup period clock
 
@@ -186,8 +197,8 @@
         NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
         NVIC_Init( &NVIC_InitStructure );
 
-        // stop timer counter when debugging
-        DBGMCU_Config( DBGMCU_TIM15_STOP, ENABLE );         // stop only the system timer
+        // stop timer counter when debugging, keep core alive when debugging in stop/sleep mode
+        DBGMCU_Config( DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);

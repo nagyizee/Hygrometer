@@ -99,7 +99,7 @@
         </option>
         <option>
           <name>OGChipSelectEditMenu</name>
-          <state>STM32F100x6	ST STM32F100x6</state>
+          <state>STM32F100x8	ST STM32F100x8</state>
         </option>
         <option>
           <name>GenLowLevelInterface</name>
@@ -169,7 +169,7 @@
         <option>
           <name>CCDefines</name>
           <state>USE_STDPERIPH_DRIVER</state>
-          <state>STM32F10X_LD_VL</state>
+          <state>STM32F10X_MD_VL</state>
           <state>VECT_TAB_SRAM</state>
           <state>USE_GLIB_ON_EWARM</state>
         </option>
