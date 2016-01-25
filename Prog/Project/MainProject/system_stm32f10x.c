@@ -139,7 +139,6 @@ __I uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9}
 
 static void SetSysClock(void);
 
-  static void SetSysClockTo16HSI(void);
 
 #ifdef DATA_IN_ExtSRAM
   static void SystemInit_ExtMemCtl(void); 
@@ -370,10 +369,24 @@ void SystemCoreClockUpdate (void)
   */
 static void SetSysClock(void)
 {
-  SetSysClockTo16HSI();
- 
- /* If none of the define above is enabled, the HSI is used as System clock
-    source (default after reset) */ 
+    /*  we suppose that HSI is ready */
+    /*  PLL configuration:  = (HSI with / 2) * 4 = 16 MHz */
+    RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_PLLSRC | RCC_CFGR_PLLXTPRE | RCC_CFGR_PLLMULL));
+    RCC->CFGR |= (uint32_t)( RCC_CFGR_PLLMULL4 );
+    /* Enable PLL */
+    RCC->CR |= RCC_CR_PLLON;
+    /* Wait till PLL is ready */
+    while((RCC->CR & RCC_CR_PLLRDY) == 0)
+    {
+    }
+
+    /* Select PLL as system clock source */
+    RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_SW));
+    RCC->CFGR |= (uint32_t)RCC_CFGR_SW_PLL;   
+    /* Wait till PLL is used as system clock source */
+    while ((RCC->CFGR & (uint32_t)RCC_CFGR_SWS) != (uint32_t)0x08)
+    {
+    }
 }
 
 /**
@@ -429,13 +442,6 @@ void SystemInit_ExtMemCtl(void)
 }
 #endif /* DATA_IN_ExtSRAM */
 
-
-static void SetSysClockTo16HSI(void)
-{
-    /* Select PLL as system clock source */
-    RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_SW));
-    RCC->CFGR |= (uint32_t)RCC_CFGR_SW_HSI;    
-}
 
 /**
   * @}

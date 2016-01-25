@@ -126,10 +126,6 @@ extern void DispHAL_ISR_Poll(void);
         HW_LED_On();
         TIMER_RTC->CRL &= (uint16)~RTC_ALARM_FLAG;
 
-HW_LED_Off();
-HW_pwr_off_with_alarm( 0 );
-
-
         RTC_WaitForLastTask();
         RTCctr = RTC_GetCounter();
         RTC_SetAlarm( RTCctr + 1 );
