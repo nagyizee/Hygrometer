@@ -2,6 +2,7 @@
 
     static volatile bool btn_wakeup = false;
 
+
     void InitHW(void)
     {
         /*!< At this stage the microcontroller clock setting is already configured, 
@@ -105,6 +106,8 @@
         // activate the backup domain after reset
         RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);        // enable APB clocks for RTC and Backup Domanin
         PWR_BackupAccessCmd(ENABLE);
+        // Reset Tamper Pin alarm to regain IO control and sustain power
+        // From alarm pulse till here -> 5.5ms, minimum on time 20ms ( after turning power off -> regulator will be on ~15ms - decay on EN pin with 20nf capacitors )
         BKP_RTCOutputConfig( BKP_RTCOutputSource_None );
 
         if ( BKP_ReadBackupRegister(BKP_DR1) != 0xA957 )            // magic nr. for init testing purposes
@@ -124,9 +127,9 @@
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
-            RTC_SetPrescaler(31);
+            RTC_SetPrescaler(TIMER_RTC_PRESCALE);
             RTC_WaitForLastTask();
-            RTC_SetAlarm( RTC_GetCounter() + 1024 ); 
+            RTC_SetAlarm( RTC_GetCounter() + 1 ); 
             RTC_WaitForLastTask();
             // set indicator in backup domain that RTC is configured
             BKP_WriteBackupRegister(BKP_DR1, 0xA957);
@@ -138,20 +141,13 @@
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
-            RTC_SetPrescaler(31);
+            RTC_SetPrescaler(TIMER_RTC_PRESCALE);
             RTC_WaitForLastTask();
-            RTC_SetAlarm( RTC_GetCounter() + 1024 );     // obtain 1/2 second pulses
+            RTC_SetAlarm( RTC_GetCounter() + 1 );     // obtain 1/2 second pulses
             RTC_WaitForLastTask();
         }
 
 HW_LED_Off();
-BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
-while (1)
-{
-}
-
-HW_PWR_Main_Off();        
-
 
 
         // setup period clock
@@ -174,7 +170,7 @@ HW_PWR_Main_Off();
         // set up PWM for buzzer
         TIM_oc.TIM_OCMode       = TIM_OCMode_PWM1;
         TIM_oc.TIM_OutputState  = TIM_OutputState_Enable;
-        TIM_oc.TIM_OCPolarity   = TIM_OCPolarity_High;
+        TIM_oc.TIM_OCPolarity   = TIM_OCPolarity_Low;
         TIM_oc.TIM_Pulse        = BUZZER_FREQ/4;
         TIM_OC1Init(TIMER_BUZZER, &TIM_oc);
         TIM_ARRPreloadConfig(TIMER_BUZZER, ENABLE);
@@ -388,6 +384,32 @@ HW_PWR_Main_Off();
         return value;
     }
 
+    static void internal_setup_stop_mode(void)
+    {
+        uint32_t tmpreg = 0;
+
+        tmpreg = PWR->CR;
+        tmpreg &= 0xFFFFFFFC;
+        tmpreg |= PWR_Regulator_LowPower;
+        PWR->CR = tmpreg;
+        SCB->SCR |= SCB_SCR_SLEEPDEEP;
+    }
+
+    void HW_pwr_off_with_alarm( uint32 alarm )
+    {
+        uint32 crt_rtc;
+        // set up alarm (be sure that current RTC counter is smaller)
+        RTC_WaitForSynchro();
+        crt_rtc =  RTC_GetCounter();
+        if ( alarm <= crt_rtc )
+            alarm = crt_rtc + 1;
+
+        RTC_WaitForLastTask();
+        RTC_SetAlarm( alarm ); 
+        // power down the system
+        BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
+        while(1);
+    }
 
     void HW_Seconds_Start(void)
     {
@@ -510,18 +532,6 @@ HW_PWR_Main_Off();
 
         NVIC_InitStructure.NVIC_IRQChannel              = RTCAlarm_IRQn;    // RTC alarm
         NVIC_Init( &NVIC_InitStructure );
-    }
-
-
-    static inline void internal_setup_stop_mode(void)
-    {
-        uint32_t tmpreg = 0;
-
-        tmpreg = PWR->CR;
-        tmpreg &= 0xFFFFFFFC;
-        tmpreg |= PWR_Regulator_LowPower;
-        PWR->CR = tmpreg;
-        SCB->SCR |= SCB_SCR_SLEEPDEEP;
     }
 
 

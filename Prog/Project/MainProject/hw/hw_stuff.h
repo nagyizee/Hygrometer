@@ -117,6 +117,7 @@
     #define TIMER_BUZZER            TIM16               // buzzer pwm generator
     #define TIMER_SYSTEM_IRQ        TIM1_BRK_TIM15_IRQn
     #define TIMER_RTC               RTC
+    #define TIMER_RTC_PRESCALE      ( ((32 * 1024) / 2) - 1 )   // 0.5sec pulses
     #define RTC_ALARM_FLAG          ((uint16_t)0x0002)
 
     #define SPI_PORT_EE             SPI1                    // spi port for eeprom
@@ -233,6 +234,7 @@
 
     uint32 HW_ADC_GetBattery(void); // NOTE!!! call this only if ADC isn't running with DMA bulk mode
 
+    void HW_pwr_off_with_alarm( uint32 alarm );
     void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment
     void HW_Seconds_Restore(void);  // restore the original interrupt interval
     uint32 RTC_GetCounter(void);
