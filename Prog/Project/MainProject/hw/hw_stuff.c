@@ -271,55 +271,149 @@
     }
 
 
-    void HW_SPI_DMA_Init(void)
+    void HW_SPI_Set_Rx_mode_only( SPI_TypeDef* spi, bool on )
+    {
+        uint16_t tmpreg = 0;
+
+        SPI_Cmd(spi, DISABLE);
+        tmpreg = spi->CR1;
+        if ( on )
+            tmpreg |= SPI_Direction_2Lines_RxOnly;
+        else
+            tmpreg &= ~SPI_Direction_2Lines_RxOnly;
+        spi->CR1 = tmpreg;
+        SPI_Cmd(spi, ENABLE);
+    }
+
+
+    void HW_DMA_Init(uint32 dma_ch)
     {
         NVIC_InitTypeDef    NVIC_InitStructure;
 
-        DMA_DISP_TX_Channel->CCR = ( DMA_DISP_TX_Channel->CCR & 0xFFFF800F ) |      // filter.value copied from stm32f10x_dma.c - not defined anywhere
-                                   ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
-                                     DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
-                                     DMA_Priority_High         | DMA_M2M_Disable );
-
-        DMA_DISP_TX_Channel->CPAR     = (uint32_t)(&SPI_PORT_DISP->DR );             // base address for SPI data register
-
-        // set up the interrupt request channel
-        NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 6;
-        NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
-        NVIC_Init( &NVIC_InitStructure );
+        switch ( dma_ch )
+        {
+            case DMACH_DISP:
+                DMA_DISP_TX_Channel->CCR = ( DMA_DISP_TX_Channel->CCR & 0xFFFF800F ) |      // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_High         | DMA_M2M_Disable );
+                DMA_DISP_TX_Channel->CPAR     = (uint32_t)(&SPI_PORT_DISP->DR );            // base address for SPI data register
+                // set up the interrupt request channel
+                NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
+                NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 6;
+                NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
+                NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
+                NVIC_Init( &NVIC_InitStructure );
+                break;
+            case DMACH_EE:
+                DMA_EE_TX_Channel->CCR = ( DMA_EE_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_Medium         | DMA_M2M_Disable );
+                DMA_EE_TX_Channel->CPAR     = (uint32_t)(&SPI_PORT_EE->DR );                // base address for SPI data register
+                DMA_EE_RX_Channel->CCR = ( DMA_EE_RX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralSRC     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_High         | DMA_M2M_Disable );
+                DMA_EE_RX_Channel->CPAR     = (uint32_t)(&SPI_PORT_EE->DR );                // base address for SPI data register
+                break;
+            case DMACH_SENS:
+                DMA_SENS_TX_Channel->CCR = ( DMA_SENS_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_Medium         | DMA_M2M_Disable );
+                DMA_SENS_TX_Channel->CPAR     = (uint32_t)(&I2C_PORT_SENSOR->DR );              // base address for SPI data register
+                DMA_SENS_RX_Channel->CCR = ( DMA_SENS_RX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralSRC     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_Medium       | DMA_M2M_Disable );
+                DMA_SENS_RX_Channel->CPAR     = (uint32_t)(&I2C_PORT_SENSOR->DR );              // base address for SPI data register
+                break;
+        }
     }
 
 
-    void HW_SPI_DMA_Uninit(void)
+    void HW_DMA_Uninit(uint32 dma_ch)
     {
         // uninit interrupt request channel
         NVIC_InitTypeDef            NVIC_InitStructure;
+        DMA_Channel_TypeDef *DMAtx = NULL;
+        DMA_Channel_TypeDef *DMArx = NULL;
+        uint32 clear_flags = 0;
 
-        NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
-        NVIC_InitStructure.NVIC_IRQChannelCmd           = DISABLE;
-        NVIC_Init( &NVIC_InitStructure );
+        switch ( dma_ch )
+        {
+            case DMACH_DISP:
+                DMAtx = DMA_DISP_TX_Channel;
+                clear_flags = DMA_DISP_IRQ_FLAGS;
+                NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
+                NVIC_InitStructure.NVIC_IRQChannelCmd           = DISABLE;
+                NVIC_Init( &NVIC_InitStructure );
+                break;
+            case DMACH_EE:
+                DMAtx = DMA_EE_TX_Channel;
+                DMArx = DMA_EE_RX_Channel;
+                clear_flags = DMA_EE_RX_IRQ_FLAGS | DMA_EE_TX_IRQ_FLAGS;
+                break;
+            case DMACH_SENS:
+                DMAtx = DMA_SENS_TX_Channel;
+                DMArx = DMA_SENS_RX_Channel;
+                clear_flags = DMA_SENS_RX_IRQ_FLAGS | DMA_SENS_TX_IRQ_FLAGS;
+                break;
+        }
 
-        DMA_DISP_TX_Channel->CCR &= (uint16_t)(~DMA_CCR1_EN);
-        DMA_DISP_TX_Channel->CCR  = 0;
-        DMA_DISP_TX_Channel->CNDTR = 0;
-        DMA_DISP_TX_Channel->CPAR  = 0;
-        DMA_DISP_TX_Channel->CMAR = 0;
+        while ( DMAtx )
+        {
+            DMAtx->CCR &= (uint16_t)(~DMA_CCR1_EN);
+            DMAtx->CCR  = 0;
+            DMAtx->CNDTR = 0;
+            DMAtx->CPAR  = 0;
+            DMAtx->CMAR = 0;
+
+            DMAtx = DMArx;      // switch to DMArx - if it is null it will exit anyway
+            DMArx = NULL;       // prevent reload
+        }
         DMA1->IFCR |= DMA_DISP_IRQ_FLAGS;
-
     }
 
-    void HW_SPI_DMA_Send( const uint8 *ptr, uint32 size )
+    void HW_DMA_Send( uint32 dma_ch, const uint8 *ptr, uint32 size )
     {
-        DMA_DISP_TX_Channel->CCR     &= (uint16_t)(~DMA_CCR1_EN);   // to be able to reload the count register
-        DMA_DISP_TX_Channel->CMAR     = (uint32_t)ptr;          // base address for uart fifo
-        DMA_DISP_TX_Channel->CNDTR    = size;                   // maximum memory size
-        DMA_DISP_TX_Channel->CCR     |= DMA_CCR1_EN;            // enable dma channel - transmission begins
+        DMA_Channel_TypeDef *DMAch = NULL;
+        switch ( dma_ch )
+        {
+            case DMACH_DISP:    DMAch = DMA_DISP_TX_Channel; break;
+            case DMACH_EE:      DMAch = DMA_EE_TX_Channel;   break;
+            case DMACH_SENS:    DMAch = DMA_SENS_TX_Channel; break;
+            default:
+                return;
+        }
 
-        // enable ISR for transfer complete interrupt
-        DMA_DISP_TX_Channel->CCR     |= DMA_IT_TC;
+        DMAch->CCR     &= (uint16_t)(~DMA_CCR1_EN);     // to be able to reload the count register
+        DMAch->CMAR     = (uint32_t)ptr;                // base address for data block
+        DMAch->CNDTR    = size;                         // data block size
+        DMAch->CCR     |= DMA_CCR1_EN;                  // enable dma channel - transmission begins
+
+        // enable ISR for transfer complete interrupt for display
+        if ( dma_ch == DMACH_DISP )
+            DMAch->CCR     |= DMA_IT_TC;
     }
 
+    void HW_DMA_Receive( uint32 dma_ch, const uint8 *ptr, uint32 size )
+    {
+        DMA_Channel_TypeDef *DMAch = NULL;
+        switch ( dma_ch )
+        {
+            case DMACH_EE:      DMAch = DMA_EE_RX_Channel;   break;
+            case DMACH_SENS:    DMAch = DMA_SENS_RX_Channel; break;
+            default:
+                return;
+        }
+
+        DMAch->CCR     &= (uint16_t)(~DMA_CCR1_EN);     // to be able to reload the count register
+        DMAch->CMAR     = (uint32_t)ptr;                // base address for data block
+        DMAch->CNDTR    = size;                         // data block size
+        DMAch->CCR     |= DMA_CCR1_EN;                  // enable dma channel - transmission begins
+    }
 
 
     #define CR1_CLEAR_Mask              ((uint32_t)0xFFF0FEDF)
@@ -419,6 +513,17 @@
     {
         // TBI
 
+    }
+
+
+    void HW_Delay(uint32 us)
+    {
+        uint32 i;
+        for (i=0; i<us; i++)
+        {
+            __asm("    nop\n"); 
+            __asm("    nop\n"); 
+        }
     }
 
     void HW_Buzzer_On( int pulse )

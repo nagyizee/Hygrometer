@@ -17,6 +17,9 @@
 
 #include "graphic_lib.h"
 
+
+#include "eeprom_spi.h"     //dev
+
 extern struct SCore core;
 static bool failure = false;
 static bool wake_up = false;
@@ -43,6 +46,12 @@ static inline void CheckStack(void)
 
 
 #define pwr_check( a )  ( sys_st & (a) )
+
+
+//dev
+uint8 buffer[550];
+
+
 
 static inline void System_Poll( void )
 {
@@ -110,6 +119,28 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 */
 }
 
+
+//dev
+static void local_check_result(uint32 length)
+{
+    int i;
+    for (i=0; i<length; i++)
+    {
+        if ( (buffer[i*2] != (uint8)((i>>8)&0xff)) ||
+             (buffer[i*2+1] != (uint8)(i&0xff))       )
+        {
+            HW_LED_On();
+            HW_LED_Off();
+            HW_LED_On();
+            HW_LED_Off();
+            HW_LED_On();
+            HW_LED_Off();
+            while(1);               // error found - halt here
+        }
+    }
+}
+
+
 // Main application entry
 void main_entry( uint32 *stack_top )
 {
@@ -122,6 +153,115 @@ void main_entry( uint32 *stack_top )
     }
     ui_init( NULL );
 */
+
+
+//////////// dev vvvvvvvvvvvv
+    {
+        int i;
+        uint32 base_addr;
+
+        __disable_interrupt();
+        HW_LED_Off();
+
+        for (i=0; i<275; i++)
+        {
+            buffer[i*2] = (uint8)((i>>8)&0xff);
+            buffer[i*2+1] = (uint8)(i&0xff);
+        }
+
+        eeprom_init();
+        eeprom_enable(true);
+
+        // write operations
+        i=0;
+        while ( i < 2 )
+        {
+            base_addr = i*0x1000;
+            // write synchronously small amount inside page
+            HW_LED_On();
+            eeprom_write( base_addr + 0x10, buffer, 6, i );
+            HW_LED_Off();
+            HW_LED_On();
+            while ( eeprom_is_operation_finished() == false );
+            HW_LED_Off();
+            // write synchronously small amount bw. pages
+            HW_LED_On();
+            eeprom_write( base_addr + 0xfe, buffer, 6, i );
+            HW_LED_Off();
+            HW_LED_On();
+            while ( eeprom_is_operation_finished() == false );
+            HW_LED_Off();
+    
+            // write synchronously larger amount inside page
+            HW_LED_On();
+            eeprom_write( base_addr + 0x110, buffer, 200, i );
+            HW_LED_Off();
+            HW_LED_On();
+            while ( eeprom_is_operation_finished() == false );
+            HW_LED_Off();
+            // write synchronously larger amount bw. pages
+            HW_LED_On();
+            eeprom_write( base_addr + 0x1f0, buffer, 200, i );
+            HW_LED_Off();
+            HW_LED_On();
+            while ( eeprom_is_operation_finished() == false );
+            HW_LED_Off();
+    
+            // write synchronously large multipage data
+            HW_LED_On();
+            eeprom_write( base_addr + 0x2f0, buffer, 550, i );
+            HW_LED_Off();
+            HW_LED_On();
+            while ( eeprom_is_operation_finished() == false );
+            HW_LED_Off();
+
+            i++;
+        }
+
+        // try low power mode and re-enabling
+        eeprom_deepsleep();
+        eeprom_is_operation_finished();     // just try it out
+        HW_LED_On();
+        HW_LED_Off();
+        HW_LED_On();
+        HW_LED_Off();
+        HW_LED_On();
+        eeprom_enable(false);
+        HW_LED_Off();
+
+        // read operations 
+        i = 0;
+        while ( i < 2 )
+        {
+            int j;
+            const uint32 addresses[] = { 0x10, 0xfe, 0x110, 0x1f0, 0x2f0 };
+            const uint32 lengths[]   = {   6,    6,   200,   200,   550  };
+            uint32 addr;
+            uint32 len;
+
+            base_addr = i*0x1000;
+
+            for ( j=0; j<5; j++ )
+            {
+                addr = base_addr + addresses[ j + i*5 ];
+                len = lengths[ j + i*5 ];
+
+                HW_LED_On();
+                eeprom_read( addr, len, buffer, i );
+                HW_LED_Off();
+                HW_LED_On();
+                while ( eeprom_is_operation_finished() == false );      // will exit imediately for sync operations
+                HW_LED_Off();
+                local_check_result(len);
+            }
+
+            i++;
+        }
+
+
+        while(1);
+    }
+//////////// dev ^^^^^^^^^^^^
 }
 
 
