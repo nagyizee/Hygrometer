@@ -84,10 +84,6 @@
         
         HW_LED_On();
 
-        // wait for button release
-        while( BtnGet_Mode() )
-        { }
-
         // RTC setup
         // -- use external 32*1024 crystal. Clock divider ck/32 -> 1024 ticks / second ( ~1ms )
         // - use alarm feature for wake up (EXTI17) and second interrupt generator
@@ -146,6 +142,10 @@
             RTC_WaitForLastTask();
         }
 
+        // wait for button release
+        while( BtnGet_Mode() )
+        { }
+        
         // setup period clock
 
         // ----- System Timer Init -----

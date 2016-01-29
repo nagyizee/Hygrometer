@@ -319,6 +319,19 @@
     }
 
 
+    uint32 eeprom_erase(void)
+    {
+        if ( ee_status != eest_enable_wr )
+            return 1;
+
+        internal_set_write_enable( true );
+        internal_send_command( CMD_WRDI );
+        wr_dma_used = false;
+        wr_to_go = 0;
+        ee_status = eest_write_in_progr;
+    }
+
+
     bool eeprom_is_operation_finished( void )
     {
         if ( ee_status == eest_read_in_progr )          // if it is in read in progress state

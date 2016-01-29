@@ -219,6 +219,8 @@ void main_entry( uint32 *stack_top )
         }
 
         // try low power mode and re-enabling
+        while( !BtnGet_Mode() )
+        
         eeprom_deepsleep();
         eeprom_is_operation_finished();     // just try it out
         HW_LED_On();
@@ -228,6 +230,15 @@ void main_entry( uint32 *stack_top )
         HW_LED_On();
         eeprom_enable(false);
         HW_LED_Off();
+
+        HW_Delay( 500000 );
+        while( !BtnGet_Mode() )
+
+
+        for (i=0; i<550; i++)
+        {
+            buffer[i] = 0;
+        }
 
         // read operations 
         i = 0;
@@ -257,6 +268,25 @@ void main_entry( uint32 *stack_top )
 
             i++;
         }
+
+
+        eeprom_enable(true);
+        eeprom_erase();
+        HW_LED_On();
+        while ( eeprom_is_operation_finished() == false );      // will exit imediately for sync operations
+        HW_LED_Off();
+        HW_Delay( 500000 );
+        while( !BtnGet_Mode() )
+
+
+        for ( i=0; i<128; i++ )
+        {
+            int j;
+            HW_LED_On();
+            eeprom_read( 256*i, 256, buffer, false );
+            HW_LED_Off();
+        }
+            
 
 
         while(1);

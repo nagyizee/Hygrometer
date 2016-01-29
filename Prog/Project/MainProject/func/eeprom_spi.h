@@ -32,6 +32,9 @@
     // function returns as soon as data is sent - check with eeprom_is_operation_finished() if write operation is finished
     uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async );
 
+    // erase eeprom - first it must enabled in write mode
+    uint32 eeprom_erase(void);
+
     // check if an async read or write is finished or write is completed (sync/async - doesn't matter)
     // this also polls write operation if data is spread over more pages
     bool eeprom_is_operation_finished( void );
