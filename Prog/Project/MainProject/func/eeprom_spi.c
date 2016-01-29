@@ -146,7 +146,7 @@
             len = wr_to_go;                 // copy the remaining data only
 
         internal_write_chunk( wr_addr, wr_buff, len, async );
-        wr_buff += len;
+        wr_buff = ((uint8*)wr_buff + len);
         wr_addr += len;
         wr_to_go -= len;
     }
@@ -361,7 +361,7 @@
                     return false;
                 }
                 eest = internal_get_status();
-                if ( eest & EE_SF_BUSY == 0 )               // check if the write operation is finished
+                if ( (eest & EE_SF_BUSY) == 0 )               // check if the write operation is finished
                 {
                     if ( wr_to_go )                         // if it was an async sending and there are still some data chunks to be sent
                     {

@@ -40,6 +40,7 @@
         GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable , ENABLE);
 
         // Init portA
+        GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_2MHz;        // begin with port C since this is the power holder
         GPIO_InitStructure.GPIO_Mode    = PORTC_OUTPUT_MODE;        // begin with port C since this is the power holder
         GPIO_InitStructure.GPIO_Pin     = PORTC_OUTPUT_PINS;
         GPIO_Init(GPIOC, &GPIO_InitStructure);
@@ -519,8 +520,12 @@
     void HW_Delay(uint32 us)
     {
         uint32 i;
+        us = us * 2;
         for (i=0; i<us; i++)
         {
+            __asm("    nop\n"); 
+            __asm("    nop\n"); 
+            __asm("    nop\n"); 
             __asm("    nop\n"); 
             __asm("    nop\n"); 
         }
