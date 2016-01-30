@@ -20,8 +20,8 @@
 
     #define EE_MAX_SIZE     (128*1024)
 
-    #define EE_MAX_READ_WO_DMA  10      // nr. of bytes which worth be read without DMA
-    #define EE_MAX_WRITE_WO_DMA  10     // nr. of bytes which worth be written without DMA
+    #define EE_MAX_READ_WO_DMA  4      // nr. of bytes which worth be read without DMA
+    #define EE_MAX_WRITE_WO_DMA  8     // nr. of bytes which worth be written without DMA
 
     enum EeepromStatus
     {
@@ -221,7 +221,7 @@
         int i;
         volatile uint32 result;
 
-        if ( (ee_status != eest_enable_rd) || (ee_status != eest_enable_wr) )
+        if ( (ee_status != eest_enable_rd) && (ee_status != eest_enable_wr) )
             return 0;
 
         if ( address >= EE_MAX_SIZE )
@@ -325,10 +325,11 @@
             return 1;
 
         internal_set_write_enable( true );
-        internal_send_command( CMD_WRDI );
+        internal_send_command( CMD_CE );
         wr_dma_used = false;
         wr_to_go = 0;
         ee_status = eest_write_in_progr;
+        return 0;
     }
 
 
@@ -378,4 +379,43 @@
         }
         return true;                                    // by default signal finished (no write/read pending)
     }
+
+
+/* Performance measurements:
+        CS -\___/- for CMD_RDIP: 2.3us
+
+        Write small amount of data:
+            operation (execution of routine for 6bytes in the same page) - 29.3us
+            set up for write + command + address (first CS-\_ -> first data byte): 9.3us
+            send 6 data bytes (byte0 first clock -> byte5 first clock): 7.7us
+            last data clock -> CS_/-: 1.2us 
+
+        Write data with DMA - 200bytes in the same page:
+            operation 233us
+            set up for write + command + address (first CS-\_ -> first data byte): 11.76us
+            send 6 data bytes (byte0 first clock -> byte5 first clock): 5.72us
+            last data clock -> CS_/-: 1.5us 
+
+            8bytes ~OK for nonDMA
+
+        Read small amount of data:
+            operation (execution of routine for 6bytes in the same page) - 24.1us
+            command + address (first CS-\_ -> first data byte): 6.8us
+            receive 6 data bytes (byte0 first clock -> byte5 first clock): 13.6us  -> 2.72us/byte
+            last data clock -> SC_/-: 1.5us
+
+        Read with DMA 200bytes:
+            operation (execution of routine for 6bytes in the same page) - 221us
+            command + address (first CS-\_ -> first data byte): 12.2us
+            receive 6 data bytes (byte0 first clock -> byte5 first clock): 5us     -> 1us/byte
+            last data clock -> SC_/-: N/A
+
+            - 4 byte should use DMA
+*/
+    
+
+
+
+
+
 

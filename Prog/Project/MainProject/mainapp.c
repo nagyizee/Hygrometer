@@ -124,7 +124,7 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 static void local_check_result(uint32 length)
 {
     int i;
-    for (i=0; i<length; i++)
+    for (i=0; i<(length/2); i++)
     {
         if ( (buffer[i*2] != (uint8)((i>>8)&0xff)) ||
              (buffer[i*2+1] != (uint8)(i&0xff))       )
@@ -173,6 +173,7 @@ void main_entry( uint32 *stack_top )
         eeprom_enable(true);
 
         // write operations
+#if 1
         i=0;
         while ( i < 2 )
         {
@@ -220,20 +221,15 @@ void main_entry( uint32 *stack_top )
 
         // try low power mode and re-enabling
         while( !BtnGet_Mode() );
-        
+        HW_Delay( 500000 );
+
+#endif        
         eeprom_deepsleep();
         eeprom_is_operation_finished();     // just try it out
         HW_LED_On();
         HW_LED_Off();
         HW_LED_On();
         HW_LED_Off();
-        HW_LED_On();
-        eeprom_enable(false);
-        HW_LED_Off();
-
-        HW_Delay( 500000 );
-        while( !BtnGet_Mode() );
-
 
         for (i=0; i<550; i++)
         {
@@ -254,9 +250,15 @@ void main_entry( uint32 *stack_top )
 
             for ( j=0; j<5; j++ )
             {
-                addr = base_addr + addresses[ j + i*5 ];
-                len = lengths[ j + i*5 ];
+                addr = base_addr + addresses[ j ];
+                len = lengths[ j ];
 
+                if ( (i==0) && (j==0) )
+                {
+                    HW_LED_On();
+                    eeprom_enable(false);
+                    HW_LED_Off();
+                }
                 HW_LED_On();
                 eeprom_read( addr, len, buffer, i );
                 HW_LED_Off();
@@ -269,14 +271,15 @@ void main_entry( uint32 *stack_top )
             i++;
         }
 
+        while( !BtnGet_Mode() );
+        HW_Delay( 500000 );
+
 
         eeprom_enable(true);
         eeprom_erase();
         HW_LED_On();
         while ( eeprom_is_operation_finished() == false );      // will exit imediately for sync operations
         HW_LED_Off();
-        HW_Delay( 500000 );
-        while( !BtnGet_Mode() );
 
 
         for ( i=0; i<128; i++ )
