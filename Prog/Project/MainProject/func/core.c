@@ -572,10 +572,12 @@ int core_setup_save( void )
     for ( i=0; i<sizeof(struct SCoreSetup); i++ )
         cksum = cksum + ( (uint16)(SetParams[i] << 8) - (uint16)(~SetParams[i]) ) + 1;
 
-    if ( eeprom_write( 0x10, SetParams, sizeof(struct SCoreSetup) ) != sizeof(struct SCoreSetup) )
+    if ( eeprom_write( 0x10, SetParams, sizeof(struct SCoreSetup), false ) != sizeof(struct SCoreSetup) )
         return -1;
-    if ( eeprom_write( 0x10 + sizeof(struct SCoreSetup), (uint8*)&cksum, 2 ) != 2 )
+    while ( eeprom_is_operation_finished() == false );
+    if ( eeprom_write( 0x10 + sizeof(struct SCoreSetup), (uint8*)&cksum, 2, false ) != 2 )
         return -1;
+    while ( eeprom_is_operation_finished() == false );
     eeprom_disable();
     return 0;
 }
@@ -621,9 +623,9 @@ int core_setup_load( void )
     if ( eeprom_enable(false) )
         return -1;
 
-    if ( eeprom_read( 0x10, sizeof(struct SCoreSetup), SetParams ) != sizeof(struct SCoreSetup) )
+    if ( eeprom_read( 0x10, sizeof(struct SCoreSetup), SetParams, false ) != sizeof(struct SCoreSetup) )
         return -1;
-    if ( eeprom_read( 0x10 + sizeof(struct SCoreSetup), 2, (uint8*)&cksumsaved ) != 2 )
+    if ( eeprom_read( 0x10 + sizeof(struct SCoreSetup), 2, (uint8*)&cksumsaved, false ) != 2 )
         return -1;
 
     for ( i=0; i<sizeof(struct SCoreSetup); i++ )

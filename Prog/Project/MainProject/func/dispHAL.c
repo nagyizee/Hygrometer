@@ -118,8 +118,8 @@ static void disp_spi_take_over( void )
     HW_SPI_interface_init( SPI_PORT_DISP, SPI_BaudRatePrescaler_4);     // gives 4MHz
 
     // init the DMA for TX
-    HW_SPI_DMA_Uninit();            // for refresh
-    HW_SPI_DMA_Init();              // init the DMA channel - just need to set address and start
+    HW_DMA_Uninit( DMACH_DISP );            // for refresh
+    HW_DMA_Init( DMACH_DISP );              // init the DMA channel - just need to set address and start
     HW_DMA_Disp_Enable(DMAREQ_TX);  // enable the SPI port's dma request
 }
 
@@ -131,7 +131,7 @@ static void disp_spi_release( void )
 
     // uninit dma
     HW_DMA_Disp_Disable(DMAREQ_TX); // disable the SPI port's dma request
-    HW_SPI_DMA_Uninit();            // uninit the DMA channel
+    HW_DMA_Uninit(DMACH_DISP);      // uninit the DMA channel
     hal.status.spi_owner = 0;
 }
 
@@ -166,7 +166,7 @@ static inline void disp_isr_internal_run_update_gmem( void )
     HW_Chip_Disp_Enable();           // chip select
     HW_Chip_Disp_BusData();          // assert the data signal
 
-    HW_SPI_DMA_Send( gmem + hal.send.gmem_line_start * GDISP_MAX_MEM_W, GDISP_MAX_MEM_W );
+    HW_DMA_Send( DMACH_DISP, gmem + hal.send.gmem_line_start * GDISP_MAX_MEM_W, GDISP_MAX_MEM_W );
 
     // create the command list for the next group (if existent)
     if ( hal.send.gmem_line_start < hal.send.gmem_line_end )
@@ -232,7 +232,7 @@ static bool disp_isr_internal_run_cmd_sequence( void )
         to_send++;
     }
 
-    HW_SPI_DMA_Send( hal.send.cmd_ptr, to_send );
+    HW_DMA_Send( DMACH_DISP, hal.send.cmd_ptr, to_send );
     hal.send.cmd_ptr += to_send;
     hal.send.cmd_idx += to_send;
 

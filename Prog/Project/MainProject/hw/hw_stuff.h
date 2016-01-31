@@ -182,6 +182,7 @@
     void InitHW(void);
 
     void HW_SPI_interface_init( SPI_TypeDef* spi, uint16 baudrate);
+    void HW_SPI_Set_Rx_mode_only( SPI_TypeDef* spi, bool on );
 
     // get button status
     bool BtnGet_OK();
@@ -228,9 +229,15 @@
     #define HW_DMA_Disp_Enable(a)    do {  SPI_PORT_DISP->CR2 |= (a);  } while (0)              // enable DMA request for SPI port
     #define HW_DMA_Disp_Disable(a)   do {  SPI_PORT_DISP->CR2 &= (uint16_t)~(a); } while (0)    // disable DMA request for SPI port
 
-    void HW_SPI_DMA_Init();
-    void HW_SPI_DMA_Uninit();
-    void HW_SPI_DMA_Send( const uint8* data, uint32 size );
+
+    #define DMACH_DISP          1       
+    #define DMACH_EE            2
+    #define DMACH_SENS          3
+
+    void HW_DMA_Init( uint32 dma_ch );
+    void HW_DMA_Uninit( uint32 dma_ch );
+    void HW_DMA_Send( uint32 dma_ch, const uint8 *ptr, uint32 size );
+    void HW_DMA_Receive( uint32 dma_ch, const uint8 *ptr, uint32 size );
 
     uint32 HW_ADC_GetBattery(void); // NOTE!!! call this only if ADC isn't running with DMA bulk mode
 
@@ -238,8 +245,9 @@
     void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment
     void HW_Seconds_Restore(void);  // restore the original interrupt interval
     uint32 RTC_GetCounter(void);
-    void RTC_SetAlarm(uint32);
     void HW_SetRTC(uint32 RTCctr);
+
+    void HW_Delay(uint32 us);
 
     void HW_Buzzer_On(int pulse);   // Pulse is in 16MHz units
     void HW_Buzzer_Off(void);

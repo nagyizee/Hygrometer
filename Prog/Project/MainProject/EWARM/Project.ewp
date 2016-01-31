@@ -1774,7 +1774,7 @@
         </option>
         <option>
           <name>IlinkOptInline</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkOptExceptionsAllow</name>
@@ -1790,7 +1790,7 @@
         </option>
         <option>
           <name>IlinkOptMergeDuplSections</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkOptUseVfe</name>
