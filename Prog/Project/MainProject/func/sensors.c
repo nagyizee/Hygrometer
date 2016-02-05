@@ -4,7 +4,7 @@
         It works based on polling. Since I2C is slow, most of the operations 
         are done asynchronously so freqvent polling is needed
 
-        Estimated i2c speed: 400kHz -> 40kbps - 25us/byte
+        Estimated i2c speed: 400kHz -> 40kbps - 25us/byte = 400clocks
 
         i2c is fiddly -> all the hardware related stuff will be done in this code
 
@@ -35,6 +35,7 @@
 
 */
 
+#include <stdio.h>
 
 #include "sensors.h"
 #include "hw_stuff.h"
@@ -67,14 +68,124 @@
 #define CR2_LAST_Reset          ((uint16_t)0xEFFF)
 #define CR2_FREQ_Reset          ((uint16_t)0xFFC0)
 
+#define SR1_SB                  ((uint16_t)0x0001)
+#define SR1_ADDR                ((uint16_t)0x0002)
+#define SR1_BTF                 ((uint16_t)0x0004)
+
+
+#define I2C_DEVICE_PRESSURE     0xC0            // pressure sensor's device address
+#define I2C_DEVICE_TH           0x80            // temperature and humidity sensor's device address
+
+#define REGPRESS_STATUS         0x00            // pressure sensor status register
+#define REGPRESS_STATUS_LEN     1
+#define REGPRESS_ID             0x0C            // pressure sensor chip ID
+#define REGPRESS_ID_LEN         1
 
 
 
+enum EI2CStates
+{
+    sm_none = 0,                                // no operation in progress
+    sm_readdev_regaddr_waitaddr,                // read register: sent start condition + address + wrbit - waiting for address sent.
+    sm_readdev_regaddr_waittx,                  // read register: sent register address - waiting for tx complete
+    sm_readdev_readdata_waitaddr,               // read register: dma set up + start condition + address + rdbit - waiting for addess sent.
+    sm_readdev_readdata_waitdata,               // read register: address sent, interface filling memory - wait when DMA transaction is finished
+};
+
+struct SI2CStateMachine
+{
+    enum EI2CStates     sm;
+    uint8               *buffer;
+    uint8               dev_addr;
+    uint8               reg_addr;
+    uint8               reg_data_lenght;
+} i2c;
+
+
+
+//==============================================================
+//
+//              I2C communication routines
+// 
+//==============================================================
+
+
+void local_I2C_internal_setstart( uint8 address, bool wrt )
+{
+    I2C_PORT_SENSOR->CR1 |= CR1_START_Set;              // Set start condition
+    while ((I2C_PORT_SENSOR->SR1 & SR1_SB) != SR1_SB);  // Wait until SB flag is set: EV5
+
+    if ( wrt )
+        I2C_PORT_SENSOR->DR = address;
+    else
+        I2C_PORT_SENSOR->DR = address | 0x0001;         // set the read flag
+}
+
+bool local_I2C_internal_waitaddr( void )
+{
+    if ( I2C_PORT_SENSOR->SR1 & SR1_ADDR )      // EV6
+    {
+        volatile uint32 temp;
+        temp = I2C_PORT_SENSOR->SR2;            // clear (ADDR) by reading SR2
+
+        return true;
+    }
+    return false;
+}
+
+bool local_I2C_internal_waitaddr_sendregaddr( void )
+{
+    if ( local_I2C_internal_waitaddr() )
+    {
+        I2C_PORT_SENSOR->DR = i2c.reg_addr;     // send the register address (EV8_1)
+        return true;
+    }
+    return false;
+}
+
+bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
+{
+    if (I2C_PORT_SENSOR->SR1 & SR1_BTF )          // Wait for byte transmission finish including ACK reception (BTF)
+    {
+        if ( i2c.sm == sm_readdev_regaddr_waittx )
+        {
+            // if called for data reading
+
+            // set up DMA for receiving data
+            HW_DMA_Receive( DMACH_SENS, i2c.buffer, i2c.reg_data_lenght );
+            I2C_PORT_SENSOR->CR2 |= CR2_LAST_Set;          // Set Last bit to have a NACK on the last received byte
+            I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
+            // send the start condition and device address
+            local_I2C_internal_setstart( i2c.dev_addr, false );
+        }
+        return true;
+    }
+    return false;
+}
+
+bool local_I2C_internal_waitdata_stop( void )
+{
+    if ( DMA1->ISR & DMA1_FLAG_TC7 )
+    {
+        DMA1->IFCR = DMA1_FLAG_TC7;                     // clear the transfer ready flag
+        I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
+
+        I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
+        while ( I2C_PORT_SENSOR->CR1 & CR1_STOP_Set ); // wait till stop is cleared by hardware
+
+        return true;
+    }
+    return false;
+}
+
+
+// init I2C peripherial after power-on reset
 void local_I2C_interface_init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
     I2C_InitTypeDef  I2C_InitStructure;
-    uint16 reg16;
+
+    memset( &i2c, 0, sizeof(i2c) );
 
     // enable clock for I2C interface
     RCC_APB1PeriphClockCmd( I2C_APB_SENSOR, ENABLE );
@@ -116,48 +227,88 @@ void local_I2C_interface_init(void)
 }
 
 
+// Read a register from a device.
+// Note: the routine is asynchronous for larger ammount of data - check data availability and keep
+// the buffer available till finishing
+uint32 local_I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data_lenght, uint8 *buffer )
+{
+    if ( i2c.sm != sm_none )
+        return 1;
+
+    i2c.dev_addr = dev_address;
+    i2c.reg_addr = dev_reg_addr;
+    i2c.reg_data_lenght = data_lenght;
+    i2c.buffer = buffer;
+    local_I2C_internal_setstart( dev_address, true );
+    i2c.sm = sm_readdev_regaddr_waitaddr;
+    return 0;
+}
+
+
+// Check if operations are finished - this polls internal state machines also
+uint32 local_I2C_busy( void )
+{
+    if ( i2c.sm == sm_none )
+        return 0;
+
+    switch ( i2c.sm )
+    {
+        case sm_readdev_regaddr_waitaddr:   
+            if (local_I2C_internal_waitaddr_sendregaddr() )
+                i2c.sm = sm_readdev_regaddr_waittx;
+            break;
+        case sm_readdev_regaddr_waittx:
+            if (local_I2C_internal_wait_regaddr_tx_setreceive() )
+                i2c.sm = sm_readdev_readdata_waitaddr;
+            break;
+        case sm_readdev_readdata_waitaddr:
+            if (local_I2C_internal_waitaddr() )
+                i2c.sm = sm_readdev_readdata_waitdata;
+            break;
+        case sm_readdev_readdata_waitdata:
+            if ( local_I2C_internal_waitdata_stop() )
+            {
+                i2c.sm = sm_none;
+                return 0;
+            }
+            break;
+    }
+    return 1;
+}
 
 
 
 
 void Sensor_Init()
 {
-    volatile uint32 temp;
-    volatile uint8 data;
+    uint8 data[16];
+
     // init I2C interface
     local_I2C_interface_init();
 
+    // init DMA for I2C
+    HW_DMA_Uninit( DMACH_SENS );
+    HW_DMA_Init( DMACH_SENS );
+    
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, REGPRESS_ID_LEN, data );
+    while ( local_I2C_busy() );
+
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_STATUS, REGPRESS_STATUS_LEN, data+1 );
+    while ( local_I2C_busy() );
+
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, REGPRESS_ID_LEN, data+2 );
+    while ( local_I2C_busy() );
+
+    if ( data[3] == data[4] )
+    {
+        HW_DMA_Uninit( DMACH_SENS );
+    }
 
     // dev experiments
 
-    // set up register to read in pressure sensor
-    I2C_PORT_SENSOR->CR1 |= CR1_START_Set;              // Set start condition
-    while ((I2C_PORT_SENSOR->SR1&0x0001) != 0x0001);    // Wait until SB flag is set: EV5
-                                                        // 
-    I2C_Send7bitAddress( I2C_PORT_SENSOR, 0xC0, I2C_Direction_Transmitter );
-    while ((I2C_PORT_SENSOR->SR1&0x0002) != 0x0002);    // Wait for Adress sent (ADDR)
-    temp = I2C_PORT_SENSOR->SR2;                        // clear (ADDR) by reading SR2
-
-    I2C_PORT_SENSOR->DR = 0x0C;                         // send:  register "get ID" address
-    while ((I2C_PORT_SENSOR->SR1 & 0x00004) != 0x000004);          // Wait for byte transmission including ACK reception (BTF)
 
     // read it's value
-    I2C_PORT_SENSOR->CR1 |= CR1_START_Set;              // Set start condition again - now for reception
-    while ((I2C_PORT_SENSOR->SR1&0x0001) != 0x0001);    // Wait until SB flag is set: EV5  (it is cleared by reading SR1 and writing DR)
 
-    I2C_Send7bitAddress( I2C_PORT_SENSOR, 0xC0, I2C_Direction_Receiver );
-    while ((I2C_PORT_SENSOR->SR1&0x0002) != 0x0002);    // Wait for Adress sent (ADDR)
-
-    I2C_PORT_SENSOR->CR1 &= CR1_ACK_Reset;
-    __disable_irq();
-    temp = I2C_PORT_SENSOR->SR2;                        // clear (ADDR)
-    I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;                          // set STOP
-    __enable_irq();
-    
-    while ((I2C_PORT_SENSOR->SR1 & 0x00040) != 0x000040);          // Wait until a data is received in DR register (RXNE = 1) EV7
-    data = I2C_PORT_SENSOR->DR;                                    // Read the data
-    while ((I2C_PORT_SENSOR->CR1&0x200) == 0x200);                 // Make sure that the STOP bit is cleared by Hardware before CR1 write access */
-    I2C_PORT_SENSOR->CR1 |= CR1_ACK_Set;                           // Enable Acknowledgement to be ready for another reception
 
 }
 

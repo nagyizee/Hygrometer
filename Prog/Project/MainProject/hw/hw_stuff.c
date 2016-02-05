@@ -327,7 +327,7 @@
                 DMA_SENS_RX_Channel->CCR = ( DMA_SENS_RX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
                                            ( DMA_DIR_PeripheralSRC     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
                                              DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
-                                             DMA_Priority_Medium       | DMA_M2M_Disable );
+                                             DMA_Priority_VeryHigh     | DMA_M2M_Disable );
                 DMA_SENS_RX_Channel->CPAR     = (uint32_t)(&I2C_PORT_SENSOR->DR );              // base address for SPI data register
                 break;
         }
