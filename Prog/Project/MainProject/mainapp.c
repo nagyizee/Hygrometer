@@ -17,6 +17,8 @@
 
 #include "graphic_lib.h"
 
+#include "sensors.h"
+
 extern struct SCore core;
 static bool failure = false;
 static bool wake_up = false;
@@ -122,6 +124,17 @@ void main_entry( uint32 *stack_top )
     }
     ui_init( NULL );
 */
+    
+    
+/////// dev VVVVVVV    
+    
+    Sensor_Init();
+    
+    
+    
+    
+    
+    while(1);
 }
 
 

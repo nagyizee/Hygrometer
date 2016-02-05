@@ -191,7 +191,7 @@
         NVIC_Init( &NVIC_InitStructure );
 
         // stop timer counter when debugging, keep core alive when debugging in stop/sleep mode
-        DBGMCU_Config( DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
+        DBGMCU_Config( DBGMCU_I2C1_SMBUS_TIMEOUT | DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);
