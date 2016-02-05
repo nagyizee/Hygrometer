@@ -81,11 +81,25 @@ void local_I2C_interface_init(void)
 
     // set up GPI port for i2c
     GPIO_InitStructure.GPIO_Speed   = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Pin     = IO_OUT_SENS_SCL;
+    GPIO_InitStructure.GPIO_Pin     = IO_OUT_SENS_SCL | IO_OUT_SENS_SDA;
     GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_AF_OD;
     GPIO_Init(IO_PORT_SENS_SCL, &GPIO_InitStructure);
-    GPIO_InitStructure.GPIO_Pin     = IO_IN_SENS_SDA;
-    GPIO_Init(IO_PORT_SENS_SDA, &GPIO_InitStructure);
+    // --- to prevent noise filter lockup - use the method described in errata sheet: 2.10.7
+    GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_Out_OD;
+    GPIO_Init(IO_PORT_SENS_SCL, &GPIO_InitStructure);
+    IO_PORT_SENS_SCL->BSRR = ( IO_OUT_SENS_SCL | IO_OUT_SENS_SDA );          // 2. Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level
+    while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SCL) || !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA) );  // 3. Check SCL and SDA High level in GPIOx_IDR.
+    IO_PORT_SENS_SCL->BRR  = IO_OUT_SENS_SDA;                               // 4. Configure the SDA I/O as General Purpose Output Open-Drain, Low level
+    while( IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA );                       // 5. Check SDA Low level in GPIOx_IDR.
+    IO_PORT_SENS_SCL->BRR  = IO_OUT_SENS_SCL;                               // 6. Configure the SCL I/O as General Purpose Output Open-Drain, Low level
+    while( IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SCL );                       // 7. Check SCL Low level in GPIOx_IDR.
+    IO_PORT_SENS_SCL->BSRR = IO_OUT_SENS_SCL;                               // 8. Configure the SCL I/O as General Purpose Output Open-Drain, High level
+    while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SCL) );                    // 9. Check SCL High level in GPIOx_IDR.
+    IO_PORT_SENS_SCL->BSRR = IO_OUT_SENS_SDA;                               // 10.Configure the SDA I/O as General Purpose Output Open-Drain , High level
+    while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA) );                    // 11.Check SDA High level in GPIOx_IDR.
+    GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_AF_OD;                      // 12.Configure the SCL and SDA I/Os as Alternate function Open-Drain
+    GPIO_Init(IO_PORT_SENS_SCL, &GPIO_InitStructure);
+    // the rest is taken care at the reset interface
 
     // reset the interface
     RCC_APB1PeriphResetCmd( I2C_APB_SENSOR, ENABLE );
@@ -100,6 +114,7 @@ void local_I2C_interface_init(void)
     I2C_InitStructure.I2C_ClockSpeed = 400000;
     I2C_Init(I2C1, &I2C_InitStructure);
 }
+
 
 
 

@@ -38,6 +38,7 @@
     #define IO_OUT_EE_CS            GPIO_Pin_0
     #define IO_OUT_LED              GPIO_Pin_1
     #define IO_OUT_SENS_SCL         GPIO_Pin_6
+    #define IO_OUT_SENS_SDA         GPIO_Pin_7
     #define IO_OUT_BUZZER           GPIO_Pin_8
     #define IO_OUT_DISP_SCK         GPIO_Pin_13
     #define IO_OUT_DISP_DC          GPIO_Pin_14
@@ -71,7 +72,6 @@
     #define IO_IN_BTN_1             GPIO_Pin_3
     #define IO_IN_BTN_4             GPIO_Pin_4
     #define IO_IN_BTN_6             GPIO_Pin_5
-    #define IO_IN_SENS_SDA          GPIO_Pin_7
     #define IO_IN_SENS_IRQ          GPIO_Pin_9
     #define IO_IN_CHARGE            GPIO_Pin_12
 
@@ -99,7 +99,7 @@
     #define PORTB_INPUT_MODE_BTN    GPIO_Mode_IPU
     #define PORTB_INPUT_PINS_BTN    ( IO_IN_BTN_1 | IO_IN_BTN_4 | IO_IN_BTN_6 )
     #define PORTB_INPUT_MODE        GPIO_Mode_IN_FLOATING
-    #define PORTB_INPUT_PINS        ( IO_IN_SENS_SDA | IO_IN_SENS_IRQ | IO_IN_CHARGE )
+    #define PORTB_INPUT_PINS        ( IO_OUT_SENS_SDA | IO_IN_SENS_IRQ | IO_IN_CHARGE )
 
     // port C
     #define PORTC_OUTPUT_MODE       GPIO_Mode_Out_PP
