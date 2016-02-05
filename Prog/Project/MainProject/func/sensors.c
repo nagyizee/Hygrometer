@@ -167,11 +167,13 @@ bool local_I2C_internal_waitdata_stop( void )
 {
     if ( DMA1->ISR & DMA1_FLAG_TC7 )
     {
+        DMA_Cmd(DMA_SENS_RX_Channel, DISABLE);
         DMA1->IFCR = DMA1_FLAG_TC7;                     // clear the transfer ready flag
-        I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
         I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
-        while ( I2C_PORT_SENSOR->CR1 & CR1_STOP_Set ); // wait till stop is cleared by hardware
+        while ((I2C_PORT_SENSOR->CR1&0x200) == 0x200);  // wait for stop to clear
+
+        I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
         return true;
     }
@@ -222,7 +224,7 @@ void local_I2C_interface_init(void)
     I2C_InitStructure.I2C_OwnAddress1 = 0x0C;
     I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    I2C_InitStructure.I2C_ClockSpeed = 400000;
+    I2C_InitStructure.I2C_ClockSpeed = 100000;
     I2C_Init(I2C1, &I2C_InitStructure);
 }
 
