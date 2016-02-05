@@ -71,7 +71,7 @@
 #define SR1_SB                  ((uint16_t)0x0001)
 #define SR1_ADDR                ((uint16_t)0x0002)
 #define SR1_BTF                 ((uint16_t)0x0004)
-
+#define SR1_RXNE                ((uint16_t)0x0040)
 
 #define I2C_DEVICE_PRESSURE     0xC0            // pressure sensor's device address
 #define I2C_DEVICE_TH           0x80            // temperature and humidity sensor's device address
@@ -88,8 +88,10 @@ enum EI2CStates
     sm_none = 0,                                // no operation in progress
     sm_readdev_regaddr_waitaddr,                // read register: sent start condition + address + wrbit - waiting for address sent.
     sm_readdev_regaddr_waittx,                  // read register: sent register address - waiting for tx complete
-    sm_readdev_readdata_waitaddr,               // read register: dma set up + start condition + address + rdbit - waiting for addess sent.
-    sm_readdev_readdata_waitdata,               // read register: address sent, interface filling memory - wait when DMA transaction is finished
+    sm_readdev_readdata_waitaddr,               // read register: start condition + address + rdbit - waiting for addess sent.
+    sm_readdev_readdata_waitaddr_DMA,           // read register: dma set up + start condition + address + rdbit - waiting for addess sent.
+    sm_readdev_readdata_waitdata,               // read register: address sent, stop condition set up for 1 byte, - wait for data reception.
+    sm_readdev_readdata_waitdata_DMA,           // read register: address sent, interface filling memory - wait when DMA transaction is finished
 };
 
 struct SI2CStateMachine
@@ -121,12 +123,24 @@ void local_I2C_internal_setstart( uint8 address, bool wrt )
         I2C_PORT_SENSOR->DR = address | 0x0001;         // set the read flag
 }
 
-bool local_I2C_internal_waitaddr( void )
+bool local_I2C_internal_waitaddr( bool one_byte_rx )
 {
     if ( I2C_PORT_SENSOR->SR1 & SR1_ADDR )      // EV6
     {
         volatile uint32 temp;
-        temp = I2C_PORT_SENSOR->SR2;            // clear (ADDR) by reading SR2
+
+        if ( one_byte_rx == false )
+            temp = I2C_PORT_SENSOR->SR2;            // clear (ADDR) by reading SR2
+        else
+        {
+            // for 1 byte reads we must program for NAK before clearing (ADDR), 
+            // and stop should be sent immediately as receiving starts
+            I2C_PORT_SENSOR->CR1 &= CR1_ACK_Reset;  // set up to send NAK after receiving byte
+            __disable_irq();
+            temp = I2C_PORT_SENSOR->SR2;            // clear (ADDR) by reading SR2
+            I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;   // set up stop condition
+            __enable_irq();
+        }
 
         return true;
     }
@@ -135,7 +149,7 @@ bool local_I2C_internal_waitaddr( void )
 
 bool local_I2C_internal_waitaddr_sendregaddr( void )
 {
-    if ( local_I2C_internal_waitaddr() )
+    if ( local_I2C_internal_waitaddr(false) )
     {
         I2C_PORT_SENSOR->DR = i2c.reg_addr;     // send the register address (EV8_1)
         return true;
@@ -151,10 +165,14 @@ bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
         {
             // if called for data reading
 
-            // set up DMA for receiving data
-            HW_DMA_Receive( DMACH_SENS, i2c.buffer, i2c.reg_data_lenght );
-            I2C_PORT_SENSOR->CR2 |= CR2_LAST_Set;          // Set Last bit to have a NACK on the last received byte
-            I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
+            if ( i2c.reg_data_lenght > 1 )
+            {
+                // set up DMA for receiving data
+                HW_DMA_Receive( DMACH_SENS, i2c.buffer, i2c.reg_data_lenght );
+                I2C_PORT_SENSOR->CR2 |= CR2_LAST_Set;          // Set Last bit to have a NACK on the last received byte
+                I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
+            }
+
             // send the start condition and device address
             local_I2C_internal_setstart( i2c.dev_addr, false );
         }
@@ -163,7 +181,21 @@ bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
     return false;
 }
 
+
 bool local_I2C_internal_waitdata_stop( void )
+{
+    if ( I2C_PORT_SENSOR->SR1 & SR1_RXNE )
+    {
+        i2c.buffer[0] = I2C_PORT_SENSOR->DR;            // read the data
+        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
+
+        I2C_PORT_SENSOR->CR1 |= CR1_ACK_Set;            // set back ACK generation
+        return true;
+    }
+    return false;
+}
+
+bool local_I2C_internal_waitdata_DMA_stop( void )
 {
     if ( DMA1->ISR & DMA1_FLAG_TC7 )
     {
@@ -171,7 +203,7 @@ bool local_I2C_internal_waitdata_stop( void )
         DMA1->IFCR = DMA1_FLAG_TC7;                     // clear the transfer ready flag
 
         I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
-        while ((I2C_PORT_SENSOR->CR1&0x200) == 0x200);  // wait for stop to clear
+        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);  // wait for stop to clear
 
         I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
@@ -201,7 +233,17 @@ void local_I2C_interface_init(void)
     GPIO_InitStructure.GPIO_Mode    = GPIO_Mode_Out_OD;
     GPIO_Init(IO_PORT_SENS_SCL, &GPIO_InitStructure);
     IO_PORT_SENS_SCL->BSRR = ( IO_OUT_SENS_SCL | IO_OUT_SENS_SDA );          // 2. Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level
-    while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SCL) || !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA) );  // 3. Check SCL and SDA High level in GPIOx_IDR.
+    while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SCL) || !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA) )  // 3. Check SCL and SDA High level in GPIOx_IDR.
+    {
+        // peripheral may hold the lines low - try to unlock by generating ~8 clock cycles
+        while( !(IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA) )
+        {
+            IO_PORT_SENS_SCL->BRR  = IO_OUT_SENS_SCL;
+            HW_Delay( 1 );
+            IO_PORT_SENS_SCL->BSRR  = IO_OUT_SENS_SCL;
+            HW_Delay( 1 );
+        }
+    }
     IO_PORT_SENS_SCL->BRR  = IO_OUT_SENS_SDA;                               // 4. Configure the SDA I/O as General Purpose Output Open-Drain, Low level
     while( IO_PORT_SENS_SCL->IDR & IO_OUT_SENS_SDA );                       // 5. Check SDA Low level in GPIOx_IDR.
     IO_PORT_SENS_SCL->BRR  = IO_OUT_SENS_SCL;                               // 6. Configure the SCL I/O as General Purpose Output Open-Drain, Low level
@@ -224,7 +266,7 @@ void local_I2C_interface_init(void)
     I2C_InitStructure.I2C_OwnAddress1 = 0x0C;
     I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    I2C_InitStructure.I2C_ClockSpeed = 100000;
+    I2C_InitStructure.I2C_ClockSpeed = 400000;
     I2C_Init(I2C1, &I2C_InitStructure);
 }
 
@@ -261,14 +303,30 @@ uint32 local_I2C_busy( void )
             break;
         case sm_readdev_regaddr_waittx:
             if (local_I2C_internal_wait_regaddr_tx_setreceive() )
-                i2c.sm = sm_readdev_readdata_waitaddr;
+            {
+                if ( i2c.reg_data_lenght > 1 )
+                    i2c.sm = sm_readdev_readdata_waitaddr_DMA;
+                else
+                    i2c.sm = sm_readdev_readdata_waitaddr;
+            }
             break;
         case sm_readdev_readdata_waitaddr:
-            if (local_I2C_internal_waitaddr() )
+            if (local_I2C_internal_waitaddr(true) )
                 i2c.sm = sm_readdev_readdata_waitdata;
+            break;
+        case sm_readdev_readdata_waitaddr_DMA:
+            if (local_I2C_internal_waitaddr(false) )
+                i2c.sm = sm_readdev_readdata_waitdata_DMA;
             break;
         case sm_readdev_readdata_waitdata:
             if ( local_I2C_internal_waitdata_stop() )
+            {
+                i2c.sm = sm_none;
+                return 0;
+            }
+            break;
+        case sm_readdev_readdata_waitdata_DMA:
+            if ( local_I2C_internal_waitdata_DMA_stop() )
             {
                 i2c.sm = sm_none;
                 return 0;
@@ -292,14 +350,35 @@ void Sensor_Init()
     HW_DMA_Uninit( DMACH_SENS );
     HW_DMA_Init( DMACH_SENS );
     
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, REGPRESS_ID_LEN, data );
-    while ( local_I2C_busy() );
+    HW_LED_Off();
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, 1, data );
+    while ( local_I2C_busy() )
+    {
+        HW_LED_On();
+        HW_LED_Off();
+    }
 
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_STATUS, REGPRESS_STATUS_LEN, data+1 );
-    while ( local_I2C_busy() );
+    HW_LED_On();
+    HW_LED_Off();
+    HW_LED_On();
+    HW_LED_Off();
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_STATUS, 2, data+1 );
+    while ( local_I2C_busy() )
+    {
+        HW_LED_On();
+        HW_LED_Off();
+    }
 
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, REGPRESS_ID_LEN, data+2 );
-    while ( local_I2C_busy() );
+    HW_LED_On();
+    HW_LED_Off();
+    HW_LED_On();
+    HW_LED_Off();
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, 3, data+2 );
+    while ( local_I2C_busy() )
+    {
+        HW_LED_On();
+        HW_LED_Off();
+    }
 
     if ( data[3] == data[4] )
     {
