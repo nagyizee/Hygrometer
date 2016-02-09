@@ -76,11 +76,36 @@
 #define I2C_DEVICE_PRESSURE     0xC0            // pressure sensor's device address
 #define I2C_DEVICE_TH           0x80            // temperature and humidity sensor's device address
 
-#define REGPRESS_STATUS         0x00            // pressure sensor status register
-#define REGPRESS_STATUS_LEN     1
-#define REGPRESS_ID             0x0C            // pressure sensor chip ID
-#define REGPRESS_ID_LEN         1
+#define REGPRESS_STATUS         0x00            // 1byte pressure sensor status register
+#define REGPRESS_OUTP           0x01            // 3byte barometric data + 2byte thermometric data
+#define REGPRESS_OUTT           0x04            // 2byte thermometric data
+#define REGPRESS_ID             0x0C            // 1byte pressure sensor chip ID
+#define REGPRESS_BAR_IN         0x14            // 2byte (msb/lsb) Barometric input in 2Pa units for altitude calculations, default is 101,326 Pa.
+#define REGPRESS_CTRL1          0x26            // 1byte control register 1
 
+#define PREG_CTRL1_ALT          0x80            // SET: altimeter mode, RESET: barometer mode
+#define PREG_CTRL1_RAW          0x40            // SET: raw data output mode - data directly from sensor - The FIFO must be disabled and all other functionality: Alarms, Deltas, and other interrupts are disabled
+#define PREG_CTRL1_OSMASK       0x38            // 3bit oversample ratio - it is 2^x,  0 - means 1 sample, 7 means 128 sample, see enum EPressOversampleRatio
+#define PREG_CTRL1_RST          0x04            // SET: software reset
+#define PREG_CTRL1_OST          0x02            // SET: initiate a measurement immediately. If the SBYB bit is set to active, setting the OST bit will initiate an immediate measurement, the part will then return to acquiring data as per the setting of the ST bits in CTRL_REG2. In this mode, the OST bit does not clear itself and must be cleared and set again to initiate another immediate measurement. One Shot: When SBYB is 0, the OST bit is an auto-clear bit. When OST is set, the device initiates a measurement by going into active mode. Once a Pressure/Altitude and Temperature measurement is completed, it clears the OST bit and comes back to STANDBY mode. User shall read the value of the OST bit before writing to this bit again
+#define PREG_CTRL1_SBYB         0x01            // SET: sets the active mode. system makes periodic measurements set by ST in CTRL2 register.
+#define PREG_GET_OS( a )        ( ((a) & PREG_CTRL1_OSMASK) >> 3 )
+#define PREG_SET_OS( a, b )     do {                                            \
+                                    ( (a) &= ~PREG_CTRL1_OSMASK;                \
+                                    ( (a) |= ( (b << 3) & PREG_CTRL1_OSMASK )   \
+                                while ( 0 )
+
+enum EPressOversampleRatio
+{                           // minimum times between data samples:
+    pos_none = 0,           // 6ms
+    pos_2,                  // 10ms
+    pos_4,                  // 18ms
+    pos_8,                  // 34ms
+    pos_16,                 // 66ms
+    pos_32,                 // 130ms
+    pos_64,                 // 258ms
+    pos_128                 // 512ms
+};
 
 
 enum EI2CStates
@@ -92,6 +117,12 @@ enum EI2CStates
     sm_readdev_readdata_waitaddr_DMA,           // read register: dma set up + start condition + address + rdbit - waiting for addess sent.
     sm_readdev_readdata_waitdata,               // read register: address sent, stop condition set up for 1 byte, - wait for data reception.
     sm_readdev_readdata_waitdata_DMA,           // read register: address sent, interface filling memory - wait when DMA transaction is finished
+    sm_readdev_last = sm_readdev_readdata_waitdata_DMA,
+
+    sm_writedev_regaddr_waitaddr,               // write register: DMA set up for tx, start condition + address sent - wait for address to be sent
+    sm_writedev_waittxc,                        // write register: addr bit cleared, transmission started through DMA - wait for finish tx
+    sm_writedev_waitcomplete,                   // DMA disabled, wait till data is shifted out to generate stop condition
+
 };
 
 struct SI2CStateMachine
@@ -212,6 +243,31 @@ bool local_I2C_internal_waitdata_DMA_stop( void )
     return false;
 }
 
+bool local_I2C_internal_waitTX_DMA_stop( void )
+{
+    if  ( DMA1->ISR & DMA1_FLAG_TC6 )
+    {
+        DMA_Cmd(DMA_SENS_TX_Channel, DISABLE);
+        DMA1->IFCR = DMA1_FLAG_TC6;             // Clear the DMA Transfer complete flag
+
+        return true;
+    }
+    return false;
+}
+
+bool local_I2C_internal_waitTX_finish( void )
+{
+    if ( I2C_PORT_SENSOR->SR1 & SR1_BTF )
+    {
+        I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
+        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
+        I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
+
+        return true;
+    }
+    return false;
+}
+
 
 // init I2C peripherial after power-on reset
 void local_I2C_interface_init(void)
@@ -272,7 +328,7 @@ void local_I2C_interface_init(void)
 
 
 // Read a register from a device.
-// Note: the routine is asynchronous for larger ammount of data - check data availability and keep
+// Note: the routine is asynchronous - check data availability and keep
 // the buffer available till finishing
 uint32 local_I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data_lenght, uint8 *buffer )
 {
@@ -288,6 +344,27 @@ uint32 local_I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data
     return 0;
 }
 
+// Write a register to a device.
+// Note: the routine is asynchronous - check data availability and keep
+// the buffer available till finishing
+// First byte in data buffer is the register address
+uint32 local_I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 data_lenght )
+{
+    if ( i2c.sm != sm_none )
+        return 1;
+
+    i2c.dev_addr = dev_address;
+    i2c.reg_addr = 0;
+    i2c.reg_data_lenght = data_lenght;
+    i2c.buffer = 0;
+
+    HW_DMA_Send( DMACH_SENS, buffer, data_lenght );
+    I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
+
+    local_I2C_internal_setstart( dev_address, true );
+    i2c.sm = sm_writedev_regaddr_waitaddr;
+    return 0;
+}
 
 // Check if operations are finished - this polls internal state machines also
 uint32 local_I2C_busy( void )
@@ -295,48 +372,79 @@ uint32 local_I2C_busy( void )
     if ( i2c.sm == sm_none )
         return 0;
 
-    switch ( i2c.sm )
+    if ( i2c.sm <= sm_readdev_last )
     {
-        case sm_readdev_regaddr_waitaddr:   
-            if (local_I2C_internal_waitaddr_sendregaddr() )
-                i2c.sm = sm_readdev_regaddr_waittx;
-            break;
-        case sm_readdev_regaddr_waittx:
-            if (local_I2C_internal_wait_regaddr_tx_setreceive() )
-            {
-                if ( i2c.reg_data_lenght > 1 )
-                    i2c.sm = sm_readdev_readdata_waitaddr_DMA;
-                else
-                    i2c.sm = sm_readdev_readdata_waitaddr;
-            }
-            break;
-        case sm_readdev_readdata_waitaddr:
-            if (local_I2C_internal_waitaddr(true) )
-                i2c.sm = sm_readdev_readdata_waitdata;
-            break;
-        case sm_readdev_readdata_waitaddr_DMA:
-            if (local_I2C_internal_waitaddr(false) )
-                i2c.sm = sm_readdev_readdata_waitdata_DMA;
-            break;
-        case sm_readdev_readdata_waitdata:
-            if ( local_I2C_internal_waitdata_stop() )
-            {
-                i2c.sm = sm_none;
-                return 0;
-            }
-            break;
-        case sm_readdev_readdata_waitdata_DMA:
-            if ( local_I2C_internal_waitdata_DMA_stop() )
-            {
-                i2c.sm = sm_none;
-                return 0;
-            }
-            break;
+        switch ( i2c.sm )
+        {
+            case sm_readdev_regaddr_waitaddr:   
+                if (local_I2C_internal_waitaddr_sendregaddr() )
+                    i2c.sm = sm_readdev_regaddr_waittx;
+                break;
+            case sm_readdev_regaddr_waittx:
+                if (local_I2C_internal_wait_regaddr_tx_setreceive() )
+                {
+                    if ( i2c.reg_data_lenght > 1 )
+                        i2c.sm = sm_readdev_readdata_waitaddr_DMA;
+                    else
+                        i2c.sm = sm_readdev_readdata_waitaddr;
+                }
+                break;
+            case sm_readdev_readdata_waitaddr:
+                if (local_I2C_internal_waitaddr(true) )
+                    i2c.sm = sm_readdev_readdata_waitdata;
+                break;
+            case sm_readdev_readdata_waitaddr_DMA:
+                if (local_I2C_internal_waitaddr(false) )
+                    i2c.sm = sm_readdev_readdata_waitdata_DMA;
+                break;
+            case sm_readdev_readdata_waitdata:
+                if ( local_I2C_internal_waitdata_stop() )
+                {
+                    i2c.sm = sm_none;
+                    return 0;
+                }
+                break;
+            case sm_readdev_readdata_waitdata_DMA:
+                if ( local_I2C_internal_waitdata_DMA_stop() )
+                {
+                    i2c.sm = sm_none;
+                    return 0;
+                }
+                break;
+        }
     }
+    else
+    {
+        switch ( i2c.sm )
+        {
+            case sm_writedev_regaddr_waitaddr: 
+                if (local_I2C_internal_waitaddr(false) )
+                    i2c.sm = sm_writedev_waittxc;
+                break;
+            case sm_writedev_waittxc: 
+                if (local_I2C_internal_waitTX_DMA_stop() )
+                    i2c.sm = sm_writedev_waitcomplete;
+                break;
+            case sm_writedev_waitcomplete:
+                if (local_I2C_internal_waitTX_finish() )
+                {
+                    i2c.sm = sm_none;
+                    return 0;
+                }
+                break;
+
+        }
+    }
+
+
     return 1;
 }
 
 
+
+const uint8     set_baro[] = { REGPRESS_CTRL1, 0x38 };      // max oversample
+const uint8     set_sshot_baro[] = { REGPRESS_CTRL1, ( 0x38 | PREG_CTRL1_OST) };
+const uint8     set_bar_in[] = { REGPRESS_BAR_IN, 0xCC, 0xDD };
 
 
 void Sensor_Init()
@@ -349,36 +457,25 @@ void Sensor_Init()
     // init DMA for I2C
     HW_DMA_Uninit( DMACH_SENS );
     HW_DMA_Init( DMACH_SENS );
+
+
+    local_I2C_device_write( I2C_DEVICE_PRESSURE, set_baro, sizeof(set_baro) );
+    while ( local_I2C_busy() );
+    local_I2C_device_write( I2C_DEVICE_PRESSURE, set_bar_in, sizeof(set_bar_in) );
+    while ( local_I2C_busy() );
+    local_I2C_device_write( I2C_DEVICE_PRESSURE, set_sshot_baro, sizeof(set_sshot_baro) );
+    while ( local_I2C_busy() );
     
-    HW_LED_Off();
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, 1, data );
-    while ( local_I2C_busy() )
-    {
-        HW_LED_On();
-        HW_LED_Off();
-    }
+    
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_STATUS, 1, data );
+    while ( local_I2C_busy() );
 
-    HW_LED_On();
-    HW_LED_Off();
-    HW_LED_On();
-    HW_LED_Off();
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_STATUS, 2, data+1 );
-    while ( local_I2C_busy() )
-    {
-        HW_LED_On();
-        HW_LED_Off();
-    }
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_OUTP, 5, data+1 );
+    while ( local_I2C_busy() );
 
-    HW_LED_On();
-    HW_LED_Off();
-    HW_LED_On();
-    HW_LED_Off();
-    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_ID, 3, data+2 );
-    while ( local_I2C_busy() )
-    {
-        HW_LED_On();
-        HW_LED_Off();
-    }
+    local_I2C_device_read( I2C_DEVICE_PRESSURE, REGPRESS_BAR_IN, 5, data+8 );
+    while ( local_I2C_busy() );
+
 
     if ( data[3] == data[4] )
     {
