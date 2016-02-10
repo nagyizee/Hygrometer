@@ -13,13 +13,13 @@
 #include "events_ui.h"
 #include "ui.h"
 #include "core.h"
-#include "dispHAL.h"
+//dev #include "dispHAL.h"
 
 #include "graphic_lib.h"
 
 #include "sensors.h"
 
-extern struct SCore core;
+//dev extern struct SCore core;
 static bool failure = false;
 static bool wake_up = false;
 
@@ -49,7 +49,12 @@ static inline void CheckStack(void)
 static inline void System_Poll( void )
 {
     enum EPowerMode pwr_mode = pm_hold;
-
+// dev VVVVV    
+    volatile uint32 pwrmode;
+    pwrmode = Sensor_GetPwrStatus();
+      
+// dev ^^^^^      
+      
     CheckStack();
 /*dev
     sys_st |= DispHAL_App_Poll();
@@ -110,6 +115,20 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
     }
     sys_st |= ui_st;
 */
+
+/////// dev VVVVVVV    
+    
+    Sensor_Poll( evmask->timer_tick_system );
+
+    if ( Sensor_Is_Ready() & SENSOR_PRESS )
+    {
+        volatile uint32 press;
+        press = Sensor_Get_Value( SENSOR_PRESS );
+        press = press >> 2;
+
+        Sensor_Acquire( SENSOR_PRESS );
+    }
+
 }
 
 // Main application entry
@@ -130,11 +149,8 @@ void main_entry( uint32 *stack_top )
     
     Sensor_Init();
     
+    Sensor_Acquire( SENSOR_PRESS );
     
-    
-    
-    
-    while(1);
 }
 
 

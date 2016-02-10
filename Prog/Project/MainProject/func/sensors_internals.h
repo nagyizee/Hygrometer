@@ -42,7 +42,7 @@
     
     #define PREG_DATACFG_DREM       0x04            // data reay event mode
     #define PREG_DATACFG_PDEFE      0x02            // event detection for new pressure data
-    #define PREG_DATACFG_TDEFE      0x02            // event detection for new temperature data
+    #define PREG_DATACFG_TDEFE      0x01            // event detection for new temperature data
     
     
     enum EPressOversampleRatio
@@ -56,6 +56,92 @@
         pos_64 = 0x30,          // 258ms
         pos_128 = 0x38          // 512ms
     };
+
+    
+    enum ESensorsOpState
+    {
+        ss_none = 0,
+        ss_initp_set_datacfg,       // init pressure sensor - setting up data config event signalling
+
+    };
+
+    enum ESensorBusStatus
+    {
+        busst_none = 0,
+        busst_pressure,
+        busst_rh,
+    };
+
+    enum EPessureSensorStateMachine
+    {
+        psm_none = 0,
+        psm_init_dataevent,         // init phase - data event setup sent, wait for completion
+        psm_read_oneshotcmd,        // read phase - one shot command sent, wait for completion
+        psm_read_waitevent,         // read phase - read status register - wait for result
+        psm_read_waitresult,        // read phase - read the pressure data
+    };
+
+    struct SSensorStatus
+    {
+        uint32  initted_p:1;            // pressure sensor initted
+        uint32  initted_rh:1;           // RH/T sensor initted
+        uint32  failed_p:1;             // pressure sensor failure
+        uint32  failed_rh:1;            // RH/T sensor failure
+
+        uint32  sensp_ini_request:1;    // request for pressure sensor init
+        uint32  sensrh_ini_request:1;   // request for RH sensor init
+                                        
+        uint32  sensp_read_request:1;   // request pressure value read
+        uint32  sensrh_read_request:1;  // request RH value read
+        uint32  senst_read_request:1;   // request temperature value read
+                                         
+        uint32  sensp_data_ready:1;     // flag for pressure data ready
+        uint32  sensrh_data_ready:1;    // flag for RH data ready
+        uint32  senst_data_ready:1;     // flag for temperature data ready
+
+    };
+
+
+    struct SPressureSensorStatus
+    {
+        enum EPessureSensorStateMachine sm;
+        uint32                          check_ctr;      // time counter for polling period
+        uint8                           hw_read_val[4]; // read value from the sensor in i2c
+    };
+
+    struct SSensorHardware
+    {
+        enum ESensorBusStatus           bus_busy;   
+        struct SPressureSensorStatus    psens;
+
+    };
+
+
+    struct SSensorValues
+    {
+        uint32  pressure;
+        uint16  temp;
+        uint16  rh;
+    };
+
+    struct SSensorQuickFlags
+    {
+        uint8                       sens_pwr;
+        uint8                       sens_busy;
+        uint8                       sens_ready;
+        uint8                       sens_fail;
+    };
+
+    struct SSensorsStruct
+    {
+        enum ESensorsOpState        sm;         // state machine status
+        struct SSensorStatus        status;     // status of sensor setup / acquire / etc.
+        struct SSensorHardware      hw;         // sensor hardware layer    
+        struct SSensorValues        measured;   // measured values, entries are valid only if _data_ready flags are set
+        struct SSensorQuickFlags    flags;      // quick access flags for the sensors - bitmask lists
+    };
+    
+
 
 
 

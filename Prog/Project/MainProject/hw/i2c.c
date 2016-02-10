@@ -289,11 +289,11 @@ uint32 I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data_lengh
     if ( local_I2C_internal_setstart( dev_address, true ) )
     {
         i2c.fail_code = I2CFAIL_SETST;
-        return 1;
+        return I2CSTATE_FAIL;
     }
 
     i2c.sm = sm_readdev_regaddr_waitaddr;
-    return 0;
+    return I2CSTATE_NONE;
 }
 
 // Write a register to a device.
@@ -316,10 +316,10 @@ uint32 I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 data_len
     if ( local_I2C_internal_setstart( dev_address, true ) )
     {
         i2c.fail_code = I2CFAIL_SETST;
-        return 1;
+        return I2CSTATE_FAIL;
     }
     i2c.sm = sm_writedev_regaddr_waitaddr;
-    return 0;
+    return I2CSTATE_NONE;
 }
 
 // Check if operations are finished - this polls internal state machines also

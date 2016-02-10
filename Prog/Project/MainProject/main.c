@@ -15,7 +15,7 @@
 // IMPORTANT NOTE:   !!!
 // !!! KEEP THIS IN SYNC WITH STACK SIZES defined in linker configuration
 #ifdef VECT_TAB_SRAM
-    #define STACK_SIZE      0x100
+    #define STACK_SIZE      0x120
 #else
     #define STACK_SIZE      0x300
 #endif
