@@ -95,7 +95,7 @@ extern void DispHAL_ISR_Poll(void);
         // IF timer 15 in use - check for the interrupt flag
 
         // Clear update interrupt bit
-        HW_LED_On();
+//dev        HW_LED_On();
         TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
 
         if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
@@ -123,7 +123,7 @@ extern void DispHAL_ISR_Poll(void);
     void TimerRTCIntrHandler(void)
     {
         // clear the interrrupt flag and update clock alarm for the next second
-        HW_LED_On();
+//dev        HW_LED_On();
         TIMER_RTC->CRL &= (uint16)~RTC_ALARM_FLAG;
 
         RTC_WaitForLastTask();

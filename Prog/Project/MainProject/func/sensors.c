@@ -73,15 +73,25 @@
 #define SR1_BTF                 ((uint16_t)0x0004)
 #define SR1_RXNE                ((uint16_t)0x0040)
 
+#define I2CFAIL_SETST           0x01            // failed setting start/stop condition -> bus error - need to reinit i2c
+
+
+#define I2CSTATE_NONE           0x00            // i2c busy state none - means no operation is done
+#define I2CSTATE_BUSY           0x01            // i2c communication is in progress
+#define I2CSTATE_FAIL           0x02            // i2c communication failed - check the error code in i2c.fail_code and take actions
+
+
 #define I2C_DEVICE_PRESSURE     0xC0            // pressure sensor's device address
 #define I2C_DEVICE_TH           0x80            // temperature and humidity sensor's device address
 
 #define REGPRESS_STATUS         0x00            // 1byte pressure sensor status register
-#define REGPRESS_OUTP           0x01            // 3byte barometric data + 2byte thermometric data
-#define REGPRESS_OUTT           0x04            // 2byte thermometric data
+#define REGPRESS_OUTP           0x01            // 3byte barometric data + 2byte thermometric data - pressure data is in Pascales - 20bit: 18.2 from MSB. 
+#define REGPRESS_OUTT           0x04            // 2byte thermometric data - temperature in *C - 12bit: 8.4 from MSB
 #define REGPRESS_ID             0x0C            // 1byte pressure sensor chip ID
+#define REGPRESS_DATACFG        0x13            // 1byte Pressure data, Temperature data and event flag generator
 #define REGPRESS_BAR_IN         0x14            // 2byte (msb/lsb) Barometric input in 2Pa units for altitude calculations, default is 101,326 Pa.
 #define REGPRESS_CTRL1          0x26            // 1byte control register 1
+
 
 #define PREG_CTRL1_ALT          0x80            // SET: altimeter mode, RESET: barometer mode
 #define PREG_CTRL1_RAW          0x40            // SET: raw data output mode - data directly from sensor - The FIFO must be disabled and all other functionality: Alarms, Deltas, and other interrupts are disabled
@@ -89,22 +99,34 @@
 #define PREG_CTRL1_RST          0x04            // SET: software reset
 #define PREG_CTRL1_OST          0x02            // SET: initiate a measurement immediately. If the SBYB bit is set to active, setting the OST bit will initiate an immediate measurement, the part will then return to acquiring data as per the setting of the ST bits in CTRL_REG2. In this mode, the OST bit does not clear itself and must be cleared and set again to initiate another immediate measurement. One Shot: When SBYB is 0, the OST bit is an auto-clear bit. When OST is set, the device initiates a measurement by going into active mode. Once a Pressure/Altitude and Temperature measurement is completed, it clears the OST bit and comes back to STANDBY mode. User shall read the value of the OST bit before writing to this bit again
 #define PREG_CTRL1_SBYB         0x01            // SET: sets the active mode. system makes periodic measurements set by ST in CTRL2 register.
-#define PREG_GET_OS( a )        ( ((a) & PREG_CTRL1_OSMASK) >> 3 )
+#define PREG_GET_OS( a )        ( (a) & PREG_CTRL1_OSMASK )
 #define PREG_SET_OS( a, b )     do {                                            \
                                     ( (a) &= ~PREG_CTRL1_OSMASK;                \
-                                    ( (a) |= ( (b << 3) & PREG_CTRL1_OSMASK )   \
+                                    ( (a) |= ( (b) & PREG_CTRL1_OSMASK )        \
                                 while ( 0 )
+
+#define PREG_STATUS_PTOW        0x80            // set when pressure/temperature data is overwritten in OUTT or OUTP, cleared when REGPRESS_OUTP is read
+#define PREG_STATUS_POW         0x40            // set when pressure data is overwritten in OUTP, cleared when REGPRESS_OUTP is read
+#define PREG_STATUS_TOW         0x20            // set when temperature data is overwritten in OUTT, cleared when REGPRESS_OUTT is read
+#define PREG_STATUS_PTDR        0x08            // set when pressure/temperature data is updated in OUTT or OUTP, cleared when REGPRESS_OUTP is read
+#define PREG_STATUS_PDR         0x04            // set when pressure data is updated in OUTP, cleared when REGPRESS_OUTP is read
+#define PREG_STATUS_TDR         0x02            // set when temperature data is updated in OUTT, cleared when REGPRESS_OUTT is read
+
+#define PREG_DATACFG_DREM       0x04            // data reay event mode
+#define PREG_DATACFG_PDEFE      0x02            // event detection for new pressure data
+#define PREG_DATACFG_TDEFE      0x02            // event detection for new temperature data
+
 
 enum EPressOversampleRatio
 {                           // minimum times between data samples:
-    pos_none = 0,           // 6ms
-    pos_2,                  // 10ms
-    pos_4,                  // 18ms
-    pos_8,                  // 34ms
-    pos_16,                 // 66ms
-    pos_32,                 // 130ms
-    pos_64,                 // 258ms
-    pos_128                 // 512ms
+    pos_none = 0x00,        // 6ms
+    pos_2 = 0x08,           // 10ms
+    pos_4 = 0x10,           // 18ms
+    pos_8 = 0x18,           // 34ms
+    pos_16 = 0x20,          // 66ms
+    pos_32 = 0x28,          // 130ms
+    pos_64 = 0x30,          // 258ms
+    pos_128 = 0x38          // 512ms
 };
 
 
@@ -132,6 +154,8 @@ struct SI2CStateMachine
     uint8               dev_addr;
     uint8               reg_addr;
     uint8               reg_data_lenght;
+    uint32              to_ctr;                 // safety TimeOut counter
+    uint32              fail_code;
 } i2c;
 
 
@@ -141,17 +165,22 @@ struct SI2CStateMachine
 //              I2C communication routines
 // 
 //==============================================================
+#define WAIT( a )   i2c.to_ctr = 0;  do   {   i2c.to_ctr++; if (i2c.to_ctr > 400)  goto _failure;   } while( a )
 
 
-void local_I2C_internal_setstart( uint8 address, bool wrt )
+uint32 local_I2C_internal_setstart( uint8 address, bool wrt )
 {
     I2C_PORT_SENSOR->CR1 |= CR1_START_Set;              // Set start condition
-    while ((I2C_PORT_SENSOR->SR1 & SR1_SB) != SR1_SB);  // Wait until SB flag is set: EV5
-
+    WAIT( (I2C_PORT_SENSOR->SR1 & SR1_SB) != SR1_SB );
+    
     if ( wrt )
         I2C_PORT_SENSOR->DR = address;
     else
         I2C_PORT_SENSOR->DR = address | 0x0001;         // set the read flag
+
+    return 0;
+_failure:
+    return 1;
 }
 
 bool local_I2C_internal_waitaddr( bool one_byte_rx )
@@ -205,7 +234,11 @@ bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
             }
 
             // send the start condition and device address
-            local_I2C_internal_setstart( i2c.dev_addr, false );
+            if ( local_I2C_internal_setstart( i2c.dev_addr, false ) )
+            {
+                i2c.fail_code |= I2CFAIL_SETST;
+                return false;
+            }
         }
         return true;
     }
@@ -218,11 +251,14 @@ bool local_I2C_internal_waitdata_stop( void )
     if ( I2C_PORT_SENSOR->SR1 & SR1_RXNE )
     {
         i2c.buffer[0] = I2C_PORT_SENSOR->DR;            // read the data
-        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
+        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);     // wait for stop to clear
 
         I2C_PORT_SENSOR->CR1 |= CR1_ACK_Set;            // set back ACK generation
         return true;
     }
+    return false;
+_failure:
+    i2c.fail_code |= I2CFAIL_SETST;
     return false;
 }
 
@@ -234,12 +270,15 @@ bool local_I2C_internal_waitdata_DMA_stop( void )
         DMA1->IFCR = DMA1_FLAG_TC7;                     // clear the transfer ready flag
 
         I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
-        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);  // wait for stop to clear
+        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);     // wait for stop to clear
 
         I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
         return true;
     }
+    return false;
+_failure:
+    i2c.fail_code |= I2CFAIL_SETST;
     return false;
 }
 
@@ -260,11 +299,14 @@ bool local_I2C_internal_waitTX_finish( void )
     if ( I2C_PORT_SENSOR->SR1 & SR1_BTF )
     {
         I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
-        while (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
+        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
         I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
         return true;
     }
+    return false;
+_failure:
+    i2c.fail_code |= I2CFAIL_SETST;
     return false;
 }
 
@@ -339,7 +381,12 @@ uint32 local_I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data
     i2c.reg_addr = dev_reg_addr;
     i2c.reg_data_lenght = data_lenght;
     i2c.buffer = buffer;
-    local_I2C_internal_setstart( dev_address, true );
+    if ( local_I2C_internal_setstart( dev_address, true ) )
+    {
+        i2c.fail_code = I2CFAIL_SETST;
+        return 1;
+    }
+
     i2c.sm = sm_readdev_regaddr_waitaddr;
     return 0;
 }
@@ -361,7 +408,11 @@ uint32 local_I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 da
     HW_DMA_Send( DMACH_SENS, buffer, data_lenght );
     I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
 
-    local_I2C_internal_setstart( dev_address, true );
+    if ( local_I2C_internal_setstart( dev_address, true ) )
+    {
+        i2c.fail_code = I2CFAIL_SETST;
+        return 1;
+    }
     i2c.sm = sm_writedev_regaddr_waitaddr;
     return 0;
 }
@@ -370,7 +421,7 @@ uint32 local_I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 da
 uint32 local_I2C_busy( void )
 {
     if ( i2c.sm == sm_none )
-        return 0;
+        return I2CSTATE_NONE;
 
     if ( i2c.sm <= sm_readdev_last )
     {
@@ -401,14 +452,14 @@ uint32 local_I2C_busy( void )
                 if ( local_I2C_internal_waitdata_stop() )
                 {
                     i2c.sm = sm_none;
-                    return 0;
+                    return I2CSTATE_NONE;
                 }
                 break;
             case sm_readdev_readdata_waitdata_DMA:
                 if ( local_I2C_internal_waitdata_DMA_stop() )
                 {
                     i2c.sm = sm_none;
-                    return 0;
+                    return I2CSTATE_NONE;
                 }
                 break;
         }
@@ -429,27 +480,29 @@ uint32 local_I2C_busy( void )
                 if (local_I2C_internal_waitTX_finish() )
                 {
                     i2c.sm = sm_none;
-                    return 0;
+                    return I2CSTATE_NONE;
                 }
                 break;
 
         }
     }
 
-
-    return 1;
+    if ( i2c.fail_code )
+        return I2CSTATE_FAIL;
+    return I2CSTATE_BUSY;
 }
 
 
 
 const uint8     set_baro[] = { REGPRESS_CTRL1, 0x38 };      // max oversample
-const uint8     set_sshot_baro[] = { REGPRESS_CTRL1, ( 0x38 | PREG_CTRL1_OST) };
+const uint8     set_sshot_baro[] = { REGPRESS_CTRL1, ( pos_128 | PREG_CTRL1_OST) };
 const uint8     set_bar_in[] = { REGPRESS_BAR_IN, 0xCC, 0xDD };
-
+const uint8     set_data_event[] = { REGPRESS_DATACFG, PREG_DATACFG_PDEFE };
 
 void Sensor_Init()
 {
     uint8 data[16];
+
 
     // init I2C interface
     local_I2C_interface_init();
@@ -458,8 +511,11 @@ void Sensor_Init()
     HW_DMA_Uninit( DMACH_SENS );
     HW_DMA_Init( DMACH_SENS );
 
+    HW_LED_Off();
 
     local_I2C_device_write( I2C_DEVICE_PRESSURE, set_baro, sizeof(set_baro) );
+    while ( local_I2C_busy() );
+    local_I2C_device_write( I2C_DEVICE_PRESSURE, set_data_event, sizeof(set_data_event) );
     while ( local_I2C_busy() );
     local_I2C_device_write( I2C_DEVICE_PRESSURE, set_bar_in, sizeof(set_bar_in) );
     while ( local_I2C_busy() );
