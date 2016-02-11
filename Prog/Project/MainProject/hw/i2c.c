@@ -35,11 +35,17 @@
 #define CR2_LAST_Reset          ((uint16_t)0xEFFF)
 #define CR2_FREQ_Reset          ((uint16_t)0xFFC0)
 
+#define CCR_CCR_Set             ((uint16_t)0x0FFF)
+#define CCR_FS_Set              ((uint16_t)0x8000)
+
 #define SR1_SB                  ((uint16_t)0x0001)
 #define SR1_ADDR                ((uint16_t)0x0002)
 #define SR1_BTF                 ((uint16_t)0x0004)
 #define SR1_RXNE                ((uint16_t)0x0040)
 
+#define FREQ_SYS    16000000
+#define FREQ_I2C    400000
+#define FREQ_SYS10  ((uint16_t)(FREQ_SYS / 1000000))
 
 enum EI2CStates
 {
@@ -220,7 +226,7 @@ _failure:
 void I2C_interface_init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
-    I2C_InitTypeDef  I2C_InitStructure;
+    uint16_t tmpreg = 0;
 
     memset( &i2c, 0, sizeof(i2c) );
 
@@ -263,14 +269,30 @@ void I2C_interface_init(void)
     RCC_APB1PeriphResetCmd( I2C_APB_SENSOR, ENABLE );
     RCC_APB1PeriphResetCmd( I2C_APB_SENSOR, DISABLE );
 
-    // configure the interface
-    I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
-    I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2;
-    I2C_InitStructure.I2C_OwnAddress1 = 0x0C;
-    I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
-    I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    I2C_InitStructure.I2C_ClockSpeed = 400000;
-    I2C_Init(I2C1, &I2C_InitStructure);
+    // Configure the I2C peripheral - ini code brought and optimized from stm32f10x_i2c.c
+    // I2Cx CR2 Configuration
+    tmpreg = I2C_PORT_SENSOR->CR2;
+    tmpreg &= CR2_FREQ_Reset;       // Clear frequency FREQ[5:0] bits
+    tmpreg |= FREQ_SYS10;               // Set frequency bits depending on pclk1 value
+    I2C_PORT_SENSOR->CR2 = tmpreg;  // Write to I2Cx CR2
+
+    // I2Cx CCR Configuration
+    I2C_PORT_SENSOR->CR1 &= CR1_PE_Reset;                               // Disable the selected I2C peripheral to configure TRISE
+    tmpreg = 0;                                                         // Reset tmpreg value, Clear F/S, DUTY and CCR[11:0] bits
+    tmpreg |= (uint16_t)( (FREQ_SYS / (FREQ_I2C * 3)) | CCR_FS_Set);    // Set speed value and set F/S bit for fast mode - FREQ_SYS / (i2c_speed * 3)) - Fast mode speed calculate: Tlow/Thigh = 2 
+    I2C_PORT_SENSOR->TRISE = (uint16_t)(((FREQ_SYS10 * (uint16_t)300) / (uint16_t)1000) + (uint16_t)1);  // Set Maximum Rise Time for fast mode
+    
+    I2C_PORT_SENSOR->CCR = tmpreg;          // Write to I2Cx CCR
+    I2C_PORT_SENSOR->CR1 |= CR1_PE_Set;     // Enable the selected I2C peripheral
+
+    // I2Cx CR1 Configuration
+    tmpreg = I2C_PORT_SENSOR->CR1;                      // Get the I2Cx CR1 value
+    tmpreg &= CR1_CLEAR_Mask;               // Clear ACK, SMBTYPE and  SMBUS bits
+    tmpreg |= (uint16_t)((uint32_t)I2C_Mode_I2C | I2C_Ack_Enable);  // Configure I2Cx: mode and acknowledgement, Set SMBTYPE and SMBUS bits according to I2C_Mode value, Set ACK bit according to I2C_Ack value
+    I2C_PORT_SENSOR->CR1 = tmpreg;          // Write to I2Cx CR1
+
+    // Set the own address
+    I2C_PORT_SENSOR->OAR1 = ( I2C_AcknowledgedAddress_7bit | 0x0C); // Set I2Cx Own Address (0x0C) and acknowledged address
 }
 
 

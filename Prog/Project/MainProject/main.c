@@ -40,7 +40,7 @@ static inline void StackGuardInit(void)
     }
 }
 
-int main(void)
+ int main(void)
 {
     // IMPORTANT NOTE - DO NOT CHANGE ANYTHING IN THIS ROUTINE OR IN THE StackGuardInit() ROUTINE
     // - it can mess up the stack start pointer for filling the check words

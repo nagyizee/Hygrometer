@@ -122,11 +122,14 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 
     if ( Sensor_Is_Ready() & SENSOR_PRESS )
     {
-        volatile uint32 press;
+        HW_LED_On();
+        static volatile uint32 press;
         press = Sensor_Get_Value( SENSOR_PRESS );
-        press = press >> 2;
+        press = (((press * 100) / 4) * 3) / 4;      // Pascals
+        
 
         Sensor_Acquire( SENSOR_PRESS );
+        HW_LED_Off();
     }
 
 }

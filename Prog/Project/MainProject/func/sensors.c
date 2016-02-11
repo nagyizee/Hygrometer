@@ -138,8 +138,8 @@ void local_psensor_execute_read( bool tick_ms )
             case psm_read_waitresult:
                 // pressure data received
                 ss.measured.pressure = (( ((uint32)ss.hw.psens.hw_read_val[0] << 16) | 
-                                          ((uint32)ss.hw.psens.hw_read_val[0] << 8)  |
-                                          ((uint32)ss.hw.psens.hw_read_val[0] )        ) >> 4 );
+                                          ((uint32)ss.hw.psens.hw_read_val[1] << 8)  |
+                                          ((uint32)ss.hw.psens.hw_read_val[2] )        ) >> 4 );
                 ss.hw.bus_busy = busst_none;                // bus is free
                 ss.hw.psens.sm = psm_none;                  // no operation on sensor
                 ss.status.sensp_read_request = 0;           // ini request served
