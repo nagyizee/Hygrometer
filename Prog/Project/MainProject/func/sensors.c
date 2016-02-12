@@ -18,11 +18,11 @@
 #include "i2c.h"
 
 
-//const uint8       psens_set_initial_st[] = { REGPRESS_DATACFG, PREG_DATACFG_PDEFE };
-const uint8     psens_set_data_event[] = { REGPRESS_DATACFG, PREG_DATACFG_PDEFE };      // set up data event signalling for pressure update
-const uint8     psens_set_interrupt_out[]  = { REGPRESS_CTRL5, PREG_CTRL5_DRDY };       // route data ready interrupt to INT1
-const uint8     psens_set_interrupt_src[]  = { REGPRESS_CTRL3, PREG_CTRL3_IPOL1 };      // set interrupt pin with active high
-const uint8     psens_set_interrupt_en[]  = { REGPRESS_CTRL4, PREG_CTRL4_DRDY };        // enable data ready interrupt
+//const uint8     psens_set_01_initial_st[] = { REGPRESS_CTRL1, pos_128 };                  // set initially with multisampling, but do not start it
+const uint8     psens_set_02_data_event[] = { REGPRESS_DATACFG, (PREG_DATACFG_TDEFE | PREG_DATACFG_PDEFE | PREG_DATACFG_DREM) };     // set up data event signalling for pressure update
+const uint8     psens_set_03_interrupt_src[]  = { REGPRESS_CTRL3, PREG_CTRL3_IPOL1 };       // pushpull active high on INT1
+const uint8     psens_set_04_interrupt_en[]  = { REGPRESS_CTRL4, PREG_CTRL4_DRDY };         // enable data ready interrupt
+const uint8     psens_set_05_interrupt_out[]  = { REGPRESS_CTRL5, PREG_CTRL5_DRDY };        // route data ready interrupt to INT1
 
 const uint8     psens_cmd_sshot_baro[] = { REGPRESS_CTRL1, ( pos_128 | PREG_CTRL1_OST) };      // start one shot data aq. with 64 sample oversampling (~512ms wait time)
 
@@ -63,22 +63,32 @@ void local_psensor_execute_ini( bool mstick )
 
         switch ( ss.hw.psens.sm )
         {
-            case psm_init_dataevent:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_out, sizeof(psens_set_interrupt_out) ) )
+            case psm_init_01:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_03_interrupt_src, sizeof(psens_set_03_interrupt_src) ) )
                     goto _i2c_failure;
-                ss.hw.psens.sm = psm_init_intout;
+                ss.hw.psens.sm = psm_init_02;
                 break;
-            case psm_init_intout:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_src, sizeof(psens_set_interrupt_src) ) )
+            case psm_init_02:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_04_interrupt_en, sizeof(psens_set_04_interrupt_en) ) )
                     goto _i2c_failure;
-                ss.hw.psens.sm = psm_init_intsrc;
+                ss.hw.psens.sm = psm_init_03;
                 break;
-            case psm_init_intsrc:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_en, sizeof(psens_set_interrupt_en) ) )
+            case psm_init_03:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_05_interrupt_out, sizeof(psens_set_05_interrupt_out) ) )
                     goto _i2c_failure;
-                ss.hw.psens.sm = psm_init_inten;
+                ss.hw.psens.sm = psm_init_05;
                 break;
-            case psm_init_inten:
+/*            case psm_init_04:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_05_interrupt_out, sizeof(psens_set_05_interrupt_out) ) )
+                    goto _i2c_failure;
+                ss.hw.psens.sm = psm_init_05;
+                break;
+  */          case psm_init_05:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_cmd_sshot_baro, sizeof(psens_cmd_sshot_baro) ) )
+                    goto _i2c_failure;
+                ss.hw.psens.sm = psm_init_06;
+                break;
+            case psm_init_06:
                 ss.hw.bus_busy = busst_none;                // bus is free
                 ss.hw.psens.sm = psm_none;                  // no operation on sensor
                 ss.status.sensp_ini_request = 0;            // ini request served
@@ -91,10 +101,10 @@ void local_psensor_execute_ini( bool mstick )
     else
     {
         // bus is free - send the first command (bus_busy is cleared only when execution is finished)
-        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_data_event, sizeof(psens_set_data_event) ) == I2CSTATE_NONE )
+        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_02_data_event, sizeof(psens_set_02_data_event) ) == I2CSTATE_NONE )
         {
-            ss.hw.bus_busy = busst_pressure;        // mark bus busy
-            ss.hw.psens.sm = psm_init_dataevent;    // mark the current operation state
+            ss.hw.bus_busy = busst_pressure;    // mark bus busy
+            ss.hw.psens.sm = psm_init_01;       // mark the current operation state
             ss.flags.sens_pwr = SENSPWR_FULL;
         }
         else
@@ -115,7 +125,7 @@ _failure:
 void local_psensor_execute_read( bool tick_ms )
 {
     // no need to check for uninitted state - taken care at the initiator routine
-
+return;
     // if one-shot cmd is sent - increase the counter on every 1ms
     if ( tick_ms && (ss.hw.psens.sm == psm_read_oneshotcmd) )
     {

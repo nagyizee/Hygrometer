@@ -87,10 +87,12 @@
     {
         psm_none = 0,
 
-        psm_init_dataevent,         // init phase - data event setup sent, wait for completion
-        psm_init_intout,            // init phase
-        psm_init_intsrc,            // init phase
-        psm_init_inten,             // init phase
+        psm_init_01,        // init phase - data event setup sent, wait for completion
+        psm_init_02,        // init phase
+        psm_init_03,        // init phase
+        psm_init_04,        // init phase
+        psm_init_05,        // init phase
+        psm_init_06,        // init phase
 
         psm_read_oneshotcmd,        // read phase - one shot command sent, wait for completion
         psm_read_waitevent,         // read phase - read status register - wait for result
