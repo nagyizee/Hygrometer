@@ -18,8 +18,13 @@
 #include "i2c.h"
 
 
+//const uint8       psens_set_initial_st[] = { REGPRESS_DATACFG, PREG_DATACFG_PDEFE };
 const uint8     psens_set_data_event[] = { REGPRESS_DATACFG, PREG_DATACFG_PDEFE };      // set up data event signalling for pressure update
-const uint8     psens_cmd_sshot_baro[] = { REGPRESS_CTRL1, ( pos_64 | PREG_CTRL1_OST) };      // start one shot data aq. with 64 sample oversampling (~250ms wait time)
+const uint8     psens_set_interrupt_out[]  = { REGPRESS_CTRL5, PREG_CTRL5_DRDY };       // route data ready interrupt to INT1
+const uint8     psens_set_interrupt_src[]  = { REGPRESS_CTRL3, PREG_CTRL3_IPOL1 };      // set interrupt pin with active high
+const uint8     psens_set_interrupt_en[]  = { REGPRESS_CTRL4, PREG_CTRL4_DRDY };        // enable data ready interrupt
+
+const uint8     psens_cmd_sshot_baro[] = { REGPRESS_CTRL1, ( pos_128 | PREG_CTRL1_OST) };      // start one shot data aq. with 64 sample oversampling (~512ms wait time)
 
 
 struct SSensorsStruct ss;
@@ -52,19 +57,36 @@ void local_psensor_execute_ini( bool mstick )
         if ( result == I2CSTATE_FAIL )
         {
             if ( I2C_errorcode() == I2CFAIL_SETST )
-                local_i2c_reinit();
-            ss.hw.bus_busy = busst_none;            // mark bus free, routine will retry the init command
-            ss.hw.psens.sm = psm_none;
-            ss.flags.sens_pwr = SENSPWR_FREE;
-            return;
+                goto _i2c_failure;
+            goto _failure;
         }
-        // currently we have no other operation to do at init - mark it finished and exit
-        ss.hw.bus_busy = busst_none;                // bus is free
-        ss.hw.psens.sm = psm_none;                      // no operation on sensor
-        ss.status.sensp_ini_request = 0;            // ini request served
-        ss.status.initted_p = 1;                    // sensor initted
-        ss.flags.sens_fail &= ~SENSOR_PRESS;
-        ss.flags.sens_pwr = SENSPWR_FREE;
+
+        switch ( ss.hw.psens.sm )
+        {
+            case psm_init_dataevent:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_out, sizeof(psens_set_interrupt_out) ) )
+                    goto _i2c_failure;
+                ss.hw.psens.sm = psm_init_intout;
+                break;
+            case psm_init_intout:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_src, sizeof(psens_set_interrupt_src) ) )
+                    goto _i2c_failure;
+                ss.hw.psens.sm = psm_init_intsrc;
+                break;
+            case psm_init_intsrc:
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_interrupt_en, sizeof(psens_set_interrupt_en) ) )
+                    goto _i2c_failure;
+                ss.hw.psens.sm = psm_init_inten;
+                break;
+            case psm_init_inten:
+                ss.hw.bus_busy = busst_none;                // bus is free
+                ss.hw.psens.sm = psm_none;                  // no operation on sensor
+                ss.status.sensp_ini_request = 0;            // ini request served
+                ss.status.initted_p = 1;                    // sensor initted
+                ss.flags.sens_fail &= ~SENSOR_PRESS;
+                ss.flags.sens_pwr = SENSPWR_FREE;
+                break;
+        }
     }
     else
     {
@@ -76,10 +98,16 @@ void local_psensor_execute_ini( bool mstick )
             ss.flags.sens_pwr = SENSPWR_FULL;
         }
         else
-        {
-            local_i2c_reinit(); 
-        }
+            goto _i2c_failure;
     }
+    return;
+
+_i2c_failure:
+    local_i2c_reinit(); 
+_failure:
+    ss.hw.bus_busy = busst_none;            // mark bus free, routine will retry the command
+    ss.hw.psens.sm = psm_none;
+    ss.flags.sens_pwr = SENSPWR_FREE;
 }
 
 #define PSENS_READ_POLLING  5

@@ -19,7 +19,9 @@
     #define REGPRESS_DATACFG        0x13            // 1byte Pressure data, Temperature data and event flag generator
     #define REGPRESS_BAR_IN         0x14            // 2byte (msb/lsb) Barometric input in 2Pa units for altitude calculations, default is 101,326 Pa.
     #define REGPRESS_CTRL1          0x26            // 1byte control register 1
-    
+    #define REGPRESS_CTRL3          0x28            // 1byte control register 3 - interrupt pin config
+    #define REGPRESS_CTRL4          0x29            // 1byte control register 4 - interrupt enable register
+    #define REGPRESS_CTRL5          0x2A            // 1byte control register 5 - interrupt cfg. register
     
     #define PREG_CTRL1_ALT          0x80            // SET: altimeter mode, RESET: barometer mode
     #define PREG_CTRL1_RAW          0x40            // SET: raw data output mode - data directly from sensor - The FIFO must be disabled and all other functionality: Alarms, Deltas, and other interrupts are disabled
@@ -31,7 +33,16 @@
     #define PREG_SET_OS( a, b )     do {                                            \
                                         ( (a) &= ~PREG_CTRL1_OSMASK;                \
                                         ( (a) |= ( (b) & PREG_CTRL1_OSMASK )        \
-                                    while ( 0 )
+                                    while ( 0 ) 
+
+    #define PREG_CTRL3_IPOL1        0x20            // SET: INT1 pin active high
+    #define PREG_CTRL3_PPOD1        0x10            // SET: open drain output
+    #define PREG_CTRL3_IPOL2        0x02            // SET: INT2 pin active high
+    #define PREG_CTRL3_PPOD2        0x01            // SET: open drain output
+
+    #define PREG_CTRL4_DRDY         0x80            // SET: enable data ready interrupt
+
+    #define PREG_CTRL5_DRDY         0x80            // SET: data ready interrupt routed to INT1, RESET: routed to INT2 pin
     
     #define PREG_STATUS_PTOW        0x80            // set when pressure/temperature data is overwritten in OUTT or OUTP, cleared when REGPRESS_OUTP is read
     #define PREG_STATUS_POW         0x40            // set when pressure data is overwritten in OUTP, cleared when REGPRESS_OUTP is read
@@ -75,7 +86,12 @@
     enum EPessureSensorStateMachine
     {
         psm_none = 0,
+
         psm_init_dataevent,         // init phase - data event setup sent, wait for completion
+        psm_init_intout,            // init phase
+        psm_init_intsrc,            // init phase
+        psm_init_inten,             // init phase
+
         psm_read_oneshotcmd,        // read phase - one shot command sent, wait for completion
         psm_read_waitevent,         // read phase - read status register - wait for result
         psm_read_waitresult,        // read phase - read the pressure data
