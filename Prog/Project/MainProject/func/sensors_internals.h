@@ -10,7 +10,7 @@
     
 
     #define I2C_DEVICE_PRESSURE     0xC0            // pressure sensor's device address
-    #define I2C_DEVICE_TH           0x80            // temperature and humidity sensor's device address
+    #define I2C_DEVICE_RH           0x80            // temperature and humidity sensor's device address
     
     #define REGPRESS_STATUS         0x00            // 1byte pressure sensor status register
     #define REGPRESS_OUTP           0x01            // 3byte barometric data + 2byte thermometric data - pressure data is in Pascales - 20bit: 18.2 from MSB. 
@@ -54,7 +54,18 @@
     #define PREG_DATACFG_DREM       0x04            // data reay event mode
     #define PREG_DATACFG_PDEFE      0x02            // event detection for new pressure data
     #define PREG_DATACFG_TDEFE      0x01            // event detection for new temperature data
-    
+
+
+    #define REGRH_USER_READ         0xE7            // read user register
+    #define REGRH_USER_WRITE        0xE6            // write user register
+    #define REGRH_TRIG_TEMP         0xF3            // trigger temperature measurement
+    #define REGRH_TRIG_RH           0xF5
+
+    #define RHREG_USER_RESMASK      0x81            // mask thr resolution in user register, see enum ERHresolution
+    #define RHREG_USER_RDSTATUS     0x40            // power status - read 1: Vdd<2.25V
+    #define RHREG_USER_CHIPHEATER   0x04            // on chip heater on
+    #define RHREG_USER_NO_OTP_REL   0x02            // disable OTP reload
+
     
     enum EPressOversampleRatio
     {                           // minimum times between data samples:
@@ -68,6 +79,13 @@
         pos_128 = 0x38          // 512ms
     };
 
+    enum ERHresolution
+    {
+        rhres_12_14 = 0x00,     // RH:12bit T:14bit
+        rhres_8_12 = 0x01,      // RH:8bit  T:12bit
+        rhres_10_13 = 0x80,     // RH:10bit T:13bit
+        rhres_11_11 = 0x81      // RH:11bit T:11bit
+    };
     
     enum ESensorsOpState
     {
@@ -91,12 +109,21 @@
         psm_init_02,        // init phase
         psm_init_03,        // init phase
         psm_init_04,        // init phase
-        psm_init_05,        // init phase
-        psm_init_06,        // init phase
 
         psm_read_oneshotcmd,        // read phase - one shot command sent, wait for completion
         psm_read_waitevent,         // read phase - read status register - wait for result
         psm_read_waitresult,        // read phase - read the pressure data
+    };
+
+    enum ERHsensorStateMachine
+    {
+        rhsm_none = 0,
+
+        rhsm_init_01_wait_powerup,  // init phase - wait 15ms for the sensor to power-up (usually init is called after power-up)
+        rhsm_init_02_read_user_reg,
+        rhsm_init_03_write_user_reg,
+
+
     };
 
     struct SSensorStatus
@@ -109,14 +136,6 @@
         uint32  sensp_ini_request:1;    // request for pressure sensor init
         uint32  sensrh_ini_request:1;   // request for RH sensor init
                                         
-        uint32  sensp_read_request:1;   // request pressure value read
-        uint32  sensrh_read_request:1;  // request RH value read
-        uint32  senst_read_request:1;   // request temperature value read
-                                         
-        uint32  sensp_data_ready:1;     // flag for pressure data ready
-        uint32  sensrh_data_ready:1;    // flag for RH data ready
-        uint32  senst_data_ready:1;     // flag for temperature data ready
-
     };
 
 
@@ -127,11 +146,18 @@
         uint8                           hw_read_val[4]; // read value from the sensor in i2c
     };
 
+    struct SRHSensorStatus
+    {
+        enum ERHsensorStateMachine  sm;
+        uint32                      to_ctr;         // time out counter
+        uint8                       hw_read_val[4];
+    };
+
     struct SSensorHardware
     {
         enum ESensorBusStatus           bus_busy;   
         struct SPressureSensorStatus    psens;
-
+        struct SRHSensorStatus          rhsens;
     };
 
 

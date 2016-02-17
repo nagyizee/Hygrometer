@@ -603,14 +603,14 @@
             {
                 case pm_hold_btn:
                     // all keys to be active when waking up UI: rising or falling for all
-                    mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;    // all the buttons + 
+                    mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ |0x00020000;    // all the buttons + 
                     rising = mask;
                     falling = mask;
                     break;
                 case pm_hold:
                     // keys to be inactive when waking up UI: rising front for esc, start, menu, ok; falling for mode; any for p1 and p2
-                    mask = IO_IN_BTN_PP | 0x00020000;           // just power button / RTC alarm
-                    rising = IO_IN_BTN_PP | 0x00020000;
+                    mask = IO_IN_BTN_PP | IO_IN_SENS_IRQ | 0x00020000;           // just power button / RTC alarm
+                    rising = IO_IN_BTN_PP | IO_IN_SENS_IRQ | 0x00020000;
                     falling = 0x00;
                     break;
             }
@@ -645,9 +645,9 @@
     {
         uint32 irq_source;
         // clean up the interrupt flags and notify that wake up reason was a button action
-        HW_LED_On();
+//dev        HW_LED_On();
         irq_source = EXTI->PR;
-        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;
+        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ | 0x00020000;
         if ( (irq_source & ~0x00020000) != 0 )
             btn_wakeup = true;
     }
