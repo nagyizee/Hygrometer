@@ -42,6 +42,7 @@
 #define SR1_ADDR                ((uint16_t)0x0002)
 #define SR1_BTF                 ((uint16_t)0x0004)
 #define SR1_RXNE                ((uint16_t)0x0040)
+#define SR1_AF                  ((uint16_t)0x0400)
 
 #define FREQ_SYS    16000000
 #define FREQ_I2C    400000
@@ -61,7 +62,6 @@ enum EI2CStates
     sm_writedev_regaddr_waitaddr,               // write register: DMA set up for tx, start condition + address sent - wait for address to be sent
     sm_writedev_waittxc,                        // write register: addr bit cleared, transmission started through DMA - wait for finish tx
     sm_writedev_waitcomplete,                   // DMA disabled, wait till data is shifted out to generate stop condition
-
 };
 
 struct SI2CStateMachine
@@ -72,7 +72,8 @@ struct SI2CStateMachine
     uint8               reg_addr;
     uint8               reg_data_lenght;
     uint32              to_ctr;                 // safety TimeOut counter
-    uint32              fail_code;
+    uint8               stop_delay;             // how many us to delay the STOP condition
+    uint8               fail_code;
 } i2c;
 
 
@@ -115,6 +116,32 @@ static bool local_I2C_internal_waitaddr( bool one_byte_rx )
 
         return true;
     }
+    if ( I2C_PORT_SENSOR->SR1 & SR1_AF )    // NAK detected
+    {
+        uint16_t temp;
+        // disable DMA (usually it is enabled
+        if ( one_byte_rx == false )
+        {
+            DMA_Cmd(DMA_SENS_RX_Channel, DISABLE);
+            DMA1->IFCR = DMA1_FLAG_TC7;                     // clear the transfer ready flag
+            I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
+        } 
+        else 
+          I2C_PORT_SENSOR->CR1 |= CR1_ACK_Set;            // set back ACK generation
+
+        I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
+        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);         // wait for stop to clear
+
+        // clear the AF flag
+        temp = I2C_PORT_SENSOR->SR1;
+        temp &= ~SR1_AF;
+        I2C_PORT_SENSOR->SR1 = temp;
+
+        i2c.fail_code |= I2CFAIL_NAK;
+        return false;
+    }
+
+_failure:
     return false;
 }
 
@@ -128,6 +155,26 @@ static bool local_I2C_internal_waitaddr_sendregaddr( void )
     return false;
 }
 
+static bool local_I2C_internal_sendaddr_4_read( void )
+{
+    if ( i2c.reg_data_lenght > 1 )
+    {
+        // set up DMA for receiving data
+        HW_DMA_Receive( DMACH_SENS, i2c.buffer, i2c.reg_data_lenght );
+        I2C_PORT_SENSOR->CR2 |= CR2_LAST_Set;          // Set Last bit to have a NACK on the last received byte
+        I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
+    }
+
+    // send the start condition and device address
+    if ( local_I2C_internal_setstart( i2c.dev_addr, false ) )
+    {
+        i2c.fail_code |= I2CFAIL_SETST;
+        return false;
+    }
+    return true;
+}
+
+
 static bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
 {
     if (I2C_PORT_SENSOR->SR1 & SR1_BTF )          // Wait for byte transmission finish including ACK reception (BTF)
@@ -135,21 +182,7 @@ static bool local_I2C_internal_wait_regaddr_tx_setreceive( void )
         if ( i2c.sm == sm_readdev_regaddr_waittx )
         {
             // if called for data reading
-
-            if ( i2c.reg_data_lenght > 1 )
-            {
-                // set up DMA for receiving data
-                HW_DMA_Receive( DMACH_SENS, i2c.buffer, i2c.reg_data_lenght );
-                I2C_PORT_SENSOR->CR2 |= CR2_LAST_Set;          // Set Last bit to have a NACK on the last received byte
-                I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
-            }
-
-            // send the start condition and device address
-            if ( local_I2C_internal_setstart( i2c.dev_addr, false ) )
-            {
-                i2c.fail_code |= I2CFAIL_SETST;
-                return false;
-            }
+            return local_I2C_internal_sendaddr_4_read();
         }
         return true;
     }
@@ -209,8 +242,11 @@ static bool local_I2C_internal_waitTX_finish( void )
 {
     if ( I2C_PORT_SENSOR->SR1 & SR1_BTF )
     {
+        if ( i2c.stop_delay )
+            HW_Delay( i2c.stop_delay );                 // delay the stop condition with delay 
+
         I2C_PORT_SENSOR->CR1 |= CR1_STOP_Set;
-        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);    // wait for stop to clear
+        WAIT (I2C_PORT_SENSOR->CR1 & CR1_STOP_Set);     // wait for stop to clear
         I2C_PORT_SENSOR->CR2 &= CR2_DMAEN_Reset;        // Disable DMA requests for i2c
 
         return true;
@@ -318,11 +354,36 @@ uint32 I2C_device_read( uint8 dev_address, uint8 dev_reg_addr, uint32 data_lengh
     return I2CSTATE_NONE;
 }
 
+
+// poll a read operation from a device.
+// Note: the routine is asynchronous - check data availability and keep
+// the buffer available till finishing
+uint32 I2C_device_poll_read( uint8 dev_address, uint32 data_lenght, uint8 *buffer )
+{
+    if ( i2c.sm != sm_none )
+        return 1;
+
+    i2c.dev_addr = dev_address;
+    i2c.reg_addr = 0;
+    i2c.reg_data_lenght = data_lenght;
+    i2c.buffer = buffer;
+
+    if ( local_I2C_internal_sendaddr_4_read() == false )
+        return I2CSTATE_FAIL;
+
+    if ( i2c.reg_data_lenght > 1 )
+        i2c.sm = sm_readdev_readdata_waitaddr_DMA;
+    else
+        i2c.sm = sm_readdev_readdata_waitaddr;
+    return I2CSTATE_NONE;
+}
+
+
 // Write a register to a device.
 // Note: the routine is asynchronous - check data availability and keep
 // the buffer available till finishing
 // First byte in data buffer is the register address
-uint32 I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 data_lenght )
+uint32 I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 data_lenght, uint32 stop_delay )
 {
     if ( i2c.sm != sm_none )
         return 1;
@@ -331,6 +392,7 @@ uint32 I2C_device_write( uint8 dev_address, const uint8 *buffer, uint32 data_len
     i2c.reg_addr = 0;
     i2c.reg_data_lenght = data_lenght;
     i2c.buffer = 0;
+    i2c.stop_delay = stop_delay;
 
     HW_DMA_Send( DMACH_SENS, buffer, data_lenght );
     I2C_PORT_SENSOR->CR2 |= CR2_DMAEN_Set;         // Enable I2C DMA requests
@@ -352,6 +414,7 @@ uint32 I2C_busy( void )
 
     if ( i2c.sm <= sm_readdev_last )
     {
+        // read register states
         switch ( i2c.sm )
         {
             case sm_readdev_regaddr_waitaddr:   
@@ -393,6 +456,7 @@ uint32 I2C_busy( void )
     }
     else
     {
+        // write data states
         switch ( i2c.sm )
         {
             case sm_writedev_regaddr_waitaddr: 
@@ -410,17 +474,22 @@ uint32 I2C_busy( void )
                     return I2CSTATE_NONE;
                 }
                 break;
-
         }
     }
 
     if ( i2c.fail_code )
+    {
+        i2c.sm = sm_none;       // stop the state machine in case of error
         return I2CSTATE_FAIL;
+    }
     return I2CSTATE_BUSY;
 }
 
 
 uint32 I2C_errorcode( void )
 {
-    return i2c.fail_code;
+    uint32 res;
+    res = i2c.fail_code;
+    i2c.fail_code &= ~I2CFAIL_NAK;  // clear the NAK failure
+    return res;
 }

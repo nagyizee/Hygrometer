@@ -119,11 +119,14 @@
     {
         rhsm_none = 0,
 
-        rhsm_init_01_wait_powerup,  // init phase - wait 15ms for the sensor to power-up (usually init is called after power-up)
+        rhsm_init_01_wait_powerup,      // init phase - wait 15ms for the sensor to power-up (usually init is called after power-up)
         rhsm_init_02_read_user_reg,
         rhsm_init_03_write_user_reg,
 
-
+        rhsm_readrh_01_send_request,    // read phase - sent RH measurement request
+        rhsm_readt_01_send_request,     // read phase - sent Temp measurement request
+        rhsm_readrh_02_wait4read,       // read phase - time delay terminated, read polled, waiting result
+        rhsm_readt_02_wait4read,        // read phase - time delay terminated, read polled, waiting result
     };
 
     struct SSensorStatus

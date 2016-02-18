@@ -86,7 +86,7 @@ static volatile uint32 tmr_under_max = 0;
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
 
-extern void DispHAL_ISR_Poll(void);
+//dev extern void DispHAL_ISR_Poll(void);
 
 
     void TimerSysIntrHandler(void)
@@ -126,7 +126,7 @@ extern void DispHAL_ISR_Poll(void);
 //dev        HW_LED_On();
         TIMER_RTC->CRL &= (uint16)~RTC_ALARM_FLAG;
 
-        RTC_WaitForLastTask();
+/*dev        RTC_WaitForLastTask();
         RTCctr = RTC_GetCounter();
         RTC_SetAlarm( RTCctr + 1 );
 
@@ -170,6 +170,8 @@ extern void DispHAL_ISR_Poll(void);
         {
             events.timer_tick_1sec = 1;
         }
+dev*/
+
     }//END: Timer1IntrHandler
 
 

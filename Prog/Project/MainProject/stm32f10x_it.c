@@ -273,7 +273,7 @@ void DMA1_Channel5_IRQHandler(void)
 {
     DBG_ENTER_3;
     DBG_PIN_DMA_ENTER;
-    DispHAL_ISR_DMA_Complete();
+//dev    DispHAL_ISR_DMA_Complete();
     DBG_PIN_DMA_EXIT;
     DBG_EXIT_3;
 }

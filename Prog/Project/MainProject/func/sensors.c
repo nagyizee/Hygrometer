@@ -49,7 +49,9 @@ void local_setpower_free(void)
 
     // cases when SLEEP is needed
     if ( (ss.hw.rhsens.sm == rhsm_init_01_wait_powerup) ||
-         (ss.hw.psens.sm == psm_read_oneshotcmd ) )
+         (ss.hw.psens.sm == psm_read_oneshotcmd ) ||
+         (ss.hw.rhsens.sm == rhsm_readrh_01_send_request ) ||
+         (ss.hw.rhsens.sm == rhsm_readt_01_send_request )     )
         ss.flags.sens_pwr = SENSPWR_SLEEP;
     else
         ss.flags.sens_pwr = SENSPWR_FREE;
@@ -87,17 +89,17 @@ void local_psensor_execute_ini( bool mstick )
         switch ( ss.hw.psens.sm )
         {
             case psm_init_01:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_02_interrupt_src, sizeof(psens_set_02_interrupt_src) ) )
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_02_interrupt_src, sizeof(psens_set_02_interrupt_src), 0 ) )
                     goto _i2c_failure;
                 ss.hw.psens.sm = psm_init_02;
                 break;
             case psm_init_02:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_03_interrupt_en, sizeof(psens_set_03_interrupt_en) ) )
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_03_interrupt_en, sizeof(psens_set_03_interrupt_en), 0 ) )
                     goto _i2c_failure;
                 ss.hw.psens.sm = psm_init_03;
                 break;
             case psm_init_03:
-                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_04_interrupt_out, sizeof(psens_set_04_interrupt_out) ) )
+                if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_04_interrupt_out, sizeof(psens_set_04_interrupt_out), 0 ) )
                     goto _i2c_failure;
                 ss.hw.psens.sm = psm_init_04;
                 break;
@@ -114,7 +116,7 @@ void local_psensor_execute_ini( bool mstick )
     else
     {
         // bus is free - send the first command (bus_busy is cleared only when execution is finished)
-        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_01_data_event, sizeof(psens_set_01_data_event) ) == I2CSTATE_NONE )
+        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_set_01_data_event, sizeof(psens_set_01_data_event), 0 ) == I2CSTATE_NONE )
         {
             ss.hw.bus_busy = busst_pressure;    // mark bus busy
             ss.hw.psens.sm = psm_init_01;       // mark the current operation state
@@ -175,7 +177,7 @@ void local_rhsensor_execute_ini( bool mstick )
                     // user register read completed, set it up
                     ss.hw.rhsens.hw_read_val[1] = (ss.hw.rhsens.hw_read_val[0] & RHREG_USER_RESMASK) | rhres_12_14;
                     ss.hw.rhsens.hw_read_val[0] = REGRH_USER_WRITE;
-                    if ( I2C_device_write( I2C_DEVICE_RH, ss.hw.rhsens.hw_read_val, 2 ) )
+                    if ( I2C_device_write( I2C_DEVICE_RH, ss.hw.rhsens.hw_read_val, 2, 0 ) )
                         goto _i2c_failure;
                     ss.hw.rhsens.sm = rhsm_init_03_write_user_reg;
                 }
@@ -287,7 +289,7 @@ void local_psensor_execute_read( bool tick_ms )
     else if ( ss.hw.psens.sm == psm_none )
     {
         // bus is free - send the first command (bus_busy is cleared only when execution is finished)
-        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_cmd_sshot_baro, sizeof(psens_cmd_sshot_baro) ) == I2CSTATE_NONE )
+        if ( I2C_device_write( I2C_DEVICE_PRESSURE, psens_cmd_sshot_baro, sizeof(psens_cmd_sshot_baro), 0 ) == I2CSTATE_NONE )
         {
             ss.hw.bus_busy = busst_pressure;        // mark bus busy
             ss.hw.psens.sm = psm_read_oneshotcmd;   // mark the current operation state
@@ -307,6 +309,139 @@ _failure:
     local_setpower_free();
 }
 
+
+void local_rhsensor_execute_read( bool tick_ms )
+{
+    // bus is busy with the Pressure sensor - not part of this subsystem - exit
+    if ( ss.hw.bus_busy == busst_pressure )       
+        return;
+
+    // check for after timeout operations
+    if ( tick_ms && ss.hw.rhsens.to_ctr )
+    {
+        ss.hw.rhsens.to_ctr--;
+        if ( ss.hw.rhsens.to_ctr == 0 )
+        {
+            // timeout reached, no other bus operations
+            // try a read-out - it fails with NAK if device is not ready
+            if ( I2C_device_poll_read( I2C_DEVICE_RH, 2, ss.hw.rhsens.hw_read_val )  )
+                goto _i2c_failure;
+
+            if ( ss.hw.rhsens.sm == rhsm_readrh_01_send_request )
+                ss.hw.rhsens.sm = rhsm_readrh_02_wait4read;
+            else
+                ss.hw.rhsens.sm = rhsm_readt_02_wait4read;
+
+            ss.hw.bus_busy = busst_rh;        // mark bus busy
+            ss.flags.sens_pwr = SENSPWR_FULL;
+            return;
+        }
+    }
+
+
+    if ( ss.hw.bus_busy )
+    {
+        uint32 result;
+        result = I2C_busy();
+        if ( result == I2CSTATE_BUSY )
+            return;                                                 // I2C still busy - exit
+        if ( result == I2CSTATE_FAIL )
+        {
+            if ( I2C_errorcode() == I2CFAIL_SETST )
+                goto _i2c_failure;                                  // signal setup failure
+            if ( (ss.hw.rhsens.sm != rhsm_readrh_02_wait4read) &&
+                 (ss.hw.rhsens.sm != rhsm_readt_02_wait4read) )
+                goto _failure;                                      // NAK failure - process it only if not in read result phase
+        }
+
+        switch ( ss.hw.rhsens.sm )
+        {
+            case rhsm_readrh_01_send_request:
+            case rhsm_readt_01_send_request:
+                // command sent, we need to wait 85ms for T, 29ms for RH, do a check read at 80ms/24ms
+                if ( ss.hw.rhsens.sm == rhsm_readrh_01_send_request)
+                    ss.hw.rhsens.to_ctr = 24;
+                else
+                    ss.hw.rhsens.to_ctr = 80;
+                ss.hw.bus_busy = busst_none;        
+                local_setpower_sleep();             // system can sleep with 1ms interrupt watch
+                break;
+            case rhsm_readrh_02_wait4read:
+            case rhsm_readt_02_wait4read:
+                // response read, or NAK received (device is not ready yet)
+                if ( result == I2CSTATE_NONE )
+                {
+                    // result is ready
+                    ss.hw.bus_busy = busst_none;                // bus is free
+                    local_setpower_free();                      // mark power management free
+
+                    if ( ss.hw.rhsens.sm == rhsm_readrh_02_wait4read )
+                    {
+                        ss.measured.rh =  ( ((uint32)ss.hw.rhsens.hw_read_val[0] << 6) | 
+                                            ((uint32)ss.hw.rhsens.hw_read_val[1] >> 2)   );
+                        ss.flags.sens_busy &= ~SENSOR_RH;
+                        ss.flags.sens_ready |= SENSOR_RH;
+                        ss.hw.rhsens.sm = rhsm_none;                  // no operation on sensor
+                        if ( ss.flags.sens_busy & SENSOR_TEMP )
+                            goto _reload_operation;
+                    }
+                    else
+                    {
+                        ss.measured.temp =  ( ((uint32)ss.hw.rhsens.hw_read_val[0] << 6) | 
+                                            ((uint32)ss.hw.rhsens.hw_read_val[1] >> 2)   );
+                        ss.flags.sens_busy &= ~SENSOR_TEMP;
+                        ss.flags.sens_ready |= SENSOR_TEMP;
+                        ss.hw.rhsens.sm = rhsm_none;                  // no operation on sensor
+                        if ( ss.flags.sens_busy & SENSOR_RH )
+                            goto _reload_operation;
+                    }
+                }
+                else
+                {
+                    // NAK received - retry in 5ms
+                    if ( ss.hw.rhsens.sm == rhsm_readrh_02_wait4read )
+                        ss.hw.rhsens.sm = rhsm_readrh_01_send_request;
+                    else
+                        ss.hw.rhsens.sm = rhsm_readt_01_send_request;
+                    ss.hw.rhsens.to_ctr = 5;
+                    ss.hw.bus_busy = busst_none;        
+                    local_setpower_sleep();             // system can sleep with 1ms interrupt watch
+                }
+                break;
+        }
+    }
+    else if ( ss.hw.rhsens.sm == rhsm_none )
+    {   
+_reload_operation:  // we need this label to reload sensor read operation for the other parameter when RH and Temp are                      
+                    // requested simultaneously, otherwise it finishes with RH, exits, RH is read by code, reacquire                        
+                    // and the poll will enter again with RH measurement, not leaving chance for Temp to proceed                            
+        if ( ss.flags.sens_busy & SENSOR_RH )
+        {
+            ss.hw.rhsens.hw_read_val[0] = REGRH_TRIG_RH;
+            ss.hw.rhsens.sm = rhsm_readrh_01_send_request;      // mark the current operation state
+        }
+        else
+        {
+            ss.hw.rhsens.hw_read_val[0] = REGRH_TRIG_TEMP;
+            ss.hw.rhsens.sm = rhsm_readt_01_send_request;      // mark the current operation state
+        }
+
+        if ( I2C_device_write( I2C_DEVICE_RH, ss.hw.rhsens.hw_read_val, 1 , 20) )
+            goto _i2c_failure;
+
+        ss.hw.bus_busy = busst_rh;              // mark bus busy
+        ss.hw.rhsens.to_ctr = 0;                // reset check counter
+        ss.flags.sens_pwr = SENSPWR_FULL;
+    }
+
+    return;
+_i2c_failure:
+    local_i2c_reinit(); 
+_failure:
+    ss.hw.bus_busy = busst_none;            // mark bus free, routine will retry the command
+    ss.hw.rhsens.sm = rhsm_none;
+    local_setpower_free();
+}
 
 
 void local_init_pressure_sensor(void)
@@ -382,6 +517,22 @@ void Sensor_Acquire( uint32 mask )
         ss.flags.sens_busy |= SENSOR_PRESS;     // mark sensor for read
         ss.flags.sens_ready &= ~SENSOR_PRESS;   // clear the ready flag (if not cleared by a previous read)
     }
+    if ( mask & (SENSOR_RH | SENSOR_TEMP) )
+    {
+        if ( ss.status.initted_p == 0 )
+            local_init_pressure_sensor();       // mark for init if not done yet
+
+        if ( (mask & SENSOR_RH) && ((ss.flags.sens_busy & SENSOR_RH) == 0) )
+        {
+            ss.flags.sens_busy |= SENSOR_RH;     // mark sensor for read
+            ss.flags.sens_ready &= ~SENSOR_RH;   // clear the ready flag (if not cleared by a previous read)
+        }
+        if ( (mask & SENSOR_TEMP) && ((ss.flags.sens_busy & SENSOR_TEMP) == 0) )
+        {
+            ss.flags.sens_busy |= SENSOR_TEMP;     // mark sensor for read
+            ss.flags.sens_ready &= ~SENSOR_TEMP;   // clear the ready flag (if not cleared by a previous read)
+        }
+    }
 }
 
 uint32 Sensor_Is_Ready(void)
@@ -429,11 +580,16 @@ void Sensor_Poll(bool tick_ms)
             local_rhsensor_execute_ini( tick_ms );
     }
 
-    if ( ss.flags.sens_busy & SENSOR_PRESS )       // execute read request only if no other setup operation in progress, flag is filtered allready by initiator
+    if ( ss.flags.sens_busy )
     {
-        if ( ss.status.initted_p )
+        if ( (ss.flags.sens_busy & SENSOR_PRESS) &&
+             (ss.status.initted_p) )       // execute read request only if no other setup operation in progress, flag is filtered allready by initiator
             local_psensor_execute_read( tick_ms );
+        if ( (ss.flags.sens_busy & (SENSOR_RH | SENSOR_TEMP)) &&
+             (ss.status.initted_rh) )
+            local_rhsensor_execute_read( tick_ms );
     }
+
 }
 
 

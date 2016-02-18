@@ -153,6 +153,8 @@ void main_entry( uint32 *stack_top )
     Sensor_Init();
     
     Sensor_Acquire( SENSOR_PRESS );
+    Sensor_Acquire( SENSOR_TEMP );
+    Sensor_Acquire( SENSOR_RH );
     
 }
 
