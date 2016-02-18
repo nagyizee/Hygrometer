@@ -103,6 +103,7 @@ static inline void System_Poll( void )
 }
 
 
+
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
@@ -117,21 +118,68 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 */
 
 /////// dev VVVVVVV    
-    
+    static int temp_cnt = 1000;
+    static int rh_cnt = 1000;
+    static int press_cnt = 1000;
+
     Sensor_Poll( evmask->timer_tick_system );
 
+    // PRESS
     if ( Sensor_Is_Ready() & SENSOR_PRESS )
     {
-        HW_LED_On();
         static volatile uint32 press;
+        HW_LED_Off();
         press = Sensor_Get_Value( SENSOR_PRESS );
         press = (((press * 100) / 4) * 3) / 4;      // Pascals
+    }
+    else if ( press_cnt && evmask->timer_tick_system )
+    {
+        press_cnt--;
+        if ( press_cnt == 0 )
+        {
+            HW_LED_On();
+            Sensor_Acquire( SENSOR_PRESS );
+            press_cnt = 1000;
+        }
+    }
         
-
-        Sensor_Acquire( SENSOR_PRESS );
+    // RH
+    if ( Sensor_Is_Ready() & SENSOR_RH )
+    {
+        static volatile int rh;
         HW_LED_Off();
+        rh = Sensor_Get_Value( SENSOR_RH );
+        rh = (int)((uint32)(125*100*rh) >> 14) - 600;
+    }
+    else if ( rh_cnt && evmask->timer_tick_system )
+    {
+        rh_cnt--;
+        if ( rh_cnt == 0 )
+        {
+            HW_LED_On();
+            Sensor_Acquire( SENSOR_RH );
+            rh_cnt = 1000;
+        }
     }
 
+    // TEMP
+    if ( Sensor_Is_Ready() & SENSOR_TEMP )
+    {
+        static volatile int temp;
+        HW_LED_Off();
+        temp = Sensor_Get_Value( SENSOR_TEMP );
+        temp = ((uint32)(17572*temp) >> 14) - 4685;
+    }
+    else if ( temp_cnt && evmask->timer_tick_system )
+    {
+        temp_cnt--;
+        if ( temp_cnt == 0 )
+        {
+            HW_LED_On();
+            Sensor_Acquire( SENSOR_TEMP );
+            temp_cnt = 1000;
+        }
+    }
 }
 
 // Main application entry

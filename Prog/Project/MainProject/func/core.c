@@ -98,7 +98,7 @@ static uint32   RTCclock;           // user level RTC clock - when entering in c
 //dev        HW_LED_On();
         TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
 
-        if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
+//dev        if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
         {
             counter++;
             sec_ctr++;
@@ -111,7 +111,7 @@ static uint32   RTCclock;           // user level RTC clock - when entering in c
             }
 //dev            DispHAL_ISR_Poll();
         }
-        else
+//dev        else
         {
             // TODO: can do stats - detect faster than normal internal osclillator speed
             tmr_over++;

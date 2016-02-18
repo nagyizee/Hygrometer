@@ -572,6 +572,7 @@ uint32 Sensor_Get_Value( uint32 sensor )
 
 void Sensor_Poll(bool tick_ms)
 {
+    // max 24us, min 7us on RAM
     if ( ss.status.sensp_ini_request || ss.status.sensrh_ini_request )  // this can be set only on uninitted device
     {
         if ( ss.status.sensp_ini_request )

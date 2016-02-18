@@ -201,12 +201,12 @@ struct SBeep
     {
         struct SEventStruct evtemp = { 0, };
 
-        if ( events.timer_tick_10ms )
+ /*dev       if ( events.timer_tick_10ms )
         {
             local_process_button( &evtemp );
             local_process_beep( );
         }
-
+*/
         __disable_interrupt();
         *((uint32*)&events) |= *((uint32*)&evtemp);
         __enable_interrupt();
