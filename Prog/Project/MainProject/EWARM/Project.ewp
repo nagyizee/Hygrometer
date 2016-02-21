@@ -1985,6 +1985,9 @@
         <name>$PROJ_DIR$\..\func\sensors.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\..\func\sensors_internals.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\..\func\ui.c</name>
       </file>
       <file>
@@ -2031,6 +2034,12 @@
       </file>
       <file>
         <name>$PROJ_DIR$\..\hw\hw_stuff.h</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\hw\i2c.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\hw\i2c.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\hw\stdlib_extension.c</name>

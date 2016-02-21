@@ -191,7 +191,7 @@
         NVIC_Init( &NVIC_InitStructure );
 
         // stop timer counter when debugging, keep core alive when debugging in stop/sleep mode
-        DBGMCU_Config( DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
+        DBGMCU_Config( DBGMCU_I2C1_SMBUS_TIMEOUT | DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);
@@ -327,7 +327,7 @@
                 DMA_SENS_RX_Channel->CCR = ( DMA_SENS_RX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
                                            ( DMA_DIR_PeripheralSRC     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
                                              DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
-                                             DMA_Priority_Medium       | DMA_M2M_Disable );
+                                             DMA_Priority_VeryHigh     | DMA_M2M_Disable );
                 DMA_SENS_RX_Channel->CPAR     = (uint32_t)(&I2C_PORT_SENSOR->DR );              // base address for SPI data register
                 break;
         }
@@ -603,14 +603,14 @@
             {
                 case pm_hold_btn:
                     // all keys to be active when waking up UI: rising or falling for all
-                    mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;    // all the buttons + 
+                    mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ |0x00020000;    // all the buttons + 
                     rising = mask;
                     falling = mask;
                     break;
                 case pm_hold:
                     // keys to be inactive when waking up UI: rising front for esc, start, menu, ok; falling for mode; any for p1 and p2
-                    mask = IO_IN_BTN_PP | 0x00020000;           // just power button / RTC alarm
-                    rising = IO_IN_BTN_PP | 0x00020000;
+                    mask = IO_IN_BTN_PP | IO_IN_SENS_IRQ | 0x00020000;           // just power button / RTC alarm
+                    rising = IO_IN_BTN_PP | IO_IN_SENS_IRQ | 0x00020000;
                     falling = 0x00;
                     break;
             }
@@ -647,7 +647,7 @@
         // clean up the interrupt flags and notify that wake up reason was a button action
         HW_LED_On();
         irq_source = EXTI->PR;
-        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | 0x00020000;
+        EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ | 0x00020000;
         if ( (irq_source & ~0x00020000) != 0 )
             btn_wakeup = true;
     }

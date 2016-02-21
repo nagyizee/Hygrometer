@@ -34,7 +34,7 @@
         uint32  key_longpressed:8;          // long pressed keys
         uint32  key_released:8;             // released keys    - long pressed is mutually exclussive with released
 
-        uint32  timer_tick_system:1;        // system tick (200us)
+        uint32  timer_tick_system:1;        // system tick (1ms)
         uint32  timer_tick_10ms:1;          // 10ms timing tick
         uint32  timer_tick_1sec:1;          // 1second timet tick - precise RTC clock
         uint32  timer_tick_05sec:1;         // 0.5second timet tick - precise RTC clock
