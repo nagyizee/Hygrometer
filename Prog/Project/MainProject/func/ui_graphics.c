@@ -415,7 +415,7 @@ void uigrf_putfixpoint( int x, int y, enum Etextstyle style, int nr, int digits,
     Gtext_SetCoordinates( x, y );
     len = digits - fp;  // length of integer part or whole part
     div = poz_2_increment( fp );    // convert the value
-    internal_display_number( nr/div, len, fill, 10, show_plus_sign, false );
+    internal_display_number( nr/div, len, fill, 10, show_plus_sign, (nr < 0)? true : false );
     Gtext_PutChar('.');
     nr = nr % div;
     if ( nr < 0 )

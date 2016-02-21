@@ -16,6 +16,8 @@
 #include "dispHAL.h"
 
 #include "graphic_lib.h"
+#include "ui_graphics.h"
+#include "sensors.h"
 
 extern struct SCore core;
 static bool failure = false;
@@ -49,8 +51,8 @@ static inline void System_Poll( void )
     enum EPowerMode pwr_mode = pm_hold;
 
     CheckStack();
-/*dev
     sys_st |= DispHAL_App_Poll();
+/*dev
     sys_st |= core_pwr_getstate();
     if ( BeepIsRunning() )
         sys_st |= SYSSTAT_UI_ON;
@@ -108,6 +110,57 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
     }
     sys_st |= ui_st;
 */
+
+//vvvvvvv dev vvvvvvvvvv
+    static int to_ctr = 1;
+
+    Sensor_Poll( evmask->timer_tick_system );
+
+    if ( evmask->timer_tick_10ms )
+    {
+        if ( to_ctr )
+            to_ctr--;
+        else
+        {
+            to_ctr = 100;
+            Sensor_Acquire( SENSOR_PRESS | SENSOR_TEMP | SENSOR_RH ); 
+        }
+    }
+
+    if ( Sensor_Is_Ready() == (SENSOR_PRESS | SENSOR_TEMP | SENSOR_RH) )
+    {
+        if ( Sensor_Is_Ready() & SENSOR_PRESS )
+        {
+            uint32 press;
+            press = Sensor_Get_Value(SENSOR_PRESS);             // in 100x Pa
+            press = ((uint64)press * 7500615) / 10000000;       // gives value in 100x Hgmm
+            Graphic_SetColor(0);
+            Graphic_FillRectangle( 50, 46, 110, 56, 0 ); 
+            uigrf_putfixpoint( 50, 46, uitxt_smallbold, press, 5, 2, ' ', false );
+        }
+        if ( Sensor_Is_Ready() & SENSOR_TEMP )
+        {
+            int temp;
+            temp = Sensor_Get_Value(SENSOR_TEMP);       // 16fp9+40*C
+            temp = ((temp*100) >> TEMP_FP) - 4000;        // gives value in 100x Hgmm
+            Graphic_SetColor(0);
+            Graphic_FillRectangle( 50, 16, 110, 26, 0 ); 
+            uigrf_putfixpoint( 50, 16, uitxt_smallbold, temp, 5, 2, ' ', true );
+        }
+        if ( Sensor_Is_Ready() & SENSOR_RH )
+        {
+            uint32 rh;
+            rh = Sensor_Get_Value(SENSOR_RH);       // in 100x %
+            rh = ( rh * 100 ) >> RH_FP;
+            Graphic_SetColor(0);
+            Graphic_FillRectangle( 50, 31, 110, 41, 0 ); 
+            uigrf_putfixpoint( 50, 31, uitxt_smallbold, rh, 5, 2, ' ', false );
+        }
+        
+        DispHAL_UpdateScreen();
+    }
+
+//^^^^^^^^^^^^^^^^^^^^^^
 }
 
 // Main application entry
@@ -125,17 +178,21 @@ void main_entry( uint32 *stack_top )
 
 
 //vvvvvvv  dev vvvvvv
+    Sensor_Init();
 
     Graphics_Init( NULL, NULL );
 
 
     Graphic_SetColor(1);
-    Graphic_Rectangle(10,10,118,58);
+    Graphic_Rectangle(0,0,127,63);
+
+    uigrf_text( 10, 16, uitxt_smallbold, "Temp:" );
+    uigrf_text( 26, 31, uitxt_smallbold, "RH:" );
+    uigrf_text( 11, 46, uitxt_smallbold, "Press:" );
+
 
     DispHAL_Display_On( );
     DispHAL_SetContrast( 0x30 );
-
-
 //^^^^^^^^^^^^^^^^^^^
 }
 

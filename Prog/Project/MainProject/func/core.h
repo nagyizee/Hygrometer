@@ -21,10 +21,6 @@
      *
      */
 
-
-    #define TEMP_FP         9           // use 16bit fixpoint at 9 bits for temperature
-    #define RH_FP           8
-
     #define NUM100_MIN      0x20000000  // minimum below value error
     #define NUM100_MAX      0x40000000  // maximum abowe value error
 
@@ -187,7 +183,7 @@
         int16   dewpoint;           // current dewpoint in 16fp9+40*C
         uint16  rh;                 // current humidity in x100 %
         uint16  absh;               // absolute humidity in x100 g/m3
-        uint32  pressure;           // current barometric pressure in x100 hPa
+        uint32  pressure;           // current barometric pressure in x10000 hPa ( 100xPa )
         
     };
 

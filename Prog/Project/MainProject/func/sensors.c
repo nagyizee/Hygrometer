@@ -553,17 +553,30 @@ uint32 Sensor_Get_Value( uint32 sensor )
             if ( (ss.flags.sens_ready & SENSOR_TEMP) == 0 )
                 return SENSOR_VALUE_FAIL;
             ss.flags.sens_ready &= ~SENSOR_TEMP;
-            return ss.measured.temp;
+            // temperature is provided in 16fp9 + 40*C
+            //   (175.75 * x) / 2^14  - (46.85-40*C)*2^9
+            //          175.72 << 9 (17bit)        (14bit) 
+            if ( ss.measured.temp < 639 )       // -40*C
+                return 0;
+            if ( ss.measured.temp > 12573)      // 88*C
+                return SENSOR_VAL_MAX;
+            return ( ( ((17572 << TEMP_FP)/100) * (uint32)ss.measured.temp ) >> 14) - ( ((4685-4000) << TEMP_FP)/100 );
         case SENSOR_PRESS:
             if ( (ss.flags.sens_ready & SENSOR_PRESS) == 0 )
                 return SENSOR_VALUE_FAIL;
             ss.flags.sens_ready &= ~SENSOR_PRESS;
-            return ss.measured.pressure;
+            // Pressure is provided in 100xPa
+            // measurement: 20fp2 -> 18bit pascal + 2bit fractional
+            // Pa*100 = (press * 100) / 4
+            return ((ss.measured.pressure * 100) >> 2 );
+            // return ss.measured.pressure;
         case SENSOR_RH:
             if ( (ss.flags.sens_ready & SENSOR_RH) == 0 )
                 return SENSOR_VALUE_FAIL;
             ss.flags.sens_ready &= ~SENSOR_RH;
-            return ss.measured.rh;
+            // RH is provided in 16FP8 %
+            //   (125*2^8 * x) / 2^14 - 6*2^9
+            return ( ((125 << RH_FP) * (uint32)ss.measured.rh) >> 14 ) - ( 6 << RH_FP );
         default:
             return SENSOR_VALUE_FAIL;
     }
