@@ -10,7 +10,6 @@
 
 #define MAX_AXIS_CHANNELS 4
 
-
 mainw *pClass;
 int tiv;
 
@@ -311,7 +310,7 @@ int mainw::HW_wrapper_get_humidity()
 
 int mainw::HW_wrapper_get_pressure()
 {
-    return ms_press;
+    return ms_press * 100;
 }
 
 void mainw::HW_wrapper_Beep( int op )
@@ -522,6 +521,10 @@ void Sensor_simu_poll()
     }
 }
 
+void Sensor_Poll(bool tick_ms)
+{
+
+}
 
 /////////////////////////////////////////////////////
 // EEPROM emulation
@@ -574,7 +577,7 @@ uint32 eeprom_disable()
 }
 
 // read count quantity of data from address in buff, returns the nr. of successfull read bytes
-uint32 eeprom_read( uint32 address, int count, uint8 *buff )
+uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
 {
     if (ee_enabled == false)
         return (uint32)-1;
@@ -587,7 +590,7 @@ uint32 eeprom_read( uint32 address, int count, uint8 *buff )
 }
 
 // write count quantity of data to address from buff, returns the nr. of successfull written bytes
-uint32 eeprom_write( uint32 address, uint8 *buff, int count )
+uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async )
 {
     FILE *eefile;
     if ( (ee_enabled == false) || (ee_wren == false) )
@@ -606,7 +609,10 @@ uint32 eeprom_write( uint32 address, uint8 *buff, int count )
     return count;
 }
 
-
+bool eeprom_is_operation_finished( void )
+{
+    return true;
+}
 
 
 /////////////////////////////////////////////////////

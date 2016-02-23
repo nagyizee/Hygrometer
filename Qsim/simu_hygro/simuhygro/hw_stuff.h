@@ -111,6 +111,8 @@ void DispHAL_ISR_Poll();
 void CoreADC_ISR_Complete();
 void Core_ISR_PretriggerCompleted();
 
+#define TEMP_FP         9           // use 16bit fixpoint at 9 bits for temperature
+#define RH_FP           8
 
 #define SENSOR_TEMP     0x01
 #define SENSOR_RH       0x02
