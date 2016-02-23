@@ -521,6 +521,10 @@ void Sensor_simu_poll()
     }
 }
 
+void Sensor_Poll(bool tick_ms)
+{
+
+}
 
 /////////////////////////////////////////////////////
 // EEPROM emulation
