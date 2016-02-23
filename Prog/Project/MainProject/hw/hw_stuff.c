@@ -1,6 +1,7 @@
 #include "hw_stuff.h"
 
     static volatile bool btn_wakeup = false;
+    static bool update_batt = false;
 
     void InitHW(void)
     {
@@ -456,9 +457,9 @@
         // setup sequence register for 1 conversion with channel 0
         ADC1->SQR1 = (0x00 << 20);      // L3:0 = 0000b => 1 conversion, rest of fields doesn't matter
         // setup channel parameters
-        ADC1->SMPR2 = ADC_SampleTime_7Cycles5;     //  sample timer for channel 0  (shift << 3*chnl applies for other channels)
+        ADC1->SMPR2 = ADC_SampleTime_13Cycles5;     //  sample timer for channel 0  (shift << 3*chnl applies for other channels)
         // setup channel sequence - only channel 0 for a single conversion 
-        ADC1->SQR3 = ( 0x04 << 0 );     // Vbat channel is Ch 4
+        ADC1->SQR3 = ( 0x00 << 0 );     // Vbat channel is Ch 0
         // Power up the ADC
         ADC1->CR2 |= CR2_ADON_Set;
 

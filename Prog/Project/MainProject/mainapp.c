@@ -49,6 +49,7 @@ static inline void System_Poll( void )
     enum EPowerMode pwr_mode = pm_hold;
 
     CheckStack();
+/*dev
     sys_st |= DispHAL_App_Poll();
     sys_st |= core_pwr_getstate();
     if ( BeepIsRunning() )
@@ -91,12 +92,14 @@ static inline void System_Poll( void )
 
     wake_up = HW_Sleep( pwr_mode );
     sys_st = 0;
+*/
 }
 
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
+/*dev
     core_poll( evmask );
 
     if ( evmask->timer_tick_10ms || evmask->key_event )
@@ -104,6 +107,25 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
         ui_st = ui_poll( evmask );
     }
     sys_st |= ui_st;
+*/
+///////////
+static volatile uint32 batt_p;
+{
+    volatile uint32 battery;
+    battery = HW_ADC_GetBattery();
+
+    // limit battery value and remove offset
+    if (battery > VBAT_MIN )
+        battery -= VBAT_MIN;
+    else
+        battery = 0;
+    if ( battery > VBAT_DIFF )
+        battery = VBAT_DIFF;
+    // scale to 0 - 100%
+    batt_p = (uint8)((battery * 100) / VBAT_DIFF);  
+    asm("nop");
+}
+//////////
 }
 
 // Main application entry
@@ -111,13 +133,13 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
-    if ( core_init( NULL ) )
+/*dev    if ( core_init( NULL ) )
     {
         failure = true;
         return;
     }
-
     ui_init( NULL );
+*/
 }
 
 

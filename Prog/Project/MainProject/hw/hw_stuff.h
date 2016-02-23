@@ -150,8 +150,8 @@
     #define DMA_COMM_TX_IRQ         DMA_SENS_RX_IRQ
     #define DMA_COMM_TX_IRQ_FLAGS   DMA_SENS_RX_IRQ_FLAGS
 
-    #define VBAT_MIN        0xB16                   // TBD
-    #define VBAT_MAX        0xD31                   // TBD
+    #define VBAT_MIN        0xB90       // 3.2V
+    #define VBAT_MAX        0xF23       // 4.2V
     #define VBAT_DIFF       ( VBAT_MAX - VBAT_MIN )
 
     // all these modes are mutally exclussive per group
