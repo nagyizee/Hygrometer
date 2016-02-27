@@ -567,8 +567,7 @@ uint32 Sensor_Get_Value( uint32 sensor )
             ss.flags.sens_ready &= ~SENSOR_PRESS;
             // Pressure is provided in 100xPa
             // measurement: 20fp2 -> 18bit pascal + 2bit fractional
-            // Pa*100 = (press * 100) / 4
-            return ((ss.measured.pressure * 100) >> 2 );
+            return (ss.measured.pressure);
             // return ss.measured.pressure;
         case SENSOR_RH:
             if ( (ss.flags.sens_ready & SENSOR_RH) == 0 )
@@ -576,6 +575,10 @@ uint32 Sensor_Get_Value( uint32 sensor )
             ss.flags.sens_ready &= ~SENSOR_RH;
             // RH is provided in 16FP8 %
             //   (125*2^8 * x) / 2^14 - 6*2^9
+            if ( ss.measured.rh < 787 )       // 0%
+                return 0;
+            if ( ss.measured.rh > 13839)      // 100%
+                return (100 << RH_FP);
             return ( ((125 << RH_FP) * (uint32)ss.measured.rh) >> 14 ) - ( 6 << RH_FP );
         default:
             return SENSOR_VALUE_FAIL;

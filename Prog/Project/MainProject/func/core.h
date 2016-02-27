@@ -183,8 +183,7 @@
         int16   dewpoint;           // current dewpoint in 16fp9+40*C
         uint16  rh;                 // current humidity in x100 %
         uint16  absh;               // absolute humidity in x100 g/m3
-        uint32  pressure;           // current barometric pressure in x10000 hPa ( 100xPa )
-        
+        uint32  pressure;           // current barometric pressure in x100 Pa
     };
 
     struct SMinimMaxim              // 96 bytes
