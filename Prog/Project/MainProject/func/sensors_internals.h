@@ -145,14 +145,16 @@
     struct SPressureSensorStatus
     {
         enum EPessureSensorStateMachine sm;
-        uint32                          check_ctr;      // time counter for polling period
+        uint16                          check_ctr;      // time counter for polling period
+        uint16                          fail_ctr;       // failure retrial counter
         uint8                           hw_read_val[4]; // read value from the sensor in i2c
     };
 
     struct SRHSensorStatus
     {
         enum ERHsensorStateMachine  sm;
-        uint32                      to_ctr;         // time out counter
+        uint16                      to_ctr;         // time out counter
+        uint16                      fail_ctr;       // failure retrial counter
         uint8                       hw_read_val[4];
     };
 

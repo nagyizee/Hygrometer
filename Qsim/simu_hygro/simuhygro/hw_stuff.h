@@ -125,7 +125,7 @@ void Sensor_Init();
 // shut down individual sensor block ( RH and temp are in one - they need to be provided in pair )
 void Sensor_Shutdown( uint32 mask );
 // set up acquire request on one or more sensors ( it will wake up the sensor if needed )
-void Sensor_Acquire( uint32 mask );
+uint32 Sensor_Acquire( uint32 mask );
 // check the sensor state - returning a mask with the sensors which have read out value
 uint32 Sensor_Is_Ready(void);
 // check the sensor state - returning a mask busy sensors
