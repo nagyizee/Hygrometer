@@ -419,7 +419,7 @@ void Sensor_Shutdown( uint32 mask )
     }
 }
 
-void Sensor_Acquire( uint32 mask )
+uint32 Sensor_Acquire( uint32 mask )
 {
     if ( (mask & SENSOR_TEMP) && ((sens.in_progress & SENSOR_TEMP) == 0) )
     {
@@ -451,6 +451,7 @@ void Sensor_Acquire( uint32 mask )
         sens.in_progress |= SENSOR_PRESS;
         sens.ready &= ~SENSOR_PRESS;
     }
+    return 0;
 }
 
 uint32 Sensor_Is_Ready(void)

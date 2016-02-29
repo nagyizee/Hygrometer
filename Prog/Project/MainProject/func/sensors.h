@@ -37,11 +37,13 @@
     // shut down individual sensor block ( RH and temp are in one - they need to be provided in pair )
     void Sensor_Shutdown( uint32 mask );
     // set up acquire request on one or more sensors ( it will wake up the sensor if needed )
-    void Sensor_Acquire( uint32 mask );
+    uint32 Sensor_Acquire( uint32 mask );
     // check the sensor state - returning a mask with the sensors which have read out value
     uint32 Sensor_Is_Ready(void);
     // check the sensor state - returning a mask busy sensors
     uint32 Sensor_Is_Busy(void);
+    // check the sensor state - returning a mask with failed sensors
+    uint32 Sensor_Is_Failed(void);
     // get the acquired value from the sensor (returns the base formatted value from a sensor - Temp: 16fp9+40*, RH: 16fp8, Press: 18.2 pascals) and clears the ready flag
     uint32 Sensor_Get_Value( uint32 sensor );
     // sensor submodule polling
