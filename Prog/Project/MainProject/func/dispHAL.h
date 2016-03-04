@@ -46,7 +46,7 @@
     void DispHAL_ISR_Poll(void);
 
     // Application polling routine. Should be called periodically. Returns true for display busy
-    bool DispHAL_App_Poll(void);
+    uint32 DispHAL_App_Poll(void);
 
 
 #ifdef __cplusplus

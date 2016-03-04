@@ -23,8 +23,8 @@ static bool wake_up = false;
 
 static uint32 *stack_limit;
 
-static uint32 sys_st = 0;
-static uint32 ui_st = SYSSTAT_UI_WAKEUP;
+static uint32 sys_pwr = 0;
+static uint32 ui_st = SYSSTAT_UI_ON_WAKEUP;
 
 static inline void CheckStack(void)
 {
@@ -42,73 +42,71 @@ static inline void CheckStack(void)
 }
 
 
-#define pwr_check( a )  ( sys_st & (a) )
+//dev 
+static uint32 crt_mode;
 
 static inline void System_Poll( void )
 {
-    enum EPowerMode pwr_mode = pm_hold;
+    enum EPowerMode pwr_mode = pm_down;
 
     CheckStack();
 /*dev
-    sys_st |= DispHAL_App_Poll();
-    sys_st |= core_pwr_getstate();
+    sys_pwr |= core_pwr_getstate();
+    sys_pwr |= DispHAL_App_Poll();
     if ( BeepIsRunning() )
-        sys_st |= SYSSTAT_UI_ON;
-
+        sys_pwr |= SYSSTAT_UI_ON;
+*/
     // decide power management model
-    if ( pwr_check(SYSSTAT_CORE_BULK) )
-        // full run mode - no sleeping
-        pwr_mode = pm_full;
-    else 
-    {   
-        if ( pwr_check( SYSSTAT_DISP_BUSY | SYSSTAT_CORE_RUN_FULL | SYSSTAT_UI_ON | SYSSTAT_UI_WAKEUP ) )
-            // when display is processed, ui is working or core runs with short timing needs ( 10ms )
-            pwr_mode = pm_sleep;
-        else if ( pwr_check ( SYSYTAT_CORE_MONITOR ) )
-        {
-            // core in monitoring/fast registering mode - need to maintain memory, or to listen to sensor IRQ, so no full power down possible
-            if ( sys_st == ( SYSYTAT_CORE_MONITOR | SYSSTAT_UI_PWROFF ) )
-                pwr_mode = pm_hold;         // ui is off - only long press on power/mode button will wake it up - must behave like in full power down
-            else
-                pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
-            core_pwr_setup_alarm(pwr_mode);
-            EventBtnClear();
-        }
-        else if ( sys_st == ( SYSSTAT_CORE_STOPPED | SYSSTAT_UI_PWROFF ) )
-        {
-            // core is stopped or long term registering, ui is off - we can cut the power
-            pwr_mode = pm_down;
-            core_pwr_setup_alarm(pwr_mode);
-            EventBtnClear();
-        }
+    if ( sys_pwr & PM_FULL )
+        pwr_mode = pm_full;             // full run mode - no sleeping
+    else if ( sys_pwr & PM_SLEEP )
+        pwr_mode = pm_sleep;            // sleep and wake up on timer/dma irq
+    else
+    {
+        if ( sys_pwr & PM_HOLD_BTN )
+            pwr_mode = pm_hold_btn;     // device with active UI, but with low cpu usage - any button should wake it up
+        else if ( sys_pwr & PM_HOLD )
+            pwr_mode = pm_hold;         // device is working on background only (monitoring/registering tasks), no active UI, should be woken up by the user by power button only
         else
-        {
-            // for the remained cases we will use hold with all buttons, this includes the UI stopped case when core doesn't do anything
-            pwr_mode = pm_hold_btn;     // ui is stopped only - buttons can wake it up at any time
-            core_pwr_setup_alarm(pwr_mode);
-            EventBtnClear();
-        }
+            pwr_mode = pm_down;         // no power requirement is needed - turn it off
+
+        core_pwr_setup_alarm(pwr_mode); // set up the next alarm point in the RTC
+        EventBtnClear();                // clear button status
     }
 
-    wake_up = HW_Sleep( pwr_mode );
-    sys_st = 0;
-*/
+    wake_up = HW_Sleep( pwr_mode );     // enter in the selected power mode
+    sys_pwr = 0;                        // when exit - recreate the power scenario
 }
 
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
-/*dev
-    core_poll( evmask );
 
+    core_poll( evmask );
+/*dev
     if ( evmask->timer_tick_10ms || evmask->key_event )
     {
         ui_st = ui_poll( evmask );
     }
-    sys_st |= ui_st;
+    sys_pwr |= ui_st;
     */
+
+// dev
     
+    
+    if ( (evmask->key_pressed & KEY_ESC) ||                                        // if ESC released in full/sleep power mode
+         ( (crt_mode & (PM_HOLD | PM_HOLD_BTN | PM_DOWN)) &&  BtnGet_Esc())  )      // or pressed in stopped/pwdown mode
+    {
+        crt_mode = crt_mode << 1;       // next power mode
+        if ( (crt_mode & 0x1F) == 0 )
+        {
+            crt_mode = PM_FULL;
+        }
+        BKP_WriteBackupRegister( BKP_DR2, crt_mode );
+    }
+   
+    sys_pwr = crt_mode;
 }
 
 // Main application entry
@@ -123,6 +121,10 @@ void main_entry( uint32 *stack_top )
     }
     ui_init( NULL );
 */
+
+//dev 
+    crt_mode = BKP_ReadBackupRegister(BKP_DR2);
+    sys_pwr = crt_mode;
 }
 
 

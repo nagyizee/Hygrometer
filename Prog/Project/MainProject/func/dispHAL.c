@@ -462,7 +462,7 @@ bool DispHAL_ReleaseSPI( void )
 }
 
 
-bool DispHAL_App_Poll(void)
+uint32 DispHAL_App_Poll(void)
 {
     // check 
     if ( isr_op_finished )
