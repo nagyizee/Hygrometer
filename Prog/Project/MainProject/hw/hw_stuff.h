@@ -190,10 +190,11 @@
 
     // wake up reasons
     #define WUR_NONE        0x00
-    #define WUR_USR         0x01        // user produced wake-up condition (button pressed) - from InitHW (reset state): when Power button pressed by user
+    #define WUR_FIRST       0x01        // first startup
+    #define WUR_USR         0x02        // user produced wake-up condition (button pressed) - from InitHW (reset state): when Power button pressed by user
                                         //                                                  - from HW_Sleep(): when Power or other buttons are pressed by user (power mode dependent)
-    #define WUR_RTC         0x02        // timer produced wake-up condition - from InitHW or HW_Sleep(): when RTC counter = Alarm counter  - can be combined with WUR_USR if button pressed 
-    #define WUR_SENS_IRQ    0x04        // sensor IRQ line produced wake-up from HW_Sleep() - when IRQ line is toggled in stopped state
+    #define WUR_RTC         0x04        // timer produced wake-up condition - from InitHW or HW_Sleep(): when RTC counter = Alarm counter  - can be combined with WUR_USR if button pressed 
+    #define WUR_SENS_IRQ    0x08        // sensor IRQ line produced wake-up from HW_Sleep() - when IRQ line is toggled in stopped state
 
 
     void InitHW(void);

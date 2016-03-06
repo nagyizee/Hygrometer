@@ -191,7 +191,7 @@ extern void TimerRTCIntrHandler(void);
 
 //dev
 BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
-
+            wakeup_reason = WUR_FIRST;        // wake-up produced by RTC
         }
         else
         {
@@ -200,20 +200,17 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
             // Enable the RTC Alarm interrupt
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
-//            RTC_WaitForLastTask();
-//            RTC_SetPrescaler(TIMER_RTC_PRESCALE);       // do we need this?
             RTC_WaitForLastTask();
-
-            // if ( local_is_rtc_alarm() )  - this doesn't work - it reads 0xFFFF)
-                wakeup_reason |= WUR_RTC;
-
             rtc_ctr = RTC_GetCounter();
-            RTC_SetAlarm( rtc_ctr + 1 );     // obtain 1/2 second pulses
+            RTC_SetAlarm( rtc_ctr + 1 );     // obtain 1/2 second pulses in run-time
             RTC_WaitForLastTask();
-        }
 
-        if ( BtnGet_Mode() || (wakeup_reason == WUR_NONE) ) // consider the case when power button is glitchy
-            wakeup_reason |= WUR_USR;       // wake-up produced by power button pressed 
+            if ( BtnGet_Mode() )
+                wakeup_reason = WUR_USR;        // wake-up produced by power button pressed 
+            else
+                wakeup_reason = WUR_RTC;        // wake-up produced by RTC
+
+        }
 
         // setup period clock
 
