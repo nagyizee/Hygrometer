@@ -13,6 +13,52 @@ extern void TimerRTCIntrHandler(void);
     }
 
 
+
+    void HWDBG_print( uint32 data )
+    {
+        uint32 i=8;
+
+        HW_LED_Off();
+        HW_LED_On();
+        HW_LED_Off();
+        __asm("    nop\n"); 
+        __asm("    nop\n"); 
+        do
+        {
+            HW_LED_On();
+            if ( (data & 0x80) == 0 )
+            {
+                HW_LED_Off();
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+            }
+            else
+            {
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                HW_LED_Off();
+            }
+            data = (data << 1);
+            i--;
+        } while (i);
+        HW_LED_On();
+    }
+
+    void HWDBG_print32( uint32 data )
+    {
+        HWDBG_print( (data >> 24) & 0xff );
+        HWDBG_print( (data >> 16) & 0xff );
+        HWDBG_print( (data >> 8) & 0xff );
+        HWDBG_print( (data >> 0) & 0xff );
+    }
+
+
+
+
     void InitHW(void)
     {
         /*!< At this stage the microcontroller clock setting is already configured, 
@@ -149,6 +195,7 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
         }
         else
         {
+            uint32 rtc_ctr;
             RTC_WaitForSynchro();
             // Enable the RTC Alarm interrupt
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
@@ -156,10 +203,12 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
 //            RTC_WaitForLastTask();
 //            RTC_SetPrescaler(TIMER_RTC_PRESCALE);       // do we need this?
             RTC_WaitForLastTask();
-            if ( local_is_rtc_alarm() )
+
+            // if ( local_is_rtc_alarm() )  - this doesn't work - it reads 0xFFFF)
                 wakeup_reason |= WUR_RTC;
 
-            RTC_SetAlarm( RTC_GetCounter() + 1 );     // obtain 1/2 second pulses
+            rtc_ctr = RTC_GetCounter();
+            RTC_SetAlarm( rtc_ctr + 1 );     // obtain 1/2 second pulses
             RTC_WaitForLastTask();
         }
 
@@ -492,13 +541,16 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
         return value;
     }
 
-    static void internal_setup_stop_mode(void)
+    static void internal_setup_stop_mode(bool stdby)
     {
         uint32_t tmpreg = 0;
 
         tmpreg = PWR->CR;
         tmpreg &= 0xFFFFFFFC;
         tmpreg |= PWR_Regulator_LowPower;
+        if (stdby)
+            tmpreg |= 0x02;         // standby
+
         PWR->CR = tmpreg;
         SCB->SCR |= SCB_SCR_SLEEPDEEP;
     }
@@ -511,14 +563,16 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
         RTC_WaitForSynchro();
         crt_rtc =  RTC_GetCounter();
         if ( alarm <= crt_rtc )
-            alarm = crt_rtc;        // Weird stuff - but we need to set the same counter to obtain 0.5 intervals min
+            alarm = crt_rtc+1;
         RTC_SetAlarm( alarm ); 
         RTC_WaitForLastTask();      // wait RTC setup before going in low power
         // power down the system
         if ( shutdown )
         {
             BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
-            while(1);
+            internal_setup_stop_mode( true );
+            __asm("    wfi\n");     // do not spend power
+            while (1);
         }
     }
 
@@ -712,7 +766,7 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
             case pm_hold_btn:
                 __disable_interrupt();
                 // enter in low power mode
-                internal_setup_stop_mode();
+                internal_setup_stop_mode(false);
                 // set up timer alarm
                 HW_pwr_off_with_alarm( rtc_next_alarm, false );
                 // clear pending RTC irq, since it is invalid now
@@ -727,6 +781,7 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
                 SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);  
                 break;
             case pm_down:
+                __disable_interrupt();
                 if ( rtc_next_alarm )
                     HW_pwr_off_with_alarm( rtc_next_alarm, true );
                 HW_PWR_Main_Off();                   // powers off the system

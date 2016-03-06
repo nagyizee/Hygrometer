@@ -209,6 +209,10 @@
     bool BtnGet_Right();
     void BtnPollStick();
 
+    void HWDBG_print( uint32 data );
+    void HWDBG_print32( uint32 data );
+
+
     #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) ==0 )
     #define BtnGet_Mode()      ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_PP) )
 
