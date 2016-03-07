@@ -1,6 +1,63 @@
 #include "hw_stuff.h"
 
-    static volatile bool btn_wakeup = false;
+    
+extern void TimerRTCIntrHandler(void);
+
+    static volatile uint32 wakeup_reason = WUR_NONE;
+    static volatile uint32 rtc_next_alarm = 0;
+
+    
+    static inline bool local_is_rtc_alarm( void )    
+    {
+        return ( RTC_GetCounter() == ( ((uint32)(RTC->ALRH) << 16) | RTC->ALRL ) );
+    }
+
+
+
+    void HWDBG_print( uint32 data )
+    {
+        uint32 i=8;
+
+        HW_LED_Off();
+        HW_LED_On();
+        HW_LED_Off();
+        __asm("    nop\n"); 
+        __asm("    nop\n"); 
+        do
+        {
+            HW_LED_On();
+            if ( (data & 0x80) == 0 )
+            {
+                HW_LED_Off();
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+            }
+            else
+            {
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                __asm("    nop\n"); 
+                HW_LED_Off();
+            }
+            data = (data << 1);
+            i--;
+        } while (i);
+        HW_LED_On();
+    }
+
+    void HWDBG_print32( uint32 data )
+    {
+        HWDBG_print( (data >> 24) & 0xff );
+        HWDBG_print( (data >> 16) & 0xff );
+        HWDBG_print( (data >> 8) & 0xff );
+        HWDBG_print( (data >> 0) & 0xff );
+    }
+
+
+
 
     void InitHW(void)
     {
@@ -21,6 +78,8 @@
         TIM_OCInitTypeDef           TIM_oc = {0, };
 
         __disable_interrupt();
+
+        RCC_AdjustHSICalibrationValue( 0x0F );      //TBD
 
         // Vectors are set up at SystemInit, set up only priority group
         NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0);
@@ -92,7 +151,7 @@
 
         // setup RTC interrupt reception
         NVIC_InitStructure.NVIC_IRQChannel = RTC_IRQn;
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
         NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
         NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
         NVIC_Init(&NVIC_InitStructure);
@@ -119,7 +178,7 @@
             // wait till last command is finished
             RTC_WaitForSynchro();
             RTC_WaitForLastTask();
-            // enable interrupt for alarm
+            // Enable the RTC Alarm interrupt
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
@@ -129,24 +188,28 @@
             RTC_WaitForLastTask();
             // set indicator in backup domain that RTC is configured
             BKP_WriteBackupRegister(BKP_DR1, 0xA957);
+
+            wakeup_reason = WUR_FIRST;        // wake-up produced by RTC
         }
         else
         {
+            uint32 rtc_ctr;
             RTC_WaitForSynchro();
-            // Enable the RTC Second
+            // Enable the RTC Alarm interrupt
             RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
-            RTC_SetPrescaler(TIMER_RTC_PRESCALE);
+            rtc_ctr = RTC_GetCounter();
+            RTC_SetAlarm( rtc_ctr + 1 );     // obtain 1/2 second pulses in run-time
             RTC_WaitForLastTask();
-            RTC_SetAlarm( RTC_GetCounter() + 1 );     // obtain 1/2 second pulses
-            RTC_WaitForLastTask();
+
+            if ( BtnGet_Mode() )
+                wakeup_reason = WUR_USR;        // wake-up produced by power button pressed 
+            else
+                wakeup_reason = WUR_RTC;        // wake-up produced by RTC
+
         }
 
-        // wait for button release
-        while( BtnGet_Mode() )
-        { }
-        
         // setup period clock
 
         // ----- System Timer Init -----
@@ -195,8 +258,6 @@
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);
-
-        HW_LED_Off();
 
         __enable_interrupt();
 
@@ -475,31 +536,39 @@
         return value;
     }
 
-    static void internal_setup_stop_mode(void)
+    static void internal_setup_stop_mode(bool stdby)
     {
         uint32_t tmpreg = 0;
 
         tmpreg = PWR->CR;
         tmpreg &= 0xFFFFFFFC;
         tmpreg |= PWR_Regulator_LowPower;
+        if (stdby)
+            tmpreg |= 0x02;         // standby
+
         PWR->CR = tmpreg;
         SCB->SCR |= SCB_SCR_SLEEPDEEP;
     }
 
-    void HW_pwr_off_with_alarm( uint32 alarm )
+    void HW_pwr_off_with_alarm( uint32 alarm, bool shutdown )
     {
         uint32 crt_rtc;
         // set up alarm (be sure that current RTC counter is smaller)
+        RTC_WaitForLastTask();
         RTC_WaitForSynchro();
         crt_rtc =  RTC_GetCounter();
         if ( alarm <= crt_rtc )
-            alarm = crt_rtc + 1;
-
-        RTC_WaitForLastTask();
+            alarm = crt_rtc+1;
         RTC_SetAlarm( alarm ); 
+        RTC_WaitForLastTask();      // wait RTC setup before going in low power
         // power down the system
-        BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
-        while(1);
+        if ( shutdown )
+        {
+            BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
+            internal_setup_stop_mode( true );
+            __asm("    wfi\n");     // do not spend power
+            while (1);
+        }
     }
 
     void HW_Seconds_Start(void)
@@ -515,6 +584,13 @@
         // TBI
 
     }
+
+
+    void HW_SetRTC_NextAlarm( uint32 alarm )
+    {
+        rtc_next_alarm = alarm;
+    }
+
 
 
     void HW_Delay(uint32 us)
@@ -605,7 +681,7 @@
                     // all keys to be active when waking up UI: rising or falling for all
                     mask = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ |0x00020000;    // all the buttons + 
                     rising = mask;
-                    falling = mask;
+                    falling = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6; 
                     break;
                 case pm_hold:
                     // keys to be inactive when waking up UI: rising front for esc, start, menu, ok; falling for mode; any for p1 and p2
@@ -622,7 +698,7 @@
         EXTI->FTSR = falling;
         EXTI->PR = mask;            // clear the flags on the selected EXTI lines
 
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 9;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
         NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
         NVIC_InitStructure.NVIC_IRQChannelCmd           = mask ? ENABLE : DISABLE;
         NVIC_InitStructure.NVIC_IRQChannel              = EXTI1_IRQn;       // ESC
@@ -644,18 +720,34 @@
     void HW_EXTI_ISR( void )
     {
         uint32 irq_source;
-        // clean up the interrupt flags and notify that wake up reason was a button action
+
         HW_LED_On();
+        // clean up the interrupt flags and notify that wake up reason was a button action
         irq_source = EXTI->PR;
         EXTI->PR = IO_IN_BTN_ESC | IO_IN_BTN_OK | IO_IN_BTN_PP | IO_IN_BTN_1 | IO_IN_BTN_3 | IO_IN_BTN_4 | IO_IN_BTN_6 | IO_IN_SENS_IRQ | 0x00020000;
-        if ( (irq_source & ~0x00020000) != 0 )
-            btn_wakeup = true;
+
+        // check for RTC
+        if ( irq_source & 0x00020000 )
+        {
+            irq_source &= ~0x00020000;      // remove the RTC flag
+            wakeup_reason |= WUR_RTC;
+            TimerRTCIntrHandler();
+        }
+        // check for sensor IRQ
+        if ( irq_source & IO_IN_SENS_IRQ )
+        {
+            irq_source &= ~IO_IN_SENS_IRQ;      // remove the RTC flag
+            wakeup_reason |= WUR_SENS_IRQ;
+        }
+        // check for any others
+        if ( irq_source )
+            wakeup_reason |= WUR_USR;
     }
 
 
-    bool HW_Sleep( enum EPowerMode mode )
+    uint32 HW_Sleep( enum EPowerMode mode )
     {
-        bool ret;
+        uint32 ret;
 
         switch ( mode )
         {
@@ -663,26 +755,35 @@
                 break;
             case pm_sleep:                      // wait for interrupt sleep (stop cpu clock, but peripherals are running)
                 HW_LED_Off();
-                __asm("    wfi\n");             // 3.6mA in standby with everything fully functional, 6.12mA in full time cpu clock mode
+                __asm("    wfi\n");            
                 break;
-            case pm_hold:                      // stop cpu and peripheral clocks - wakes up at 1sec intervals or on EXTI event
+            case pm_hold:                       // stop cpu and peripheral clocks - wakes up at RTC alarm, sensor IRQ or on EXTI event
             case pm_hold_btn:
-                // set up EXTI interrupt handling for buttons
-                internal_HW_set_EXTI( mode );
+                __disable_interrupt();
                 // enter in low power mode
-                internal_setup_stop_mode();
+                internal_setup_stop_mode(false);
+                // set up timer alarm
+                HW_pwr_off_with_alarm( rtc_next_alarm, false );
+                // clear pending RTC irq, since it is invalid now
+                TIMER_RTC->CRL &= (uint16)~RTC_ALARM_FLAG;
+                // set up EXTI interrupt handling for buttons and RTC
+                internal_HW_set_EXTI( mode );
+                __enable_interrupt();
                 HW_LED_Off();
                 __asm("    wfi\n");       
                 // exit from low power mode
-                SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);  
                 internal_HW_set_EXTI( pm_full );
+                SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);  
                 break;
             case pm_down:
+                __disable_interrupt();
+                if ( rtc_next_alarm )
+                    HW_pwr_off_with_alarm( rtc_next_alarm, true );
                 HW_PWR_Main_Off();                   // powers off the system
                 break;
         }
 
-        ret = btn_wakeup;
-        btn_wakeup = false;
+        ret = wakeup_reason;
+        wakeup_reason = false;
         return ret;
     }

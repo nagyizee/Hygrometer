@@ -131,11 +131,11 @@ void HW_Buzzer_Off(void)
     pClass->HW_wrapper_Beep(0);
 }
 
-bool HW_Sleep( enum EPowerMode mode)
+uint32 HW_Sleep( enum EPowerMode mode)
 {
     pClass->PwrMode = mode;
     pClass->PwrModeToDisp = mode;
-    return false;
+    return 0;
 }
 
 uint32 RTC_GetCounter(void)
@@ -622,9 +622,9 @@ bool eeprom_is_operation_finished( void )
 int brt = 0x80;
 bool dispon = false;
 
-bool DispHAL_App_Poll(void)
+uint32 DispHAL_App_Poll(void)
 {
-    return false;
+    return 0;
 }
 
 void DispHAL_ISR_Poll()

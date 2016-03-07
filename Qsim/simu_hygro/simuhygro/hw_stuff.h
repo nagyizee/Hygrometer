@@ -44,20 +44,6 @@ struct STIM1
 #define TIM_FLAG_Update     0
 // -----------
 
-// all these modes are mutally exclussive per group
-    #define SYSSTAT_DISP_BUSY           0x0001          // flag indicating that display is busy
-
-    #define SYSSTAT_CORE_BULK           0x0002          // core needs bulk calculation, need to run main loop continuously
-    #define SYSSTAT_CORE_RUN_FULL       0x0004          // core run with high speed clock needed (1ms ticks)
-    #define SYSYTAT_CORE_MONITOR        0x0010          // core in monitoring / fast registering mode, maintain memory - no full power down possible
-    #define SYSSTAT_CORE_STOPPED        0x0020          // core stopped, no operation in progress
-
-    #define SYSSTAT_UI_ON               0x0100          // ui is fully functional, display is eventually dimmed 
-    #define SYSSTAT_UI_WAKEUP           0x0200          // ui is in wake-up state after pm_down / pm_hold power mode - if long press on power button or UI wakeup event - UI will be up and running, otherwise is considered as 
-    #define SYSSTAT_UI_STOPPED          0x0400          // ui stopped, wake up on keypress but keys are not captured
-    #define SYSSTAT_UI_STOP_W_ALLKEY    0x0800          // ui stopped, wake up with immediate key action for any key
-    #define SYSSTAT_UI_PWROFF           0x1000          // ui is in off mode, or power off requested
-
 
     enum EPowerMode
     {
@@ -69,6 +55,29 @@ struct STIM1
                                 //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
         pm_close                // used for simulation only - closes the application
     };
+
+    // power mode bitmasks
+    #define PM_FULL     (1<<pm_full)
+    #define PM_SLEEP    (1<<pm_sleep)
+    #define PM_HOLD_BTN (1<<pm_hold_btn)
+    #define PM_HOLD     (1<<pm_hold)
+    #define PM_DOWN     (1<<pm_down)
+    #define PM_MASK     0xff
+
+    // power modes/component
+    // all these modes are mutally exclussive per group
+    #define SYSSTAT_DISP_BUSY           PM_SLEEP        // flag indicating that display is busy
+
+    #define SYSSTAT_CORE_BULK           PM_FULL         // core needs bulk run, need to run main loop continuously
+    #define SYSSTAT_CORE_RUN_FULL       PM_SLEEP        // core run with high speed clock needed (1ms ticks)
+    #define SYSYTAT_CORE_MONITOR        PM_HOLD         // core in monitoring / fast registering mode, maintain memory - no full power down possible
+    #define SYSSTAT_CORE_STOPPED        PM_DOWN         // core stopped, no operation in progress
+
+    #define SYSSTAT_UI_ON               PM_SLEEP            // ui is fully functional, display is eventually dimmed 
+    #define SYSSTAT_UI_ON_WAKEUP        (0x0100 | PM_SLEEP) // ui is in wake-up state after pm_down / pm_hold power mode - if long press on power button or UI wakeup event - UI will be up and running, otherwise is considered as 
+    #define SYSSTAT_UI_STOPPED          PM_HOLD             // ui stopped, wake up on keypress but keys are not captured
+    #define SYSSTAT_UI_STOP_W_ALLKEY    PM_HOLD_BTN         // ui stopped, wake up with immediate key action for any key
+    #define SYSSTAT_UI_PWROFF           PM_DOWN             // ui is in off mode, or power off requested
 
 
 void InitHW(void);
@@ -162,7 +171,7 @@ uint32 HW_ADC_GetBattery(void);
 void ADC_ISR_simulation(void);
 
 void HW_EXTI_ISR( void );
-bool HW_Sleep( enum EPowerMode mode);
+uint32 HW_Sleep( enum EPowerMode mode);
 
 void HWDBG( int val );
 

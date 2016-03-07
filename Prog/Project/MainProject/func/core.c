@@ -69,19 +69,12 @@ struct SCore  core;
 
 // Debug feature for loop efficiency
 //#define STATISTICKS
-#define STAT_TMR_CAL
 
 volatile struct SEventStruct events = { 0, };
 static volatile uint32 counter = 0;
 static volatile uint32 RTCctr = 0;
 static volatile uint32 sec_ctr = 0;
-static volatile uint32 rcc_comp = 0x10;
-static volatile uint32 tmr_over = 0;
 
-#ifdef STAT_TMR_CAL
-static volatile uint32 tmr_over_max = 0;
-static volatile uint32 tmr_under_max = 0;
-#endif
 
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
@@ -111,11 +104,6 @@ extern void DispHAL_ISR_Poll(void);
             }
             DispHAL_ISR_Poll();
         }
-        else
-        {
-            // TODO: can do stats - detect faster than normal internal osclillator speed
-            tmr_over++;
-        }
 
     }//END: Timer1IntrHandler
 
@@ -131,36 +119,6 @@ extern void DispHAL_ISR_Poll(void);
         RTC_SetAlarm( RTCctr + 1 );
 
         // adjust internal oscillator for precision clock
-        if ( tmr_over )                         // timer overshoot
-        {
-            if ( rcc_comp > 0 )
-            {
-                rcc_comp--;
-                RCC_AdjustHSICalibrationValue( rcc_comp );
-            }
-        }
-        else if ( sec_ctr < 499 )              // timer undershoot
-        {
-            if ( rcc_comp < 0x1F )
-            {
-                rcc_comp++;
-                RCC_AdjustHSICalibrationValue( rcc_comp );
-            }
-        }
-
-    #ifdef STAT_TMR_CAL
-        if ( (tmr_over) && (tmr_over > tmr_over_max) )
-        {
-            tmr_over_max = tmr_over;
-        }
-        else if ( (sec_ctr < 499) && ( (499-sec_ctr) > tmr_under_max ) && (sec_ctr > 312) )
-        {
-            tmr_under_max = (499-sec_ctr);
-        }
-    #endif
-
-        // reset everything and signal the events
-        tmr_over = 0;
         counter = 0;
         sec_ctr = 0;
         events.timer_tick_system = 1;

@@ -171,7 +171,7 @@ static void uist_goto_shutdown(void)
 
 static inline void ui_power_management( struct SEventStruct *evmask )
 {
-    if (ui.pwr_state == SYSSTAT_UI_WAKEUP)
+    if (ui.pwr_state == SYSSTAT_UI_ON_WAKEUP)
     {
         // UI is set in wake-up mode after a power down when power button is pressed (wake up by reset from power down or EXTI event from stop)
         // if power/mode key is long pressed in a given interval then the UI wake up is valid and UI is set to ON,
@@ -209,7 +209,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         if ( ui.pwr_state == SYSSTAT_UI_PWROFF )
         {
             ui.incativity = 0;
-            ui.pwr_state = SYSSTAT_UI_WAKEUP;
+            ui.pwr_state = SYSSTAT_UI_ON_WAKEUP;
             return;
         }
 
@@ -601,7 +601,7 @@ void ui_init( struct SCore *instance )
     Graphics_Init( NULL, NULL );
 
     memset( &ui, 0, sizeof(ui) );
-    ui.pwr_state = SYSSTAT_UI_WAKEUP;
+    ui.pwr_state = SYSSTAT_UI_ON_WAKEUP;
 
 }//END: ui_init
 
@@ -614,7 +614,7 @@ int ui_poll( struct SEventStruct *evmask )
     ui_power_management( evmask );
 
     // ui state machine
-    if ( (ui.pwr_state & (SYSSTAT_UI_WAKEUP | SYSSTAT_UI_PWROFF)) == 0 )
+    if ( (ui.pwr_state & (SYSSTAT_UI_ON_WAKEUP | SYSSTAT_UI_PWROFF)) == 0 )
     {
         if ( ui.m_substate == UI_SUBST_ENTRY )
         {

@@ -327,7 +327,11 @@ void EXTI15_10_IRQHandler(void)
 
 void RTCAlarm_IRQHandler()
 {
-
+    DBG_ENTER_0;
+    DBG_PIN_EXTI_ENTER;
+    HW_EXTI_ISR();
+    DBG_PIN_EXTI_EXIT;
+    DBG_EXIT_0;
 }
 
 /**
