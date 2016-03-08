@@ -277,9 +277,10 @@
 
     #define HW_ASSERT()         do { /*TODO */ } while(0)       
 
-    // power management
+    // power management - enter in sleep or power down - returns the wake-up reason
     uint32 HW_Sleep( enum EPowerMode mode );
-
+    // gets the wake-up reason in this loop (main loop or startup till HW_Sleep)
+    uint32 HW_GetWakeUpReason(void);
 
 #endif
 

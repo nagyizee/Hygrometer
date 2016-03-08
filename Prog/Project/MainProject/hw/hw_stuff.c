@@ -189,8 +189,6 @@ extern void TimerRTCIntrHandler(void);
             // set indicator in backup domain that RTC is configured
             BKP_WriteBackupRegister(BKP_DR1, 0xA957);
 
-//dev
-BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
             wakeup_reason = WUR_FIRST;        // wake-up produced by RTC
         }
         else
@@ -750,7 +748,7 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
     uint32 HW_Sleep( enum EPowerMode mode )
     {
         uint32 ret;
-
+        wakeup_reason = WUR_NONE;
         switch ( mode )
         {
             case pm_full:                       // full cpu power - does nothing
@@ -785,7 +783,11 @@ BKP_WriteBackupRegister(BKP_DR2, PM_FULL );
                 break;
         }
 
-        ret = wakeup_reason;
-        wakeup_reason = false;
-        return ret;
+        return wakeup_reason;
+    }
+
+
+    uint32 HW_GetWakeUpReason(void)
+    {
+        return wakeup_reason;
     }

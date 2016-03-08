@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>617</width>
-    <height>430</height>
+    <width>629</width>
+    <height>482</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -526,6 +526,19 @@
     </property>
     <property name="orientation">
      <enum>Qt::Horizontal</enum>
+    </property>
+   </widget>
+   <widget class="QGraphicsView" name="grf_power">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>420</y>
+      <width>602</width>
+      <height>52</height>
+     </rect>
+    </property>
+    <property name="lineWidth">
+     <number>1</number>
     </property>
    </widget>
   </widget>

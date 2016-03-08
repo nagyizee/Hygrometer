@@ -133,9 +133,19 @@ void HW_Buzzer_Off(void)
 
 uint32 HW_Sleep( enum EPowerMode mode)
 {
+    pClass->PwrWUR = WUR_NONE;
+
+    if ( mode >= pm_hold_btn )
+        pClass->RTCalarm = pClass->RTCNextAlarm;
+
     pClass->PwrMode = mode;
     pClass->PwrModeToDisp = mode;
     return 0;
+}
+
+uint32 HW_GetWakeUpReason(void)
+{
+    return pClass->PwrWUR;
 }
 
 uint32 RTC_GetCounter(void)
@@ -151,6 +161,11 @@ void RTC_SetAlarm(uint32 value)
 void HW_SetRTC(uint32 RTCctr)
 {
     pClass->RTCcounter = RTCctr;
+}
+
+void HW_SetRTC_NextAlarm( uint32 alarm )
+{
+    pClass->RTCNextAlarm = alarm + 1;       // simulate the shift in clock ticks produced by late trigger in STM32F RTC alarm
 }
 
 uint32 HW_ADC_GetBattery(void)
@@ -189,6 +204,20 @@ int HWDBG_Get_Pressure()
     return pClass->HW_wrapper_get_pressure();
 }
 
+
+
+void BKP_WriteBackupRegister( int reg, uint16 data )
+{
+    if (reg < 10)
+        pClass->BKPregs[reg] = data;
+}
+
+uint16 BKP_ReadBackupRegister( int reg )
+{
+    if (reg < 10)
+        return pClass->BKPregs[reg];
+    return 0xffff;
+}
 
 
 ///////////////////////////////////////////////////
@@ -280,6 +309,8 @@ void mainw::HW_wrapper_update_display()
                  RTCalarm                      );
         ui->tb_alarm->setText(tr(timedisp));
     }
+
+    disppwr_redraw_content();
 }
 
 
@@ -678,6 +709,12 @@ void mainw::dispsim_mem_clean()
     memset( dispmem, 0, 1024 );
 }
 
+void mainw::disppwr_mem_clean()
+{
+    memset( pwr_gmem, 0, DISPPWR_MAX_W * DISPPWR_MAX_H );
+}
+
+
 int pixh_r;
 int pixh_g;
 int pixh_b;
@@ -761,5 +798,19 @@ void mainw::dispsim_redraw_content()
     delete G_item;
     G_item  = new QGraphicsPixmapItem( QPixmap::fromImage( image ));
     scene->addItem(G_item);
+}
+
+
+void mainw::disppwr_redraw_content()
+{
+    int x,y;
+
+    QImage image( pwr_gmem, DISPPWR_MAX_W, DISPPWR_MAX_H, DISPPWR_MAX_W, QImage::Format_Indexed8 );
+    image.setColorTable(pwr_colors);
+
+    pwr_scene->removeItem(pwr_G_item);
+    delete pwr_G_item;
+    pwr_G_item  = new QGraphicsPixmapItem( QPixmap::fromImage( image ));
+    pwr_scene->addItem(pwr_G_item);
 }
 

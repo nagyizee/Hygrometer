@@ -19,7 +19,7 @@
 
 extern struct SCore core;
 static bool failure = false;
-static bool wake_up = false;
+static uint32 wake_up = WUR_NONE;
 
 static uint32 *stack_limit;
 
@@ -123,6 +123,11 @@ void main_entry( uint32 *stack_top )
 */
 
 //dev 
+    if ( HW_GetWakeUpReason() == WUR_FIRST )
+    {
+        BKP_WriteBackupRegister( BKP_DR2, PM_FULL );
+    }
+    
     crt_mode = BKP_ReadBackupRegister(BKP_DR2);
     sys_pwr = crt_mode;
 }
@@ -150,6 +155,11 @@ void main_loop(void)
     else
 #endif
     {
+
+#ifdef ON_QT_PLATFORM
+        wake_up = HW_GetWakeUpReason();     // since HW_Sleep isn't blocker
+#endif
+
         event = Event_Poll( );
         if ( wake_up )
         {
@@ -163,13 +173,5 @@ void main_loop(void)
         System_Poll( );
     }
 }
-
-
-#ifdef ON_QT_PLATFORM
-void Set_WakeUp(void)
-{
-    wake_up = true;
-}
-#endif
 
 

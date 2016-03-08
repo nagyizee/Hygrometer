@@ -53,7 +53,8 @@ struct STIM1
         pm_hold,                // CPU core/periph. stopped, RTC wake-up and Pwr button wake up only.
         pm_down,                // all electronics switched off, RTC alarm will wake it up, Starts from reset state
                                 //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
-        pm_close                // used for simulation only - closes the application
+        pm_close,               // used for simulation only - closes the application
+        pm_exti                 // used for simulation only - notifies EXTI event
     };
 
     // power mode bitmasks
@@ -78,6 +79,16 @@ struct STIM1
     #define SYSSTAT_UI_STOPPED          PM_HOLD             // ui stopped, wake up on keypress but keys are not captured
     #define SYSSTAT_UI_STOP_W_ALLKEY    PM_HOLD_BTN         // ui stopped, wake up with immediate key action for any key
     #define SYSSTAT_UI_PWROFF           PM_DOWN             // ui is in off mode, or power off requested
+
+
+    // wake up reasons
+    #define WUR_NONE        0x00
+    #define WUR_FIRST       0x01        // first startup
+    #define WUR_USR         0x02        // user produced wake-up condition (button pressed) - from InitHW (reset state): when Power button pressed by user
+                                        //                                                  - from HW_Sleep(): when Power or other buttons are pressed by user (power mode dependent)
+    #define WUR_RTC         0x04        // timer produced wake-up condition - from InitHW or HW_Sleep(): when RTC counter = Alarm counter  - can be combined with WUR_USR if button pressed
+    #define WUR_SENS_IRQ    0x08        // sensor IRQ line produced wake-up from HW_Sleep() - when IRQ line is toggled in stopped state
+
 
 
 void InitHW(void);
@@ -113,7 +124,6 @@ void HW_ASSERT();
 
 void main_entry(uint32 *stack_top);
 void main_loop(void);
-void Set_WakeUp(void);
 
 void DispHAL_UpdateScreen();
 void DispHAL_ISR_Poll();
@@ -165,6 +175,7 @@ void HW_Buzzer_Off(void);
 uint32 RTC_GetCounter(void);
 void RTC_SetAlarm(uint32);
 void HW_SetRTC(uint32 RTCctr);
+void HW_SetRTC_NextAlarm( uint32 alarm );
 
 uint32 HW_ADC_GetBattery(void);
 
@@ -172,6 +183,8 @@ void ADC_ISR_simulation(void);
 
 void HW_EXTI_ISR( void );
 uint32 HW_Sleep( enum EPowerMode mode);
+uint32 HW_GetWakeUpReason(void);
+
 
 void HWDBG( int val );
 
@@ -179,6 +192,23 @@ void HWDBG( int val );
 int HWDBG_Get_Temp();           // temperature in 16fp9 + 40*C
 int HWDBG_Get_Humidity();
 int HWDBG_Get_Pressure();
+
+
+#define BKP_DR1     0
+#define BKP_DR2     1
+#define BKP_DR3     2
+#define BKP_DR4     3
+#define BKP_DR5     4
+#define BKP_DR6     5
+#define BKP_DR7     6
+#define BKP_DR8     7
+#define BKP_DR9     8
+#define BKP_DR10    9
+
+void BKP_WriteBackupRegister( int reg, uint16 data );
+uint16 BKP_ReadBackupRegister( int reg );
+
+
 
 
 #define __disable_interrupt()       do {  } while(0)
