@@ -33,8 +33,45 @@ mainw::mainw(QWidget *parent) :
     scene->addItem(G_item);
     ui->grf_display->setScene(scene);
 
+    // set up power management display
+    //pwr_colors = new QVector<QRgb>();
+    pwr_colors.append( 0xff000000 );       // cm_backgnd
+    pwr_colors.append( 0xff201812 );       // cm_grid_dark
+    pwr_colors.append( 0xff403025 );       // cm_grid_bright
+    pwr_colors.append( 0xfffce000 );       // cm_pwr_full
+    pwr_colors.append( 0xff807010 );       // cm_pwr_sleep
+    pwr_colors.append( 0xffA01010 );       // cm_pwr_hold_btn
+    pwr_colors.append( 0xffA010f0 );       // cm_pwr_hold
+    pwr_colors.append( 0xff000000 );       // cm_pwr_down
+    pwr_colors.append( 0xffffffff );       // cm_pwr_exti
+
+    pwr_colors.append( 0xf0fce000 );       // cm_pwr_br_full
+    pwr_colors.append( 0xf0807010 );       // cm_pwr_br_sleep
+    pwr_colors.append( 0xf0A01010 );       // cm_pwr_br_hold_btn
+    pwr_colors.append( 0xf0A010f0 );       // cm_pwr_br_hold
+
+    pwr_colors.append( 0xe0fce000 );       // cm_pwr_drk_full
+    pwr_colors.append( 0xe0807010 );       // cm_pwr_drk_sleep
+    pwr_colors.append( 0xe0A01010 );       // cm_pwr_drk_hold_btn
+    pwr_colors.append( 0xe0A010f0 );       // cm_pwr_drk_hold
+
+
+    pwr_gmem = (uchar*)malloc( DISPPWR_MAX_W * DISPPWR_MAX_H);
+    pwr_scene   = new QGraphicsScene( this );
+    QImage image2( pwr_gmem, DISPPWR_MAX_W, DISPPWR_MAX_H, DISPPWR_MAX_W, QImage::Format_Indexed8 );
+    image2.setColorTable(pwr_colors);
+    image2.fill( Qt::black );
+    pwr_G_item  = new QGraphicsPixmapItem( QPixmap::fromImage( image2 ));
+    pwr_scene->addItem(pwr_G_item);
+    ui->grf_power->setScene(pwr_scene);
+    pwr_ptr = 0;
+    pwr_xptr = 0;
+
     dispsim_mem_clean();
     dispsim_redraw_content();
+
+    disppwr_mem_clean();
+    disppwr_redraw_content();
 
     ticktimer = new QTimer( this );
     connect(ticktimer, SIGNAL(timeout()), this, SLOT(TimerTick()));
@@ -61,6 +98,7 @@ mainw::mainw(QWidget *parent) :
     RTCalarm = 0xffffffff;
     PwrMode = pm_down;
     PwrModeToDisp = pm_down;
+    PwrWUR = WUR_FIRST;
 
     //--- test phase
     qsrand(0x64892354);
@@ -92,6 +130,10 @@ void mainw::TimerTick()
 {
     CPULoopSimulation( true );
 }
+
+
+bool pwr_main_executed = false;
+bool pwr_exti = false;
 
 void mainw::CPULoopSimulation( bool tick )
 {
@@ -134,7 +176,9 @@ void mainw::CPULoopSimulation( bool tick )
             for ( j=0; j<loop; j++ )
             {
                 Application_MainLoop( send_tick );
-                if ( PwrMode > pm_sleep )
+                pwr_main_executed = true;
+
+                if ( PwrMode >= pm_sleep )
                     break;                   // break the multi-main-loop if power mode changed to anything but spleep or full
 
                 send_tick = false;
@@ -145,6 +189,7 @@ void mainw::CPULoopSimulation( bool tick )
         if ( tick )
         {
             sec_ctr++;
+
             // increment RTC and check for alarms
             if ( sec_ctr == 500 )
             {
@@ -153,9 +198,19 @@ void mainw::CPULoopSimulation( bool tick )
                 if ( RTCcounter == RTCalarm )
                 {
                     if ( PwrMode == pm_down )       // if power down - means that electonics is just waking up - start it all from beginning
+                    {
+                        PwrWUR = WUR_RTC;
+                        pwr_exti = true;
                         main_entry( NULL );
+                    }
                     else                            // otherwise interrupt will be generated from stopped/sleeping/full status
                         TimerRTCIntrHandler();
+
+                    if ( (PwrMode == pm_down) || (PwrMode == pm_hold_btn) || (PwrMode == pm_hold) )
+                    {
+                        pwr_exti = true;
+                        PwrWUR = WUR_RTC;
+                    }
                     PwrMode = pm_full;
                 }
             }
@@ -166,6 +221,15 @@ void mainw::CPULoopSimulation( bool tick )
                 Sensor_simu_poll();
                 PwrMode = pm_full;
             }
+
+
+            if ( pwr_exti )
+                pwrdisp_add_pwr_state( pm_exti );
+            else
+                pwrdisp_add_pwr_state( PwrModeToDisp );
+
+            pwr_main_executed = false;
+            pwr_exti = false;
         }
     }
 
@@ -185,6 +249,11 @@ void mainw::CPUWakeUpOnEvent( bool pwrbtn )
         if ( pwrbtn )                       // and power button pressed - wake it up and start from reset
         {
             PwrMode = pm_full;
+            if ( PwrWUR != WUR_FIRST )
+            {
+                pwr_exti = true;
+                PwrWUR = WUR_USR;
+            }
             main_entry( NULL );
             CPULoopSimulation( false );
         }
@@ -193,12 +262,100 @@ void mainw::CPUWakeUpOnEvent( bool pwrbtn )
               (PwrMode == pm_hold_btn)           )      // if stopped with UI on ( no power_off action or power down timeout ) - any button will wake up
     {
         PwrMode = pm_full;
-        Set_WakeUp();                   // simulate the wake-up by buttons EXTI
+        PwrWUR = WUR_USR;
+        pwr_exti = true;
         CPULoopSimulation( false );
     }
 
     // Sleep and Full modes are not threated here - those are sysTimer powered
 }
+
+
+void mainw::pwrdisp_add_pwr_state( enum EPowerMode mode )
+{
+    int grid = 0;
+    int val = 0;
+
+    if ( pwr_ptr == DISPPWR_MAX_H )
+    {
+        // shift everything <----
+        int y,x;
+        for ( y=0; y<DISPPWR_MAX_H; y++ )
+        {
+            for (x=0; x<DISPPWR_MAX_W-1; x++ )
+            {
+                pwr_gmem[ x + y*DISPPWR_MAX_W ] = pwr_gmem[ x+1 + y*DISPPWR_MAX_W ];
+            }
+            pwr_gmem[ DISPPWR_MAX_W-1 + y*DISPPWR_MAX_W ] = cm_pwr_down;
+        }
+        pwr_xptr++;
+        pwr_ptr = 0;
+    }
+
+    if ( ((pwr_xptr % 10 ) == 0) || ((pwr_ptr % 10 ) == 0) )    // if 0.5sec intervals on horizontal or 10ms on vertical
+    {
+        grid = 1;
+        if ((pwr_xptr % 100 ) == 0)
+            grid = 2;
+    }
+
+    switch (mode)
+    {
+        case pm_exti:
+            val = cm_pwr_exti;
+            break;
+        case pm_full:
+            if (grid == 0)
+                val = cm_pwr_full;
+            else if (grid == 1)
+                val = cm_pwr_br_full;
+            else
+                val = cm_pwr_drk_full;
+            break;
+        case pm_sleep:
+            if (grid == 0)
+                val = cm_pwr_sleep;
+            else if (grid == 1)
+                val = cm_pwr_br_sleep;
+            else
+                val = cm_pwr_drk_sleep;
+            break;
+        case pm_hold_btn:
+            if (grid == 0)
+                val = cm_pwr_hold_btn;
+            else if (grid == 1)
+                val = cm_pwr_br_hold_btn;
+            else
+                val = cm_pwr_drk_hold_btn;
+            break;
+        case pm_hold:
+            if (grid == 0)
+                val = cm_pwr_hold;
+            else if (grid == 1)
+                val = cm_pwr_br_hold;
+            else
+                val = cm_pwr_drk_hold;
+            break;
+        case pm_down:
+            if ( grid )    // if 0.5sec intervals on horizontal or 10ms on vertical
+            {
+                if (grid == 2)
+                    val = cm_grid_bright;     // 5sec intervals
+                else
+                    val = cm_grid_dark;       // 0.5sec intervals
+            }
+            else
+            {
+                val = cm_pwr_down;
+            }
+            break;
+    }
+
+    pwr_gmem[ DISPPWR_MAX_W - 1 + (DISPPWR_MAX_W*(DISPPWR_MAX_H - pwr_ptr - 1)) ] = val;
+
+    pwr_ptr++;
+}
+
 
 /////////////////////////////////////////////////////////////
 // UI elements

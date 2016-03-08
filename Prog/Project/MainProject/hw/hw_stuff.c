@@ -748,7 +748,7 @@ extern void TimerRTCIntrHandler(void);
     uint32 HW_Sleep( enum EPowerMode mode )
     {
         uint32 ret;
-
+        wakeup_reason = WUR_NONE;
         switch ( mode )
         {
             case pm_full:                       // full cpu power - does nothing
@@ -783,7 +783,11 @@ extern void TimerRTCIntrHandler(void);
                 break;
         }
 
-        ret = wakeup_reason;
-        wakeup_reason = false;
-        return ret;
+        return wakeup_reason;
+    }
+
+
+    uint32 HW_GetWakeUpReason(void)
+    {
+        return wakeup_reason;
     }
