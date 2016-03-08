@@ -50,6 +50,12 @@ static inline void System_Poll( void )
 
     CheckStack();
 
+//dev
+    sys_pwr |= DispHAL_App_Poll();
+
+
+/*dev
+
     sys_pwr |= core_pwr_getstate();
     sys_pwr |= DispHAL_App_Poll();
     if ( BeepIsRunning() )
@@ -75,12 +81,36 @@ static inline void System_Poll( void )
 
     wake_up = HW_Sleep( pwr_mode );     // enter in the selected power mode
     sys_pwr = 0;                        // when exit - recreate the power scenario
+*/
 }
 
+uint32 tctr = 0;
+
+static void local_put_btn_list( uint32 btn_mask, int32 y_poz )
+{
+    uint32 i = 0;
+    for (i=0; i<7; i++)
+    {
+        if ( btn_mask & (1<<i) )
+        {
+            Graphic_PutPixel( 10 + i*10 , 30 + y_poz, 1 );
+            tctr = 8;  // display clear at 80ms
+        }
+        else if ( y_poz < 0 )
+        {
+            Graphic_PutPixel( 10 + i*10 , 30 + y_poz, 0 );
+        }
+    }
+}
+
+extern uint32 internal_get_keys();
+uint32  new_btn = 0;
+uint32  old_btn = 0;
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
+/*dev
     core_poll( evmask );
 
     if ( evmask->timer_tick_10ms || evmask->key_event )
@@ -88,6 +118,44 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
         ui_st = ui_poll( evmask );
     }
     sys_pwr |= ui_st;
+*/
+
+//dev
+    if ( evmask->key_event )
+    {
+        local_put_btn_list( evmask->key_pressed, 0 );
+        local_put_btn_list( evmask->key_longpressed, 6);
+        local_put_btn_list( evmask->key_released, 12 );
+
+        DispHAL_UpdateScreen();
+    }
+
+    new_btn = internal_get_keys();
+    if ( new_btn != old_btn )
+    {
+        local_put_btn_list(new_btn, -14);
+        old_btn = new_btn;
+        DispHAL_UpdateScreen();
+    }
+        
+    if ( evmask->timer_tick_10ms )
+    {
+        if ( tctr )
+        {
+            tctr--;
+            if ( tctr == 0 )
+            {
+                uint32 i;
+                for (i=0; i<7; i++)
+                {
+                    Graphic_PutPixel( 10 + i*10 , 30 + 0 * 6, 0 );
+                    Graphic_PutPixel( 10 + i*10 , 30 + 1 * 6, 0 );
+                    Graphic_PutPixel( 10 + i*10 , 30 + 2 * 6, 0 );
+                }
+            }
+        }
+    }
+
 }
 
 // Main application entry
@@ -95,13 +163,38 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
-    if ( core_init( NULL ) )
+/*dev    if ( core_init( NULL ) )
     {
         failure = true;
         return;
     }
-
     ui_init( NULL );
+*/
+
+
+//vvvvvvv  dev vvvvvv
+
+    Graphics_Init( NULL, NULL );
+
+    {
+        uint32 i;
+        for (i=0; i<7; i++ )
+            Graphic_PutPixel( 10 + i*10, 15, 1 );       // button positions
+        for (i=0; i<31; i++ )
+        {
+            Graphic_PutPixel( 10 + i*2, 27, 1 );       // separator lines for button events
+            Graphic_PutPixel( 10 + i*2, 27+6, 1 );       // separator lines for button events
+            Graphic_PutPixel( 10 + i*2, 27+12, 1 );       // separator lines for button events
+        }
+    }
+
+    DispHAL_UpdateScreen();
+
+    DispHAL_Display_On( );
+    DispHAL_SetContrast( 0x30 );
+
+
+//^^^^^^^^^^^^^^^^^^^
 }
 
 

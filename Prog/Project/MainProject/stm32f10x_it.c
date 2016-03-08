@@ -262,7 +262,7 @@ void RTC_IRQHandler(void)
 {
     DBG_ENTER_4;
     DBG_PIN_RTC_ENTER;
-    TimerRTCIntrHandler();
+//dev    TimerRTCIntrHandler();
     DBG_PIN_RTC_EXIT;
     DBG_EXIT_4;
 }
@@ -284,7 +284,7 @@ void EXTI1_IRQHandler(void)
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }
@@ -293,7 +293,7 @@ void EXTI3_IRQHandler(void)
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }
@@ -302,7 +302,7 @@ void EXTI4_IRQHandler(void)
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }
@@ -311,7 +311,7 @@ void EXTI9_5_IRQHandler(void)
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }
@@ -320,7 +320,7 @@ void EXTI15_10_IRQHandler(void)
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }
@@ -329,7 +329,7 @@ void RTCAlarm_IRQHandler()
 {
     DBG_ENTER_0;
     DBG_PIN_EXTI_ENTER;
-    HW_EXTI_ISR();
+//dev    HW_EXTI_ISR();
     DBG_PIN_EXTI_EXIT;
     DBG_EXIT_0;
 }

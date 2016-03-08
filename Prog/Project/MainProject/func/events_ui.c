@@ -33,7 +33,8 @@ struct SBeep
 //////////////////////////////////////////////////////////////////
 
 
-    static uint32 internal_get_keys()
+//dev    static uint32 internal_get_keys()
+    uint32 internal_get_keys()
     {
         uint32 keys = 0;
 
@@ -204,7 +205,7 @@ struct SBeep
         if ( events.timer_tick_10ms )
         {
             local_process_button( &evtemp );
-            local_process_beep( );
+//dev            local_process_beep( );
         }
 
         __disable_interrupt();
