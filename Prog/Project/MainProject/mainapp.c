@@ -51,7 +51,7 @@ static inline void System_Poll( void )
     CheckStack();
 
 //dev
-    sys_pwr |= DispHAL_App_Poll();
+    DispHAL_App_Poll();
 
 
 /*dev
@@ -98,7 +98,10 @@ static void local_put_btn_list( uint32 btn_mask, int32 y_poz )
         }
         else if ( y_poz < 0 )
         {
-            Graphic_PutPixel( 10 + i*10 , 30 + y_poz, 0 );
+            Graphic_PutPixel( 10 + i*10 , 16, 0 );
+            Graphic_PutPixel( 10 + i*10 , 18, 0 );
+            Graphic_PutPixel( 10 + i*10 , 20, 0 );
+            Graphic_PutPixel( 10 + i*10 , 22, 0 );
         }
     }
 }
@@ -106,6 +109,7 @@ static void local_put_btn_list( uint32 btn_mask, int32 y_poz )
 extern uint32 internal_get_keys();
 uint32  new_btn = 0;
 uint32  old_btn = 0;
+uint32  ypoz = 0;
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
@@ -133,13 +137,16 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
     new_btn = internal_get_keys();
     if ( new_btn != old_btn )
     {
-        local_put_btn_list(new_btn, -14);
+        local_put_btn_list(new_btn, -14 + ypoz*2 );
         old_btn = new_btn;
         DispHAL_UpdateScreen();
+        ypoz++;
+        ypoz &= 0x03;
     }
         
     if ( evmask->timer_tick_10ms )
     {
+        ypoz = 0;
         if ( tctr )
         {
             tctr--;
@@ -152,6 +159,7 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
                     Graphic_PutPixel( 10 + i*10 , 30 + 1 * 6, 0 );
                     Graphic_PutPixel( 10 + i*10 , 30 + 2 * 6, 0 );
                 }
+                DispHAL_UpdateScreen();
             }
         }
     }

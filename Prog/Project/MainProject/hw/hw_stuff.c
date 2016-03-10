@@ -196,7 +196,7 @@ extern void TimerRTCIntrHandler(void);
             uint32 rtc_ctr;
             RTC_WaitForSynchro();
             // Enable the RTC Alarm interrupt
-            RTC_ITConfig(RTC_IT_ALR, ENABLE);
+//dev            RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
             rtc_ctr = RTC_GetCounter();
@@ -638,27 +638,27 @@ extern void TimerRTCIntrHandler(void);
 
     bool BtnGet_OK()
     {
-        return false;
+        return BtnIs_Center();
     }
 
     bool BtnGet_Up()
     {
-        return false;
+        return BtnIs_1();
     }
 
     bool BtnGet_Down()
     {
-        return false;
+        return BtnIs_3();
     }
 
     bool BtnGet_Left()
     {
-        return false;
+        return BtnIs_4();
     }
 
     bool BtnGet_Right()
     {
-        return false;
+        return BtnIs_6();
     }
 
     void BtnPollStick()
