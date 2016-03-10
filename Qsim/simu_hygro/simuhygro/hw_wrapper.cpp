@@ -72,11 +72,6 @@ bool BtnGet_Right()
     return pClass->HW_wrapper_getButton(BTN_RIGHT);
 }
 
-bool BtnPollStick()
-{
-
-}
-
 void HW_LED_On()
 {
 

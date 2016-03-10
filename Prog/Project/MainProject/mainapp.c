@@ -111,6 +111,30 @@ uint32  new_btn = 0;
 uint32  old_btn = 0;
 uint32  ypoz = 0;
 
+
+static uint32 local_get_keys()
+{
+    uint32 keys = 0;
+
+    if ( BtnIs_Center() )
+        keys |= KEY_OK;
+    if ( BtnGet_Mode() )
+        keys |= KEY_MODE;
+    if ( BtnIs_1() )
+        keys |= KEY_UP;
+    if ( BtnIs_3() )
+        keys |= KEY_DOWN;
+    if ( BtnIs_4() )
+        keys |= KEY_LEFT;
+    if ( BtnIs_6() )
+        keys |= KEY_RIGHT;
+    if ( BtnGet_Esc() )
+        keys |= KEY_ESC;
+    return keys;
+}
+
+
+
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
@@ -134,7 +158,7 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
         DispHAL_UpdateScreen();
     }
 
-    new_btn = internal_get_keys();
+    new_btn = local_get_keys();
     if ( new_btn != old_btn )
     {
         local_put_btn_list(new_btn, -14 + ypoz*2 );

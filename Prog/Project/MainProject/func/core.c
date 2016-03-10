@@ -91,7 +91,7 @@ extern void DispHAL_ISR_Poll(void);
         HW_LED_On();
         TIMER_SYSTEM->SR = (uint16)~TIM_FLAG_Update;
 
-//dev        if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
+        if ( sec_ctr < 500 )  // execute this isr only for useconds inside the 0.5second interval
         {
             counter++;
             sec_ctr++;

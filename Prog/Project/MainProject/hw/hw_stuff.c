@@ -5,6 +5,7 @@ extern void TimerRTCIntrHandler(void);
 
     static volatile uint32 wakeup_reason = WUR_NONE;
     static volatile uint32 rtc_next_alarm = 0;
+    static volatile uint32 btn_press = 0;
 
     
     static inline bool local_is_rtc_alarm( void )    
@@ -196,7 +197,7 @@ extern void TimerRTCIntrHandler(void);
             uint32 rtc_ctr;
             RTC_WaitForSynchro();
             // Enable the RTC Alarm interrupt
-//dev            RTC_ITConfig(RTC_IT_ALR, ENABLE);
+            RTC_ITConfig(RTC_IT_ALR, ENABLE);
             // set prescalers and alarm
             RTC_WaitForLastTask();
             rtc_ctr = RTC_GetCounter();
@@ -636,35 +637,82 @@ extern void TimerRTCIntrHandler(void);
     }
 
 
+    // the multidirectional knob operates in a weird manner:
+    // - downpress:     Center   - only
+    // - up:            1 + 3 + Center      - center comes last
+    // - down:          4 + 6 + Center
+    // - left:          1 + 4 + Center
+    // - right:         3 + 6 + Center
+    //
+    // The rule is - when we capture Center - need to look to the 1,3,4,6 if they are set
+    //                                        if not - center is the signal -> generating OK button event
+    //                                      - if 1/3/4/6 - do not send OK, send only the button for the right combination
+    #define HWBTN_1     0x01
+    #define HWBTN_3     0x02
+    #define HWBTN_4     0x04
+    #define HWBTN_6     0x08
+    #define HWBTN_C     0x10
+
     bool BtnGet_OK()
     {
-        return BtnIs_Center();
+        // check for Center
+        if ( BtnIs_Center() )       // get center as new press only if first it was released
+        {
+            if (btn_press == 0)
+                btn_press |= HWBTN_C;
+        }
+        else
+        {
+            btn_press = 0;
+            return false;
+        }
+
+        // collect the switch combination
+        if ( BtnIs_1() )
+            btn_press |= HWBTN_1;
+        if ( BtnIs_3() )
+            btn_press |= HWBTN_3;
+        if ( BtnIs_4() )
+            btn_press |= HWBTN_4;
+        if ( BtnIs_6() )
+            btn_press |= HWBTN_6;
+
+        // decide if it is OK or not
+        if ( btn_press == HWBTN_C )
+            return true;
+        return false;
     }
 
     bool BtnGet_Up()
     {
-        return BtnIs_1();
+        if ( btn_press == (HWBTN_1 | HWBTN_3 | HWBTN_C) )
+            return true;
+        return false;
     }
 
     bool BtnGet_Down()
     {
-        return BtnIs_3();
+        if ( btn_press == (HWBTN_4 | HWBTN_6 | HWBTN_C) )
+            return true;
+        return false;
     }
 
     bool BtnGet_Left()
     {
-        return BtnIs_4();
+        if ( btn_press == (HWBTN_1 | HWBTN_4 | HWBTN_C) )
+            return true;
+        return false;
     }
 
     bool BtnGet_Right()
     {
-        return BtnIs_6();
+        if ( btn_press == (HWBTN_3 | HWBTN_6 | HWBTN_C) )
+            return true;
+        return false;
     }
 
-    void BtnPollStick()
-    {
 
-    }
+
 
     static void internal_HW_set_EXTI( enum EPowerMode mode )
     {

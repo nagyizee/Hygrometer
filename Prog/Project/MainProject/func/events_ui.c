@@ -33,12 +33,11 @@ struct SBeep
 //////////////////////////////////////////////////////////////////
 
 
-//dev    static uint32 internal_get_keys()
-    uint32 internal_get_keys()
+    static uint32 internal_get_keys()
     {
         uint32 keys = 0;
 
-        if ( BtnGet_OK() )
+        if ( BtnGet_OK() )          // call this first from the sequence of OK - Up/Down/Left/Rigth
             keys |= KEY_OK;
         if ( BtnGet_Mode() )
             keys |= KEY_MODE;

@@ -203,12 +203,11 @@
     void HW_SPI_Set_Rx_mode_only( SPI_TypeDef* spi, bool on );
 
     // get button status
-    bool BtnGet_OK();
-    bool BtnGet_Up();
-    bool BtnGet_Down();
-    bool BtnGet_Left();
-    bool BtnGet_Right();
-    void BtnPollStick();
+    bool BtnGet_OK();           // NOTE: this should be called first from the sequence of OK/Up/Down/Left/Right
+    bool BtnGet_Up();           //
+    bool BtnGet_Down();         //  
+    bool BtnGet_Left();         //    reading any of these should be preceded by BtnGet_OK()
+    bool BtnGet_Right();        //   
 
     void HWDBG_print( uint32 data );
     void HWDBG_print32( uint32 data );

@@ -262,7 +262,7 @@ void RTC_IRQHandler(void)
 {
     DBG_ENTER_4;
     DBG_PIN_RTC_ENTER;
-//dev    TimerRTCIntrHandler();
+    TimerRTCIntrHandler();
     DBG_PIN_RTC_EXIT;
     DBG_EXIT_4;
 }
