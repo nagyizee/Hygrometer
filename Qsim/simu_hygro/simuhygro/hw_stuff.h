@@ -100,7 +100,6 @@ bool BtnGet_Up();
 bool BtnGet_Down();
 bool BtnGet_Left();
 bool BtnGet_Right();
-bool BtnPollStick();                // the stick used for directional control uses combination of signals - this routine polls it's status and prevents faulty reads
 
 void HW_LED_On();
 

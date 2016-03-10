@@ -203,19 +203,25 @@
     void HW_SPI_Set_Rx_mode_only( SPI_TypeDef* spi, bool on );
 
     // get button status
-    bool BtnGet_OK();
-    bool BtnGet_Up();
-    bool BtnGet_Down();
-    bool BtnGet_Left();
-    bool BtnGet_Right();
-    void BtnPollStick();
+    bool BtnGet_OK();           // NOTE: this should be called first from the sequence of OK/Up/Down/Left/Right
+    bool BtnGet_Up();           //
+    bool BtnGet_Down();         //  
+    bool BtnGet_Left();         //    reading any of these should be preceded by BtnGet_OK()
+    bool BtnGet_Right();        //   
 
     void HWDBG_print( uint32 data );
     void HWDBG_print32( uint32 data );
 
 
-    #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) ==0 )
+    #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) == 0 )
     #define BtnGet_Mode()      ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_PP) )
+
+    #define BtnIs_1()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_1) == 0 )
+    #define BtnIs_3()          ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_3) == 0 )
+    #define BtnIs_4()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_4) == 0 )
+    #define BtnIs_6()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_6) == 0 )
+
+    #define BtnIs_Center()     ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_OK) == 0 )  
 
 #if 1       // SET THIS TO 1  - 0 for dbg purpose 
     #define HW_LED_Off()        do {  IO_PORT_LED->BRR = IO_OUT_LED;   } while (0)
