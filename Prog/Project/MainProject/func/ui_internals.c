@@ -301,12 +301,12 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         Graphic_SetColor( 1 );
         Graphic_FillRectangle( x, y, x + 75, y + 6, 1 );
 
-        internal_drawthermo_minmaxval( x, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
-        internal_drawthermo_minmaxval( x, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
-        internal_drawthermo_minmaxval( x+27, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
-        internal_drawthermo_minmaxval( x+27, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
-        internal_drawthermo_minmaxval( x+54, y+8, core_utils_temperature2unit( core.measure.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
-        internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.measure.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x, y+8, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x, y+16, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 0 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+27, y+8, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+27, y+16, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 1 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+54, y+8, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_max[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
+        internal_drawthermo_minmaxval( x+54, y+16, core_utils_temperature2unit( core.nv.op.sens_rd.minmax.temp_min[GET_MM_SET_SELECTOR( mms, 2 )], (enum ETemperatureUnits)unit ) );
 
         // for tendency meter
         switch ( unit )
@@ -319,10 +319,10 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         // tendency graph
         {
             if ( core.measure.dirty.b.upd_th_tendency )
-                uist_internal_tendencyval2pixels( &core.measure.tendency.temp );
+                uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency.temp );
 
             uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
-                                   core.measure.tendency.temp.w,
+                                   core.nv.op.sens_rd.tendency.temp.w,
                                    grf_up_lim, grf_dn_lim, 3, grf_decpts );
 
         }
@@ -386,8 +386,8 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
             case hu_rh:
                 for ( i=0; i<3; i++ )
                 {
-                    internal_drawthermo_minmaxval( x+i*27, y+8, core.measure.minmax.rh_max[GET_MM_SET_SELECTOR( mms, i )] );
-                    internal_drawthermo_minmaxval( x+i*27, y+16, core.measure.minmax.rh_min[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+8, core.nv.op.sens_rd.minmax.rh_max[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+16, core.nv.op.sens_rd.minmax.rh_min[GET_MM_SET_SELECTOR( mms, i )] );
                 }
                 break;
             case hu_dew:
@@ -400,8 +400,8 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
             case hu_abs:
                 for ( i=0; i<3; i++ )
                 {
-                    internal_drawthermo_minmaxval( x+i*27, y+8, core.measure.minmax.absh_max[GET_MM_SET_SELECTOR( mms, i )] );
-                    internal_drawthermo_minmaxval( x+i*27, y+16, core.measure.minmax.absh_min[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+8, core.nv.op.sens_rd.minmax.absh_max[GET_MM_SET_SELECTOR( mms, i )] );
+                    internal_drawthermo_minmaxval( x+i*27, y+16, core.nv.op.sens_rd.minmax.absh_min[GET_MM_SET_SELECTOR( mms, i )] );
                 }
                 break;
         }
@@ -426,12 +426,12 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
                 if ( core.measure.dirty.b.upd_th_tendency )
                 {
                     if ( ui.p.mgHygro.unitH == hu_rh )
-                        uist_internal_tendencyval2pixels( &core.measure.tendency.RH );
+                        uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency.RH );
                     else
-                        uist_internal_tendencyval2pixels( &core.measure.tendency.abshum );
+                        uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency.abshum );
                 }
                 uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
-                                       core.measure.tendency.RH.w,                  // should be the same for RH and abs hum.
+                                       core.nv.op.sens_rd.tendency.RH.w,                  // should be the same for RH and abs hum.
                                        grf_up_lim, grf_dn_lim, 3, grf_decpts );
                 core.measure.dirty.b.upd_th_tendency = 0;
             }

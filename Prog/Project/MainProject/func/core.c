@@ -167,14 +167,14 @@ static void internal_clear_monitoring(void)
     memset( &core.nv.op.sens_rd.moni, 0, sizeof(core.nv.op.sens_rd.moni) );
 
     // clear tendency graphs
-    core.measure.tendency.temp.c = 0;
-    core.measure.tendency.temp.w = 0;
-    core.measure.tendency.RH.c = 0;
-    core.measure.tendency.RH.w = 0;
-    core.measure.tendency.abshum.c = 0;
-    core.measure.tendency.abshum.w = 0;
-    core.measure.tendency.press.c = 0;
-    core.measure.tendency.press.w = 0;
+    core.nv.op.sens_rd.tendency.temp.c = 0;
+    core.nv.op.sens_rd.tendency.temp.w = 0;
+    core.nv.op.sens_rd.tendency.RH.c = 0;
+    core.nv.op.sens_rd.tendency.RH.w = 0;
+    core.nv.op.sens_rd.tendency.abshum.c = 0;
+    core.nv.op.sens_rd.tendency.abshum.w = 0;
+    core.nv.op.sens_rd.tendency.press.c = 0;
+    core.nv.op.sens_rd.tendency.press.w = 0;
 }
 
 static void local_update_battery()
@@ -205,6 +205,41 @@ static int local_calculate_abs_humidity( uint32 temp, uint32 rh )
     return 0;
 }
 
+static void local_minmax_compare_and_update( uint32 entry, uint32 value )
+{
+    struct SMinimMaxim  *mmentry;
+    bool update = false;
+
+    mmentry = &core.nv.op.sens_rd.minmax[entry];
+
+    for ( i=0; i<mms_day_bfr; i++ )         // set up only the current values
+    {
+        if ( (mmentry->min[i] == 0) || (mmentry->min[i] > value) )
+        {
+            mmentry->min[i] = value;
+            update = true;
+        }
+        if ( (mmentry->max[i] == 0) || (mmentry->max[i] < value) )
+        {
+            mmentry->max[i] = value;
+            update = true;
+        }
+    }
+
+    if ( update )
+    {
+        switch ( entry )
+        {
+            case CORE_MMP_TEMP:     core.measure.dirty.b.upd_temp_minmax = 1;   break;
+            case CORE_MMP_RH:       core.measure.dirty.b.upd_hum_minmax = 1;    break;
+            case CORE_MMP_ABSH:     core.measure.dirty.b.upd_abshum_minmax = 1; break;
+            case CORE_MMP_PRESS:    core.measure.dirty.b.upd_press_minmax = 1;  break;
+        }
+    }
+}
+
+
+
 static inline void local_process_temp_sensor_result( uint32 temp )
 {
     // temperature is provided in 16fp9 + 40*C
@@ -213,28 +248,12 @@ static inline void local_process_temp_sensor_result( uint32 temp )
         core.measure.measured.temperature = temp;
         core.measure.dirty.b.upd_temp = 1;
 
-        if ( core.nv.op.op_flags.b.op_monitoring )     // check for min/max
+        if ( core.nv.op.op_flags.b.op_monitoring )  // in monitoring mode - check for min/max
         {
-            int i;
-
-            if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
+            if ( temp == 0x0000 )                   // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
                 temp = 0x0001;
 
-            for ( i=0; i<mms_day_bfr; i++ )     // set up only the current values
-            {
-                if ( (core.measure.minmax.temp_min[i] == 0) ||
-                     (core.measure.minmax.temp_min[i] > temp) )
-                {
-                    core.measure.minmax.temp_min[i] = temp;
-                    core.measure.dirty.b.upd_temp_minmax = 1;
-                }
-                if ( (core.measure.minmax.temp_max[i] == 0) ||
-                     (core.measure.minmax.temp_max[i] < temp) )
-                {
-                    core.measure.minmax.temp_max[i] = temp;
-                    core.measure.dirty.b.upd_temp_minmax = 1;
-                }
-            }
+            local_minmax_compare_and_update( CORE_MMP_TEMP, temp );
         }
     }
 
@@ -249,16 +268,16 @@ static inline void local_process_temp_sensor_result( uint32 temp )
         // if scheduled tendency update reached - update the tendency list
         if ( core.nv.op.sens_rd.moni.sch_moni_temp <= RTCclock )
         {
-            int w_temp = core.measure.tendency.temp.w;
-            int c_temp = core.measure.tendency.temp.c;
+            int w_temp = core.nv.op.sens_rd.tendency.temp.w;
+            int c_temp = core.nv.op.sens_rd.tendency.temp.c;
             // store the average of the measurements
-            core.measure.tendency.temp.value[ w_temp++ ] = core.nv.op.sens_rd.moni.avg_sum_temp / core.nv.op.sens_rd.moni.avg_ctr_temp;
+            core.nv.op.sens_rd.tendency.temp.value[ w_temp++ ] = core.nv.op.sens_rd.moni.avg_sum_temp / core.nv.op.sens_rd.moni.avg_ctr_temp;
             if ( w_temp == STORAGE_TENDENCY )
                 w_temp = 0;
             if ( c_temp < STORAGE_TENDENCY )
                 c_temp++;
-            core.measure.tendency.temp.w = w_temp;
-            core.measure.tendency.temp.c = c_temp;
+            core.nv.op.sens_rd.tendency.temp.w = w_temp;
+            core.nv.op.sens_rd.tendency.temp.c = c_temp;
             // clean up the average and set up for the next session
             core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
             core.nv.op.sens_rd.moni.avg_sum_temp = 0;
@@ -298,34 +317,8 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
             if ( abs == 0 )
                 abs = 1;
 
-            for ( i=0; i<mms_day_bfr; i++ )     // set up only the current values
-            {
-                if ( (core.measure.minmax.rh_min[i] == 0) ||
-                     (core.measure.minmax.rh_min[i] > rh) )
-                {
-                    core.measure.minmax.rh_min[i] = rh;
-                    core.measure.dirty.b.upd_hum_minmax = 1;
-                }
-                if ( (core.measure.minmax.rh_max[i] == 0) ||
-                     (core.measure.minmax.rh_max[i] < rh) )
-                {
-                    core.measure.minmax.rh_max[i] = rh;
-                    core.measure.dirty.b.upd_hum_minmax = 1;
-                }
-
-                if ( (core.measure.minmax.absh_min[i] == 0) ||
-                     (core.measure.minmax.absh_min[i] > abs) )
-                {
-                    core.measure.minmax.absh_min[i] = abs;
-                    core.measure.dirty.b.upd_abshum_minmax = 1;
-                }
-                if ( (core.measure.minmax.absh_max[i] == 0) ||
-                     (core.measure.minmax.absh_max[i] < abs) )
-                {
-                    core.measure.minmax.absh_max[i] = abs;
-                    core.measure.dirty.b.upd_abshum_minmax = 1;
-                }
-            }
+            local_minmax_compare_and_update( CORE_MMP_RH, rh );
+            local_minmax_compare_and_update( CORE_MMP_ABSH, abs );
         }
     }
 
@@ -362,26 +355,32 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
 }
 
 
+static inline void local_process_pressure_sensor_result( uint32 press )
+{
+    // pressure comes in 20fp2 (18bit pascal, 2 fractional)
+    
+}
+
+
 static inline void local_push_minmax_set_if_needed(void)
 {
     uint32 check_val;
+    int i;
 
     // check for passing day
     check_val = RTCclock / DAY_TICKS;
     if ( check_val != core.nv.op.sens_rd.moni.clk_last_day )
     {
+
         // shift the min/max values to day before and reset the day
         core.nv.op.sens_rd.moni.clk_last_day = check_val;
 
-        core.measure.minmax.absh_max[ mms_day_bfr ] = core.measure.minmax.absh_max[ mms_day_crt ];
-        core.measure.minmax.absh_min[ mms_day_bfr ] = core.measure.minmax.absh_min[ mms_day_crt ];
-        core.measure.minmax.press_max[ mms_day_bfr ] = core.measure.minmax.press_max[ mms_day_crt ];
-        core.measure.minmax.press_min[ mms_day_bfr ] = core.measure.minmax.press_min[ mms_day_crt ];
-        core.measure.minmax.rh_max[ mms_day_bfr ] = core.measure.minmax.rh_max[ mms_day_crt ];
-        core.measure.minmax.rh_min[ mms_day_bfr ] = core.measure.minmax.rh_min[ mms_day_crt ];
-        core.measure.minmax.temp_max[ mms_day_bfr ] = core.measure.minmax.temp_max[ mms_day_crt ];
-        core.measure.minmax.temp_min[ mms_day_bfr ] = core.measure.minmax.temp_min[ mms_day_crt ];
-
+        for (i=0; i<CORE_MSR_SET; i++)
+        {
+            core.nv.op.sens_rd.minmax[i].max[ mms_day_bfr ] = core.nv.op.sens_rd.minmax[i].max[ mms_day_crt ];
+            core.nv.op.sens_rd.minmax[i].min[ mms_day_bfr ] = core.nv.op.sens_rd.minmax[i].min[ mms_day_crt ];
+        }
+         
         core_op_monitoring_reset_minmax( ss_thermo, mms_day_crt );
         core_op_monitoring_reset_minmax( ss_pressure, mms_day_crt );
         core_op_monitoring_reset_minmax( ss_rh, mms_day_crt );
@@ -394,14 +393,11 @@ static inline void local_push_minmax_set_if_needed(void)
         // shift the min/max values to day before and reset the day
         core.nv.op.sens_rd.moni.clk_last_week = check_val;
 
-        core.measure.minmax.absh_max[ mms_week_bfr ] = core.measure.minmax.absh_max[ mms_week_crt ];
-        core.measure.minmax.absh_min[ mms_week_bfr ] = core.measure.minmax.absh_min[ mms_week_crt ];
-        core.measure.minmax.press_max[ mms_week_bfr ] = core.measure.minmax.press_max[ mms_week_crt ];
-        core.measure.minmax.press_min[ mms_week_bfr ] = core.measure.minmax.press_min[ mms_week_crt ];
-        core.measure.minmax.rh_max[ mms_week_bfr ] = core.measure.minmax.rh_max[ mms_week_crt ];
-        core.measure.minmax.rh_min[ mms_week_bfr ] = core.measure.minmax.rh_min[ mms_week_crt ];
-        core.measure.minmax.temp_max[ mms_week_bfr ] = core.measure.minmax.temp_max[ mms_week_crt ];
-        core.measure.minmax.temp_min[ mms_week_bfr ] = core.measure.minmax.temp_min[ mms_week_crt ];
+        for (i=0; i<CORE_MSR_SET; i++)
+        {
+            core.nv.op.sens_rd.minmax[i].max[ mms_week_bfr ] = core.nv.op.sens_rd.minmax[i].max[ mms_week_crt ];
+            core.nv.op.sens_rd.minmax[i].min[ mms_week_bfr ] = core.nv.op.sens_rd.minmax[i].min[ mms_week_crt ];
+        }
 
         core_op_monitoring_reset_minmax( ss_thermo, mms_week_bfr );
         core_op_monitoring_reset_minmax( ss_pressure, mms_week_bfr );
@@ -434,7 +430,7 @@ static inline void local_check_sensor_read_schedules(void)
 
         if (core.vstatus.int_op.f.sens_real_time == ss_thermo)
             core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+        else if ( core.nv.op.op_flags.b.op_monitoring )
             core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_MONITOR;
         else
             core.nv.op.sched.sch_thermo = CORE_SCHED_NONE;
@@ -447,7 +443,7 @@ static inline void local_check_sensor_read_schedules(void)
 
         if (core.vstatus.int_op.f.sens_real_time == ss_rh)
             core.nv.op.sched.sch_hygro += CORE_SCHED_RH_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+        else if ( core.nv.op.op_flags.b.op_monitoring )
             core.nv.op.sched.sch_hygro += CORE_SCHED_RH_MONITOR;
         else
             core.nv.op.sched.sch_hygro = CORE_SCHED_NONE;
@@ -460,7 +456,7 @@ static inline void local_check_sensor_read_schedules(void)
 
         if (core.vstatus.int_op.f.sens_real_time == ss_pressure)
             core.nv.op.sched.sch_press += CORE_SCHED_PRESS_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+        else if ( core.nv.op.op_flags.b.op_monitoring )
             core.nv.op.sched.sch_press += CORE_SCHED_PRESS_MONITOR;
         else
             core.nv.op.sched.sch_press += CORE_SCHED_PRESS_STBY;
@@ -788,8 +784,8 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                     core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
                     core.nv.op.sens_rd.moni.avg_sum_temp = 0;
                     core.nv.op.sens_rd.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( timing );
-                    core.measure.tendency.temp.c = 0;
-                    core.measure.tendency.temp.w = 0;
+                    core.nv.op.sens_rd.tendency.temp.c = 0;
+                    core.nv.op.sens_rd.tendency.temp.w = 0;
                 }
             }
             break;
@@ -804,18 +800,18 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
         switch (sensor)
         {
             case ss_thermo:
-                core.measure.minmax.temp_max[mmset] = 0;
-                core.measure.minmax.temp_min[mmset] = 0;
+                core.nv.op.sens_rd.minmax.temp_max[mmset] = 0;
+                core.nv.op.sens_rd.minmax.temp_min[mmset] = 0;
                 break;
             case ss_rh:
-                core.measure.minmax.absh_max[mmset] = 0;
-                core.measure.minmax.absh_min[mmset] = 0;
-                core.measure.minmax.rh_max[mmset] = 0;
-                core.measure.minmax.rh_min[mmset] = 0;
+                core.nv.op.sens_rd.minmax.absh_max[mmset] = 0;
+                core.nv.op.sens_rd.minmax.absh_min[mmset] = 0;
+                core.nv.op.sens_rd.minmax.rh_max[mmset] = 0;
+                core.nv.op.sens_rd.minmax.rh_min[mmset] = 0;
                 break;
             case ss_pressure:
-                core.measure.minmax.press_max[mmset] = 0;
-                core.measure.minmax.press_min[mmset] = 0;
+                core.nv.op.sens_rd.minmax.press_max[mmset] = 0;
+                core.nv.op.sens_rd.minmax.press_min[mmset] = 0;
                 break;
         }
     }
@@ -825,18 +821,18 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
         switch (sensor)
         {
             case ss_thermo:
-                core.measure.minmax.temp_max[mmset] = core.measure.measured.temperature;
-                core.measure.minmax.temp_min[mmset] = core.measure.measured.temperature;
+                core.nv.op.sens_rd.minmax.temp_max[mmset] = core.measure.measured.temperature;
+                core.nv.op.sens_rd.minmax.temp_min[mmset] = core.measure.measured.temperature;
                 break;
             case ss_rh:
-                core.measure.minmax.absh_max[mmset] = core.measure.measured.absh;
-                core.measure.minmax.absh_min[mmset] = core.measure.measured.absh;
-                core.measure.minmax.rh_max[mmset] = core.measure.measured.rh;
-                core.measure.minmax.rh_min[mmset] = core.measure.measured.rh;
+                core.nv.op.sens_rd.minmax.absh_max[mmset] = core.measure.measured.absh;
+                core.nv.op.sens_rd.minmax.absh_min[mmset] = core.measure.measured.absh;
+                core.nv.op.sens_rd.minmax.rh_max[mmset] = core.measure.measured.rh;
+                core.nv.op.sens_rd.minmax.rh_min[mmset] = core.measure.measured.rh;
                 break;
             case ss_pressure:
-                core.measure.minmax.press_max[mmset] = core.measure.measured.pressure;
-                core.measure.minmax.press_min[mmset] = core.measure.measured.pressure;
+                core.nv.op.sens_rd.minmax.press_max[mmset] = core.measure.measured.pressure;
+                core.nv.op.sens_rd.minmax.press_min[mmset] = core.measure.measured.pressure;
                 break;
         }
     }
@@ -907,23 +903,7 @@ int core_init( struct SCore **instance )
     }
 
 /*
-    if ( eeprom_init() )
-        goto _err_exit;
-    if ( core_setup_load() )
-        goto _err_exit;
-
-    Sensor_Init();
-    local_update_battery();
     BeepSetFreq( core.nv.setup.beep_low, core.nv.setup.beep_hi );
-
-    core.op.sread.sch_thermo = RTCclock;
-    core.op.sread.sch_hygro = RTCclock;
-    core.op.sread.sch_press = RTCclock;
-
-
-    // -- move this to the Backup domain simulation
-    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.nv.setup.tim_tend_temp );
-    core_op_monitoring_switch( true );
 */
     return 0;
 _err_exit:
@@ -958,7 +938,7 @@ void core_poll( struct SEventStruct *evmask )
             {
                 // was an operation schedule - check it
                 local_check_sensor_read_schedules();
-                if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+                if ( core.nv.op.op_flags.b.op_monitoring )
                 {
                     local_push_minmax_set_if_needed();
                 }
@@ -994,8 +974,7 @@ void core_poll( struct SEventStruct *evmask )
                     }
                     if ( result & SENSOR_PRESS )
                     {
-                        //local_process_hygro_sensor_result(  );
-                        Sensor_Get_Value(SENSOR_PRESS);
+                        local_process_pressure_sensor_result( Sensor_Get_Value(SENSOR_PRESS) );
                         core.vstatus.int_op.f.sens_read &= ~SENSOR_PRESS;
                     }
 
@@ -1013,10 +992,8 @@ void core_poll( struct SEventStruct *evmask )
             if ( evmask->timer_tick_system && (core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP) )
             {
                 if ( core_setup_load( core.vstatus.int_op.f.first_pwrup ) )
-                {
-                    core.vstatus.int_op.f.nv_reset = 1;
                     core.vstatus.ui_order |= CORE_UISTATE_EECORRUPTED;
-                }
+
                 core.vstatus.int_op.f.first_pwrup = 0;
                 core.nv.dirty = true;
 
@@ -1026,6 +1003,17 @@ void core_poll( struct SEventStruct *evmask )
 
                 // init the sensor module
                 Sensor_Init();
+
+//dev
+    core.nv.op.op_flags.b.op_monitoring = 1;
+
+                // set up operation mode from nv data
+                if ( core.nv.op.op_flags.b.op_monitoring )
+                {
+                    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.nv.setup.tim_tend_temp );
+                    core_op_monitoring_switch( true );
+                }
+                
 
                 if ( core.vstatus.int_op.f.sched == 0 )
                     core.vstatus.int_op.f.core_bsy = 0;

@@ -25,7 +25,7 @@
     #define NUM100_MAX      0x40000000  // maximum abowe value error
 
     #define STORAGE_MINMAX      6
-    #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging
+    #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging, 19*30' data with 30min sampling
 
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
@@ -42,6 +42,13 @@
     #define CORE_SCHED_BATTERY_CHRG     10      // 5sec interval for battery carge check (used in fast on-off cycle - minimum pwr consumption)
 
     #define CORE_SCHED_NONE             0xffffffff
+
+    #define CORE_MMP_TEMP       0
+    #define CORE_MMP_RH         1
+    #define CORE_MMP_ABSH       2
+    #define CORE_MMP_PRESS      3
+
+    #define CORE_MSR_SET        4   // we track 4 parameters for monitoring (see CORE_MMP_xxx)
 
     enum ESensorSelect
     {
@@ -151,9 +158,26 @@
         uint32  sch_press;          // RTC schedule for the next pressure read - if CORE_SCHED_PRESS_ALTIMETER - the sensor is set up for fast read-out
     };
 
+
+    struct SMinimMaxim
+    {
+        uint16  min[STORAGE_MINMAX];    // Temperature: 16fp9 + 40*C,  RH in x100 %,  ABSH in x100 g/m3,  Pressure in Pa+50kPa  ( 110hpa -> 50hpa in 60k->0k value )
+        uint16  max[STORAGE_MINMAX];    //                                                                working altitude: -500m -> 4500m
+    };
+
+    struct STendencyBuffer
+    {
+        uint16 value[STORAGE_TENDENCY];
+        uint8   c;                      // data count
+        uint8   w;                      // write pointer 
+    };
+
     struct SSensorReads
     {
         struct SSensorReadAvgMonitoring moni;   // monitoring
+
+        struct SMinimMaxim      minmax[CORE_MSR_SET];      // minimum and maximum values. See CORE_MMP_xxx for indexes.    96 bytes
+        struct STendencyBuffer  tendency[CORE_MSR_SET];    // tendency value list. See CORE_MMP_xxx for indexes.           336 bytes
     };
 
 
@@ -189,42 +213,14 @@
         int16   dewpoint;           // current dewpoint in 16fp9+40*C
         uint16  rh;                 // current humidity in x100 %
         uint16  absh;               // absolute humidity in x100 g/m3
-        uint32  pressure;           // current barometric pressure in x100 Pa
+        uint32  pressure;           // current barometric pressure in 20fp2 Pa
     };
 
-    struct SMinimMaxim              // 96 bytes
-    {
-        uint16  temp_min[STORAGE_MINMAX];   // minimum temperature values in 16fp9 + 40*C
-        uint16  temp_max[STORAGE_MINMAX];   // maximum temperature values in 16fp9 + 40*C
-        uint16  rh_min[STORAGE_MINMAX];
-        uint16  rh_max[STORAGE_MINMAX];
-        uint16  absh_min[STORAGE_MINMAX];
-        uint16  absh_max[STORAGE_MINMAX];
-        uint16  press_min[STORAGE_MINMAX];
-        uint16  press_max[STORAGE_MINMAX];
-    };
-
-    struct STendencyBuffer
-    {
-        uint16 value[STORAGE_TENDENCY];
-        uint8   c;                      // data count
-        uint8   w;                      // write pointer 
-    };
-
-    struct STendencyValues
-    {
-        struct STendencyBuffer temp;
-        struct STendencyBuffer RH;
-        struct STendencyBuffer abshum;
-        struct STendencyBuffer press;
-    };
 
     struct SCoreMeasure
     {
         union UUIdirtybits      dirty;      // flags for new values for user interface update
         struct SMeasurements    measured;   // currently measured and calculated values
-        struct SMinimMaxim      minmax;     // minimum and maximum values
-        struct STendencyValues  tendency;   // tendency value list
         uint8       battery;                // 0 - 100 in % adjusted allready
         uint8       batt_rdout;             // seconds tick for battery value read out
     };
@@ -280,7 +276,6 @@
             uint32  first_pwrup:1;      // first power-up - do not load NV operations from FRAM
 
             uint32  nv_initted:1;       // nonvolatile structure content initted
-            uint32  nv_reset:1;         // nonvolatile content was broken - it was resetted to default
             uint32  nv_state:2;         // state of nonvolatile memory init
 
             uint32  sens_real_time:2;   // sensor in real time - see enum ESensorSelect
