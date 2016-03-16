@@ -44,7 +44,7 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
         case 1:                 // temperature measurement unit change actions
             if ( to_default )
             {
-                ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.setup.show_unit_temp;
+                ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.nv.setup.show_unit_temp;
                 uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
                 core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
                 return true;
@@ -65,15 +65,15 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
         case 4:
             if ( to_default )
             {
-                core_op_monitoring_reset_minmax( ss_thermo, GET_MM_SET_SELECTOR( core.setup.show_mm_temp, ui.focus - 2 ) );
+                core_op_monitoring_reset_minmax( ss_thermo, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, ui.focus - 2 ) );
                 return true;
             }
             else
             {
                 int val = uiel_control_list_get_value( ui.ui_elems[ui.focus-1] );
-                if ( val != GET_MM_SET_SELECTOR( core.setup.show_mm_temp, ui.focus - 2 ) )
+                if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, ui.focus - 2 ) )
                 {
-                    SET_MM_SET_SELECTOR( core.setup.show_mm_temp, val, ui.focus - 2 );
+                    SET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, val, ui.focus - 2 );
                     return true;
                 }
             }
@@ -179,7 +179,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         if ( evmask->key_event && (evmask->key_longpressed & KEY_MODE) )
         {
             DispHAL_Display_On( );
-            DispHAL_SetContrast( core.setup.disp_brt_on );
+            DispHAL_SetContrast( core.nv.setup.disp_brt_on );
             ui.pwr_state = SYSSTAT_UI_ON;
             ui.pwr_dispdim = false;
             ui.pwr_dispoff = false;
@@ -225,7 +225,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
         if ( ui.pwr_dispdim )
         {
-            DispHAL_SetContrast( core.setup.disp_brt_on );
+            DispHAL_SetContrast( core.nv.setup.disp_brt_on );
             ui.pwr_dispdim = false;
         }
         if ( ui.pwr_dispoff )
@@ -243,14 +243,14 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
 
         if ( ( ui.pwr_state != SYSSTAT_UI_PWROFF ) &&       // power off time limit reached
-             ( core.setup.pwr_off ) &&
-             ( core.setup.pwr_off < ui.incativity) )
+             ( core.nv.setup.pwr_off ) &&
+             ( core.nv.setup.pwr_off < ui.incativity) )
         {
             DispHAL_Display_Off();
             ui.pwr_state = SYSSTAT_UI_PWROFF;
         }
-        else if ( ( core.setup.pwr_disp_off ) &&           // display off limit reached
-                  ( core.setup.pwr_disp_off < ui.incativity) )
+        else if ( ( core.nv.setup.pwr_disp_off ) &&           // display off limit reached
+                  ( core.nv.setup.pwr_disp_off < ui.incativity) )
         {
             DispHAL_Display_Off();
             ui.pwr_dispdim = true;
@@ -260,10 +260,10 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
-                  ( core.setup.pwr_stdby ) &&
-                  ( core.setup.pwr_stdby < ui.incativity) )
+                  ( core.nv.setup.pwr_stdby ) &&
+                  ( core.nv.setup.pwr_stdby < ui.incativity) )
         {
-            DispHAL_SetContrast( core.setup.disp_brt_dim );
+            DispHAL_SetContrast( core.nv.setup.disp_brt_dim );
             ui.pwr_dispdim = true;
         } 
     }

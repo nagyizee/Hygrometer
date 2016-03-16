@@ -24,7 +24,7 @@ static uint32 wake_up = WUR_NONE;
 static uint32 *stack_limit;
 
 static uint32 sys_pwr = 0;
-static uint32 ui_st = SYSSTAT_UI_ON_WAKEUP;
+static uint32 ui_st = SYSSTAT_UI_PWROFF;
 
 static inline void CheckStack(void)
 {
@@ -67,7 +67,10 @@ static inline void System_Poll( void )
         else if ( sys_pwr & PM_HOLD )
             pwr_mode = pm_hold;         // device is working on background only (monitoring/registering tasks), no active UI, should be woken up by the user by power button only
         else
+        {
+            core_nvfast_save_struct();
             pwr_mode = pm_down;         // no power requirement is needed - turn it off
+        }
 
         core_pwr_setup_alarm(pwr_mode); // set up the next alarm point in the RTC
         EventBtnClear();                // clear button status
@@ -85,7 +88,7 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 
     if ( evmask->timer_tick_10ms || evmask->key_event )
     {
-        ui_st = ui_poll( evmask );
+//dev        ui_st = ui_poll( evmask );
     }
     sys_pwr |= ui_st;
 }

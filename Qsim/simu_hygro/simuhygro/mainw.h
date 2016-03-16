@@ -126,6 +126,7 @@ public:
 
     void HW_assertion(const char *reason);
     bool HW_wrapper_getButton(int index);
+    bool HW_wrapper_getChargeState(void);
     int HW_wrapper_getHit(int index);
     void HW_wrapper_set_disp_brt(int brt);
     int HW_wrapper_ADC_battery(void);

@@ -231,7 +231,8 @@
     #define HW_LED_On()         do {    } while (0)
 #endif
 
-    #define HW_PSens_IRQ()       ( IO_PORT_SENS_IRQ->IDR & IO_IN_SENS_IRQ )
+    #define HW_PSens_IRQ()      ( IO_PORT_SENS_IRQ->IDR & IO_IN_SENS_IRQ )
+    #define HW_Charge_Detect()  ( IO_PORT_CHARGE->IDR & IO_IN_CHARGE )
 
     // power switches
     #define HW_PWR_Main_Off()   do {  IO_PORT_PON->BRR = IO_OUT_PON;   } while (0)

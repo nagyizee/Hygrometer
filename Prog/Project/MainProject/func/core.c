@@ -5,21 +5,28 @@
  *
  *      Working sequence:
  *          - after CPU start-up and initialization:
- *
  *              PowerUP case:  - User_Power_Up - when the power button is pressed by user.
- *                               This initiates the UI, sensor in view begin real time acquisition. If UI stopped - sensor is disabled
- *                               If monitoring task - all sensors are aquisitioning at low rate except the on-view sensor
- *                               If registering task - sensor acquisition is done at the set rate
+ *                               Case_1: First start-up - timer initted from 0, operational mode set to "standby", uninitted state marked(first_start = 1)
+ *                                                        UI started up with date/time entry requirement. Can go in low power but state is remembered
+ *                                                        Sensors initted, barometer first read - adjust the low pass filter
+ *                                                        Schedule next battery check to 5sec, next sensor read to 60sec.
+ *                                                      - NOTE: ui in start state - it is started up only when long press detected on pwr button, but the
+ *                                                                                  rest of operations are done
+ *                                                      - NV states are saved
+ *                               Case_2: Next start-ups - ui in start state - wait for long press
+ *                                                      - check for schedule time:
+ *                                                              - if none - wait till UI confirms long press -> valid power on, else sleep
+ *                                                              - if yes - valid power on
+ *                                                        For valid power on:
+ *                                                          - init sensors / get data from NVram
+ *
  *                               At power-save timer out:
- *                                      - if monitoring task - will stop only - no power down
- *                                      - if registering task - will power down with alarm set if rate is very low ( 10 min or > )
- *                                      - if no task - will power down
+ *                                      - if monitoring task and registering task - will power down with alarm set.
+ *                                      - if no task - will power down with battery and pressure low period read schedule
  *
  *                             - Alarm power up - system wake up on RTC alarm.
- *                               Ui remains dormant - no reaction to buttons
- *                               Do the scheduled measurements:
- *                                      - if registering task - register the sensor reading - schedule for the next period
- *                                      - if no task - read the sensors and battery - schedule for next long period wake-up
+ *
+ *
  *
  *         - Operation modes:
  *              - standby mode: - UI will refresh the readings of the current sensor in real time,
@@ -157,7 +164,7 @@ static uint32 internal_time_unit_2_seconds( uint32 time_unit )
 static void internal_clear_monitoring(void)
 {
     // clear monitoring averages and schedules
-    memset( &core.op.sread.moni, 0, sizeof(core.op.sread.moni) );
+    memset( &core.nv.op.sens_rd.moni, 0, sizeof(core.nv.op.sens_rd.moni) );
 
     // clear tendency graphs
     core.measure.tendency.temp.c = 0;
@@ -206,7 +213,7 @@ static inline void local_process_temp_sensor_result( uint32 temp )
         core.measure.measured.temperature = temp;
         core.measure.dirty.b.upd_temp = 1;
 
-        if ( core.op.op_flags.b.op_monitoring )     // check for min/max
+        if ( core.nv.op.op_flags.b.op_monitoring )     // check for min/max
         {
             int i;
 
@@ -232,20 +239,20 @@ static inline void local_process_temp_sensor_result( uint32 temp )
     }
 
     // if monitoring - calculate the average for the tendency graph
-    if ( core.op.op_flags.b.op_monitoring )
+    if ( core.nv.op.op_flags.b.op_monitoring )
     {
         if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
             temp = 0x0001;
 
-        core.op.sread.moni.avg_sum_temp += temp;
-        core.op.sread.moni.avg_ctr_temp++;
+        core.nv.op.sens_rd.moni.avg_sum_temp += temp;
+        core.nv.op.sens_rd.moni.avg_ctr_temp++;
         // if scheduled tendency update reached - update the tendency list
-        if ( core.op.sread.moni.sch_moni_temp <= RTCclock )
+        if ( core.nv.op.sens_rd.moni.sch_moni_temp <= RTCclock )
         {
             int w_temp = core.measure.tendency.temp.w;
             int c_temp = core.measure.tendency.temp.c;
             // store the average of the measurements
-            core.measure.tendency.temp.value[ w_temp++ ] = core.op.sread.moni.avg_sum_temp / core.op.sread.moni.avg_ctr_temp;
+            core.measure.tendency.temp.value[ w_temp++ ] = core.nv.op.sens_rd.moni.avg_sum_temp / core.nv.op.sens_rd.moni.avg_ctr_temp;
             if ( w_temp == STORAGE_TENDENCY )
                 w_temp = 0;
             if ( c_temp < STORAGE_TENDENCY )
@@ -253,9 +260,9 @@ static inline void local_process_temp_sensor_result( uint32 temp )
             core.measure.tendency.temp.w = w_temp;
             core.measure.tendency.temp.c = c_temp;
             // clean up the average and set up for the next session
-            core.op.sread.moni.avg_ctr_temp = 0;
-            core.op.sread.moni.avg_sum_temp = 0;
-            core.op.sread.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+            core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
+            core.nv.op.sens_rd.moni.avg_sum_temp = 0;
+            core.nv.op.sens_rd.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_temp );
             // notify the UI to update
             core.measure.dirty.b.upd_th_tendency = 1;
         }
@@ -282,7 +289,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
         core.measure.measured.dewpoint = dew;
         core.measure.dirty.b.upd_hum = 1;
 
-        if ( core.op.op_flags.b.op_monitoring )     // check for min/max
+        if ( core.nv.op.op_flags.b.op_monitoring )     // check for min/max
         {
             int i;
 
@@ -323,7 +330,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
     }
 
     // if monitoring - calculate the average for the tendency graph
-    if ( core.op.op_flags.b.op_monitoring )
+    if ( core.nv.op.op_flags.b.op_monitoring )
     {
 /*rewritte        if ( temp == 0x0000 )       // -40*C the absolute minimum of the device - marks also uninitted temperature min/max - omit this value
             temp = 0x0001;
@@ -346,7 +353,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
             // clean up the average and set up for the next session
             core.op.sread.moni.avg_ctr_temp = 0;
             core.op.sread.moni.avg_sum_temp = 0;
-            core.op.sread.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
+            core.op.sread.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_temp );
             // notify the UI to update
             core.measure.dirty.b.upd_th_tendency = 1;
         }
@@ -361,10 +368,10 @@ static inline void local_push_minmax_set_if_needed(void)
 
     // check for passing day
     check_val = RTCclock / DAY_TICKS;
-    if ( check_val != core.op.sread.moni.clk_last_day )
+    if ( check_val != core.nv.op.sens_rd.moni.clk_last_day )
     {
         // shift the min/max values to day before and reset the day
-        core.op.sread.moni.clk_last_day = check_val;
+        core.nv.op.sens_rd.moni.clk_last_day = check_val;
 
         core.measure.minmax.absh_max[ mms_day_bfr ] = core.measure.minmax.absh_max[ mms_day_crt ];
         core.measure.minmax.absh_min[ mms_day_bfr ] = core.measure.minmax.absh_min[ mms_day_crt ];
@@ -382,10 +389,10 @@ static inline void local_push_minmax_set_if_needed(void)
 
     // check for passing week
     check_val = (RTCclock + DAY_TICKS) / WEEK_TICKS;        // add 1 day_ticks because the counter = 0x0000 starts on Thuesday
-    if ( check_val != core.op.sread.moni.clk_last_week )
+    if ( check_val != core.nv.op.sens_rd.moni.clk_last_week )
     {
         // shift the min/max values to day before and reset the day
-        core.op.sread.moni.clk_last_week = check_val;
+        core.nv.op.sens_rd.moni.clk_last_week = check_val;
 
         core.measure.minmax.absh_max[ mms_week_bfr ] = core.measure.minmax.absh_max[ mms_week_crt ];
         core.measure.minmax.absh_min[ mms_week_bfr ] = core.measure.minmax.absh_min[ mms_week_crt ];
@@ -403,35 +410,82 @@ static inline void local_push_minmax_set_if_needed(void)
 }
 
 
+static inline void local_check_first_scheduled_op(void)
+{
+    uint32 RTCsched = CORE_SCHED_NONE;
+
+    if ( core.nv.op.sched.sch_thermo < RTCsched )
+        RTCsched = core.nv.op.sched.sch_thermo;
+    if ( core.nv.op.sched.sch_hygro < RTCsched )
+        RTCsched = core.nv.op.sched.sch_hygro;
+    if ( core.nv.op.sched.sch_press < RTCsched )
+        RTCsched = core.nv.op.sched.sch_press;
+
+    core.nf.next_schedule = RTCsched;
+}
+
+
 static inline void local_check_sensor_read_schedules(void)
 {
-    if ( (core.op.sread.sch_thermo <= RTCclock) )
+    if ( core.nv.op.sched.sch_thermo <= RTCclock )
     {
-        if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_thermo) )
-        {
-            Sensor_Acquire( SENSOR_TEMP );
-            core.op.op_flags.b.check_sensor |= SENSOR_TEMP; 
+        Sensor_Acquire( SENSOR_TEMP );
+        core.vstatus.int_op.f.sens_read |= SENSOR_TEMP; 
 
-            if (core.op.op_flags.b.sens_real_time == ss_thermo)
-                core.op.sread.sch_thermo += CORE_SCHED_TEMP_REALTIME;
-            else
-                core.op.sread.sch_thermo += CORE_SCHED_TEMP_MONITOR;
-        }
+        if (core.vstatus.int_op.f.sens_real_time == ss_thermo)
+            core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_REALTIME;
+        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+            core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_MONITOR;
+        else
+            core.nv.op.sched.sch_thermo = CORE_SCHED_NONE;
     }
 
-    if ( (core.op.sread.sch_hygro <= RTCclock) )
+    if ( core.nv.op.sched.sch_hygro <= RTCclock )
     {
-        if ( core.op.op_flags.b.op_monitoring || (core.op.op_flags.b.sens_real_time == ss_rh) )
-        {
-            Sensor_Acquire( SENSOR_RH );
-            core.op.op_flags.b.check_sensor |= SENSOR_RH; 
+        Sensor_Acquire( SENSOR_RH );
+        core.vstatus.int_op.f.sens_read |= SENSOR_RH; 
 
-            if (core.op.op_flags.b.sens_real_time == ss_rh)
-                core.op.sread.sch_hygro += CORE_SCHED_RH_REALTIME;
-            else
-                core.op.sread.sch_hygro += CORE_SCHED_RH_MONITOR;
-        }
+        if (core.vstatus.int_op.f.sens_real_time == ss_rh)
+            core.nv.op.sched.sch_hygro += CORE_SCHED_RH_REALTIME;
+        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+            core.nv.op.sched.sch_hygro += CORE_SCHED_RH_MONITOR;
+        else
+            core.nv.op.sched.sch_hygro = CORE_SCHED_NONE;
     }
+
+    if ( core.nv.op.sched.sch_press <= RTCclock )
+    {
+        Sensor_Acquire( SENSOR_PRESS );
+        core.vstatus.int_op.f.sens_read |= SENSOR_PRESS; 
+
+        if (core.vstatus.int_op.f.sens_real_time == ss_pressure)
+            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_REALTIME;
+        else if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_MONITOR;
+        else
+            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_STBY;
+    }
+
+    local_check_first_scheduled_op();
+
+}
+
+
+static void local_nvfast_load_struct(void)
+{
+    core.nf.status.val = BKP_ReadBackupRegister( BKP_DR2 );
+    core.nf.next_schedule = BKP_ReadBackupRegister( BKP_DR3 ) | ((uint32)(BKP_ReadBackupRegister( BKP_DR4 )) << 8);
+}
+
+static void local_initialize_core_operation(void)
+{
+    memset( &core.nv.op, 0, sizeof(core.nv.op) );
+
+    core.nf.next_schedule = RTCclock;
+
+    core.nv.op.sched.sch_thermo = CORE_SCHED_NONE;
+    core.nv.op.sched.sch_hygro = CORE_SCHED_NONE;
+    core.nv.op.sched.sch_press = RTCclock;                 // schedule only the pressure sensor for read
 
 }
 
@@ -506,7 +560,7 @@ void core_set_clock_counter( uint32 counter )
 
 void core_beep( enum EBeepSequence beep )
 {
-    if ( core.setup.beep_on )
+    if ( core.nv.setup.beep_on )
     {
         BeepSequence( (uint32)beep );
     }
@@ -516,26 +570,52 @@ void core_beep( enum EBeepSequence beep )
 //     Setup save / load
 //-------------------------------------------------
 
+#define EEADDR_SETUP    0x00
+#define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
+#define EEADDR_CK_SETUP (EEADDR_OPS + sizeof(struct SCoreOperation))
+#define EEADDR_CK_OPS   (EEADDR_CK_SETUP + 2)
+
+
 int core_setup_save( void )
 {
     int i;
-    uint16  cksum       = 0xABCD;
-    uint8   *SetParams  = (uint8*)&core.setup;
-
-    eeprom_init();
+    uint16  cksum_setup  = 0xABCD;
+    uint16  cksum_op     = 0xABCD;
+    uint8   *buffer;
 
     if ( eeprom_enable(true) )
         return -1;
 
-    for ( i=0; i<sizeof(struct SCoreSetup); i++ )
-        cksum = cksum + ( (uint16)(SetParams[i] << 8) - (uint16)(~SetParams[i]) ) + 1;
+    // calculate checksums
+    buffer = (uint8*)&core.nv.setup;
+    for ( i=0; i<sizeof(core.nv.setup); i++ )
+        cksum_setup = cksum_setup + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
 
-    if ( eeprom_write( 0x10, SetParams, sizeof(struct SCoreSetup), false ) != sizeof(struct SCoreSetup) )
+    buffer = (uint8*)&core.nv.op;
+    for ( i=0; i<sizeof(core.nv.op); i++ )
+        cksum_op = cksum_op + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
+
+    // wait for enable to be finished
+    while ( eeprom_is_operation_finished() == false );
+
+    // write nonvolatile data
+    buffer = (uint8*)&core.nv.setup;
+    if ( eeprom_write( EEADDR_SETUP, buffer, sizeof(core.nv.setup), true ) != sizeof(core.nv.setup) )
         return -1;
     while ( eeprom_is_operation_finished() == false );
-    if ( eeprom_write( 0x10 + sizeof(struct SCoreSetup), (uint8*)&cksum, 2, false ) != 2 )
+
+    buffer = (uint8*)&core.nv.op;
+    if ( eeprom_write( EEADDR_OPS, buffer, sizeof(core.nv.op), true ) != sizeof(core.nv.op) )
         return -1;
     while ( eeprom_is_operation_finished() == false );
+
+    // write checksums
+    if ( eeprom_write( EEADDR_CK_SETUP, (uint8*)&cksum_setup, 2, false ) != 2 )
+        return -1;
+    if ( eeprom_write( EEADDR_CK_OPS, (uint8*)&cksum_op, 2, false ) != 2 )
+        return -1;
+
+    // disable eeprom
     eeprom_disable();
     return 0;
 }
@@ -543,7 +623,7 @@ int core_setup_save( void )
 
 int core_setup_reset( bool save )
 {
-    struct SCoreSetup *setup = &core.setup;
+    struct SCoreSetup *setup = &core.nv.setup;
 
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
@@ -561,7 +641,9 @@ int core_setup_reset( bool save )
     setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_press = mms_set1;
 
-    core.setup.tim_tend_temp = ut_5sec;
+    setup->tim_tend_temp = ut_5sec;
+
+    local_initialize_core_operation();
 
     if ( save )
     {
@@ -571,58 +653,106 @@ int core_setup_reset( bool save )
 }
 
 
-int core_setup_load( void )
+int core_setup_load( bool no_op_load )
 {
     uint8   i;
-    uint16  cksum       = 0xABCD;
-    uint16  cksumsaved  = 0;
-    uint8   *SetParams  = (uint8*)&core.setup;
+    uint16  cksum;
+    uint16  cksum_setup;
+    uint16  cksum_op;
+    uint8   *buffer;
 
     if ( eeprom_enable(false) )
         return -1;
 
-    if ( eeprom_read( 0x10, sizeof(struct SCoreSetup), SetParams, false ) != sizeof(struct SCoreSetup) )
+    // read the setup and checksum
+    buffer = (uint8*)&core.nv.setup;
+    if ( eeprom_read( EEADDR_SETUP, sizeof(core.nv.setup), buffer, true ) != sizeof(core.nv.setup) )
         return -1;
-    if ( eeprom_read( 0x10 + sizeof(struct SCoreSetup), 2, (uint8*)&cksumsaved, false ) != 2 )
+    while ( eeprom_is_operation_finished() == false );
+    if ( eeprom_read( EEADDR_CK_SETUP, 2, (uint8*)&cksum_setup, false ) != 2 )
         return -1;
+    while ( eeprom_is_operation_finished() == false );
 
-    for ( i=0; i<sizeof(struct SCoreSetup); i++ )
+    // read the ops if needed
+    if ( no_op_load == false )
     {
-        cksum = cksum + ( (uint16)(SetParams[i] << 8) - (uint16)(~SetParams[i]) ) + 1;
+        buffer = (uint8*)&core.nv.op;
+        if ( eeprom_read( EEADDR_OPS, sizeof(core.nv.op), buffer, true ) != sizeof(core.nv.op) )
+            return -1;
     }
 
-    if ( cksum != cksumsaved )
+    // check the setup checksum till op is read
+    buffer = (uint8*)&core.nv.setup;
+    cksum = 0xABCD;
+    for ( i=0; i<sizeof(core.nv.setup); i++ )
+        cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
+    if ( cksum != cksum_setup )
+        goto _error_exit;
+    while ( eeprom_is_operation_finished() == false );
+
+    // op read is finished - check the cksum for this also
+    if ( no_op_load == false )
     {
-        // eeprom data corrupted or not initialized
-        if ( core_setup_reset( true ) )
+        if ( eeprom_read( EEADDR_CK_OPS, 2, (uint8*)&cksum_op, false ) != 2 )
             return -1;
+        while ( eeprom_is_operation_finished() == false );
+
+        buffer = (uint8*)&core.nv.op;
+        cksum = 0xABCD;
+        for ( i=0; i<sizeof(core.nv.op); i++ )
+            cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
+        if ( cksum != cksum_op )
+            goto _error_exit;
     }
 
     eeprom_disable();
     return 0;
+
+_error_exit:
+    // eeprom data corrupted or not initialized
+    while ( eeprom_is_operation_finished() == false );
+
+    core_setup_reset( true );
+    eeprom_disable();
+    return -1;
 }
+
+
+void core_nvfast_save_struct(void)
+{
+    BKP_WriteBackupRegister( BKP_DR2, core.nf.status.val );
+    BKP_WriteBackupRegister( BKP_DR3, core.nf.next_schedule & 0xffff );
+    BKP_WriteBackupRegister( BKP_DR4, (core.nf.next_schedule >> 8) & 0xffff );
+
+    if ( core.nv.dirty )
+    {
+        core.nv.dirty = false;
+        core_setup_save();
+    }
+}
+
 
 
 void core_op_realtime_sensor_select( enum ESensorSelect sensor )
 {
     if ( sensor == ss_none )
-        core.op.op_flags.b.sens_real_time = 0;
+        core.vstatus.int_op.f.sens_real_time = 0;
     switch ( sensor )
     {
         case ss_thermo:
-            if ( core.op.sread.sch_thermo < RTCclock )
-                core.op.sread.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            if ( core.nv.op.sched.sch_thermo < RTCclock )
+                core.nv.op.sched.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_rh:
-            if ( core.op.sread.sch_hygro < RTCclock )
-                core.op.sread.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            if ( core.nv.op.sched.sch_hygro < RTCclock )
+                core.nv.op.sched.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_pressure:
-            if ( core.op.sread.sch_press < RTCclock )
-                core.op.sread.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
+            if ( core.nv.op.sched.sch_press < RTCclock )
+                core.nv.op.sched.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
     }
-    core.op.op_flags.b.sens_real_time = sensor;
+    core.vstatus.int_op.f.sens_real_time = sensor;
 }
 
 void core_op_monitoring_switch( bool enable )
@@ -630,16 +760,16 @@ void core_op_monitoring_switch( bool enable )
     if ( enable == false )
     {
         // disabling monitoring - clean up the 
-        core.op.op_flags.b.op_monitoring = 0;
+        core.nv.op.op_flags.b.op_monitoring = 0;
         internal_clear_monitoring();
     }
-    else if ( core.op.op_flags.b.op_monitoring == 0 )
+    else if ( core.nv.op.op_flags.b.op_monitoring == 0 )
     {
         internal_clear_monitoring();
-        core.op.sread.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( core.setup.tim_tend_temp );
-        core.op.sread.moni.clk_last_day = RTCclock / DAY_TICKS;
-        core.op.sread.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
-        core.op.op_flags.b.op_monitoring = 1;
+        core.nv.op.sens_rd.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_temp );
+        core.nv.op.sens_rd.moni.clk_last_day = RTCclock / DAY_TICKS;
+        core.nv.op.sens_rd.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
+        core.nv.op.op_flags.b.op_monitoring = 1;
     }
 }
 
@@ -650,14 +780,14 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
     switch ( sensor )
     {
         case ss_thermo: 
-            if ( core.setup.tim_tend_temp != timing )
+            if ( core.nv.setup.tim_tend_temp != timing )
             {
-                core.setup.tim_tend_temp = timing;
-                if ( core.op.op_flags.b.op_monitoring )
+                core.nv.setup.tim_tend_temp = timing;
+                if ( core.nv.op.op_flags.b.op_monitoring )
                 {
-                    core.op.sread.moni.avg_ctr_temp = 0;
-                    core.op.sread.moni.avg_sum_temp = 0;
-                    core.op.sread.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( timing );
+                    core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
+                    core.nv.op.sens_rd.moni.avg_sum_temp = 0;
+                    core.nv.op.sens_rd.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( timing );
                     core.measure.tendency.temp.c = 0;
                     core.measure.tendency.temp.w = 0;
                 }
@@ -719,10 +849,64 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
 
 int core_init( struct SCore **instance )
 {
+    uint32 wur;
+    bool charge = false;
+
     memset(&core, 0, sizeof(core));
     if ( instance )
         *instance = &core;
 
+    // get the RTC clock counter in a local copy
+    RTCclock = RTC_GetCounter();
+    RTCctr = RTCclock;
+
+    // check the wake-up reason
+    wur = HW_GetWakeUpReason();
+    if ( wur & WUR_FIRST )
+    {
+        // first start-up - means that clock and work status is uninitialized
+        local_initialize_core_operation();
+
+        core.vstatus.int_op.f.first_pwrup = 1;
+        core.nf.status.b.first_start = 1;
+    }
+    else
+    {
+        // consequent start-up - check the reason
+        local_nvfast_load_struct();
+    }
+
+    if ( wur & (WUR_USR | WUR_FIRST) )
+        local_update_battery();
+
+    charge = HW_Charge_Detect();
+
+    // mark the first loop after init
+    core.vstatus.int_op.f.first_run = 1;
+
+    // activate power button long press detection in the UI module
+    if ( wur & WUR_USR )
+        core.vstatus.ui_order = CORE_UISTATE_START_LONGPRESS;       // order pwr/mode button long press detection from UI
+    if ( core.nf.status.b.first_start )
+        core.vstatus.ui_order |= CORE_UISTATE_SET_DATETIME;         // order date/time setup
+    if ( charge )
+        core.vstatus.ui_order |= CORE_UISTATE_CHARGING;             // indicate charging
+
+    // get the current RTC counter and check if operation is scheduled
+    if ( (core.nf.next_schedule <= RTCclock) || charge )
+    {
+        // schedule was made on an operation - we need to check out the core.nv with setup and saved status
+        // we will fetch nonvolatile data also when charger is connected because it will not go back in power save mode
+        if ( eeprom_init() )
+            goto _err_exit;
+        eeprom_enable(false);
+        core.vstatus.int_op.f.nv_state = CORE_NVSTATE_PWR_RUNUP;    // FRAM chip needs time to start-up - wait for it 1ms
+        core.vstatus.int_op.f.core_bsy = 1;                         // mark core busy
+        if ( RTCclock >= core.nf.next_schedule )
+            core.vstatus.int_op.f.sched = 1;                        // mark the scheduled event for chek-up
+    }
+
+/*
     if ( eeprom_init() )
         goto _err_exit;
     if ( core_setup_load() )
@@ -730,21 +914,18 @@ int core_init( struct SCore **instance )
 
     Sensor_Init();
     local_update_battery();
-    BeepSetFreq( core.setup.beep_low, core.setup.beep_hi );
+    BeepSetFreq( core.nv.setup.beep_low, core.nv.setup.beep_hi );
 
-    // -- set up initial schedule clocks
-    RTCclock = RTC_GetCounter();
-    RTCctr = RTCclock;
     core.op.sread.sch_thermo = RTCclock;
     core.op.sread.sch_hygro = RTCclock;
     core.op.sread.sch_press = RTCclock;
 
+
     // -- move this to the Backup domain simulation
-    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.setup.tim_tend_temp );
+    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.nv.setup.tim_tend_temp );
     core_op_monitoring_switch( true );
-
+*/
     return 0;
-
 _err_exit:
     return -1;
 }
@@ -752,39 +933,109 @@ _err_exit:
 
 void core_poll( struct SEventStruct *evmask )
 {
-    // if no operation to be done - return
-    if ( core.op.op_flags.val == 0 )
-        return;
-
-    // operations to be executed on RTC tick
+    // check for RTC tick
     if ( evmask->timer_tick_05sec )
     {
-        RTCclock = RTCctr;      // do a local copy
-
-        // check sensor read schedules and initiate read sequences
-        local_check_sensor_read_schedules();
-
-        if ( core.op.op_flags.b.op_monitoring )
+        RTCclock = RTCctr;
+        if (core.nf.next_schedule <= RTCclock)
         {
-            local_push_minmax_set_if_needed();
+            core.vstatus.int_op.f.sched = 1;            // sheduled event
+            core.vstatus.int_op.f.core_bsy = 1;         // core busy
         }
     }
 
-    // poll the sensor module if waiting data from sensors
-    if ( core.op.op_flags.b.check_sensor )
+    // poll the sensor module
+    if ( core.vstatus.int_op.f.nv_initted )
+        Sensor_Poll( evmask->timer_tick_system );
+ 
+    // if core module is busy - do the operations
+    while ( core.vstatus.int_op.f.core_bsy )            // seve all the busy events
     {
-        if ( Sensor_Is_Ready() & SENSOR_TEMP )
+        if ( core.vstatus.int_op.f.nv_initted )
         {
-            local_process_temp_sensor_result( Sensor_Get_Value(SENSOR_TEMP) );
-            core.op.op_flags.b.check_sensor &= ~SENSOR_TEMP;
+            // nonvolatile memory initted - continue operations
+            if ( core.vstatus.int_op.f.sched )
+            {
+                // was an operation schedule - check it
+                local_check_sensor_read_schedules();
+                if ( core.nv.op.op_flags.b.op_monitoring || core.nv.op.op_flags.b.op_registering )
+                {
+                    local_push_minmax_set_if_needed();
+                }
+                if (core.nf.next_schedule > RTCclock)
+                {
+                    core.vstatus.int_op.f.sched = 0;
+                    break;                              // break the busy loop 
+                }
+            }
+
+            if ( core.vstatus.int_op.f.sens_read )
+            {
+                uint32 result;
+
+                result = Sensor_Is_Failed();
+                if ( result )
+                {
+                    //TODO: in case of sensor failure
+                }
+
+                result = Sensor_Is_Ready();
+                if ( result )
+                {
+                    if ( result & SENSOR_TEMP )
+                    {
+                        local_process_temp_sensor_result( Sensor_Get_Value(SENSOR_TEMP) );
+                        core.vstatus.int_op.f.sens_read &= ~SENSOR_TEMP;
+                    }
+                    if ( result & SENSOR_RH )
+                    {
+                        local_process_hygro_sensor_result( Sensor_Get_Value(SENSOR_RH) );
+                        core.vstatus.int_op.f.sens_read &= ~SENSOR_RH;
+                    }
+                    if ( result & SENSOR_PRESS )
+                    {
+                        //local_process_hygro_sensor_result(  );
+                        Sensor_Get_Value(SENSOR_PRESS);
+                        core.vstatus.int_op.f.sens_read &= ~SENSOR_PRESS;
+                    }
+
+                    if ( core.vstatus.int_op.f.sens_read == 0 )
+                    {
+                        core.vstatus.int_op.f.core_bsy = 0;
+                    }
+                }
+                break;                                  // break the busy loop
+            }
         }
-        if ( Sensor_Is_Ready() & SENSOR_RH )
+        else
         {
-            local_process_hygro_sensor_result( Sensor_Get_Value(SENSOR_RH) );
-            core.op.op_flags.b.check_sensor &= ~SENSOR_RH;
+            // if nonvolatile memory in not initted - do nothing else - must init it first
+            if ( evmask->timer_tick_system && (core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP) )
+            {
+                if ( core_setup_load( core.vstatus.int_op.f.first_pwrup ) )
+                {
+                    core.vstatus.int_op.f.nv_reset = 1;
+                    core.vstatus.ui_order |= CORE_UISTATE_EECORRUPTED;
+                }
+                core.vstatus.int_op.f.first_pwrup = 0;
+                core.nv.dirty = true;
+
+                eeprom_deepsleep();                         // put EEprom in deep sleep
+                core.vstatus.int_op.f.nv_state = CORE_NVSTATE_OK_IDLE;
+                core.vstatus.int_op.f.nv_initted = 1;
+
+                // init the sensor module
+                Sensor_Init();
+
+                if ( core.vstatus.int_op.f.sched == 0 )
+                    core.vstatus.int_op.f.core_bsy = 0;
+
+                // loop back to execute the first busy operation (if any)
+            }
+            else
+                break;
         }
     }
-
 
     return;
 }
@@ -792,11 +1043,28 @@ void core_poll( struct SEventStruct *evmask )
 
 void core_pwr_setup_alarm( enum EPowerMode pwr_mode )
 {
-
+    if ( core.nf.next_schedule > (RTCclock + CORE_SCHED_BATTERY_CHRG) )
+        HW_SetRTC_NextAlarm( RTCclock + CORE_SCHED_BATTERY_CHRG - 1 );      // set alarm for battery charge status read
+    else
+        HW_SetRTC_NextAlarm( core.nf.next_schedule - 1 );                   // set alarm for the next scheduled operation
 }
 
-int  core_pwr_getstate(void)
+
+
+uint32 core_pwr_getstate(void)
 {
+    uint32 pwr = SYSSTAT_CORE_STOPPED;
+
+    if ( core.vstatus.int_op.f.nv_initted )
+        pwr |= Sensor_GetPwrStatus();
+
+    if ( core.vstatus.int_op.f.core_bsy )
+    {
+        if ( core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP )       // in uninitted state it waits for 1ms NVram start-up
+            return (pwr | SYSSTAT_CORE_RUN_FULL);
+    }
+
+/*
     if ( core.op.op_flags.val == 0 )
         return SYSSTAT_CORE_STOPPED;                // core is stopped - no operation is done
     else
@@ -806,7 +1074,9 @@ int  core_pwr_getstate(void)
         if ( core.op.op_flags.b.op_monitoring )
             return SYSYTAT_CORE_MONITOR;            // operate on RTC alarm basis
     }
-    return 0;
+*/
+
+    return pwr;
 }
 
 

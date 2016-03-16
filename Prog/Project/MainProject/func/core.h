@@ -32,13 +32,16 @@
 
 
     #define CORE_SCHED_TEMP_REALTIME    2       // 2x RTC tick - 1sec. rate for temperature sensor
-    #define CORE_SCHED_TEMP_MONITOR     5       // 2.5sec rate
+    #define CORE_SCHED_TEMP_MONITOR     10      // 5sec rate
     #define CORE_SCHED_RH_REALTIME      2
-    #define CORE_SCHED_RH_MONITOR       5
-    #define CORE_SCHED_PRESS_REALTIME   1       // 0.5 sec for realtime pressure monitor
+    #define CORE_SCHED_RH_MONITOR       10
+    #define CORE_SCHED_PRESS_REALTIME   2       // 1 sec for realtime pressure monitor
     #define CORE_SCHED_PRESS_MONITOR    10      // 5sec for pressure monitoring
+    #define CORE_SCHED_PRESS_STBY       120     // 1min for pressure readout in standby - combined with battery check
     #define CORE_SCHED_PRESS_ALTIMETER  0xffffffff  // process pressure read at fast rate 
+    #define CORE_SCHED_BATTERY_CHRG     10      // 5sec interval for battery carge check (used in fast on-off cycle - minimum pwr consumption)
 
+    #define CORE_SCHED_NONE             0xffffffff
 
     enum ESensorSelect
     {
@@ -120,8 +123,6 @@
             uint32  op_monitoring:1;
             uint32  op_registering:1;
             uint32  op_altimeter:1;
-            uint32  sens_real_time:2;               // sensor in real time - see enum ESensorSelect
-            uint32  check_sensor:3;                 // check if result is arrived from a sensor (use it as a mask with SENSOR_XXX defines)
         } b;
         uint32 val;
     };
@@ -143,19 +144,24 @@
         uint16  clk_last_week;      // saved week for checking if week border is passed
     };
 
-    struct SSensorRead
+    struct SSchedules
     {
-        uint32  sch_hygro;          // RTC schedule for the next hygro read
-        uint32  sch_thermo;         // RTC schedule for the next temperature read
+        uint32  sch_hygro;          // RTC schedule for the next hygro read. Use CORE_SCHED_NONE if disabled 
+        uint32  sch_thermo;         // RTC schedule for the next temperature read. Use CORE_SCHED_NONE if disabled
         uint32  sch_press;          // RTC schedule for the next pressure read - if CORE_SCHED_PRESS_ALTIMETER - the sensor is set up for fast read-out
+    };
 
+    struct SSensorReads
+    {
         struct SSensorReadAvgMonitoring moni;   // monitoring
     };
 
-    struct SCoreOperation
+
+    struct SCoreOperation           // core operations in nonvolatile space
     {
         union UCoreOperationFlags   op_flags;       // operation flags - see CORE_OP_XXX defines
-        struct SSensorRead          sread;          // sensor read 
+        struct SSchedules           sched;          // sheduled events
+        struct SSensorReads         sens_rd;        // sensor read operations
     };
 
 
@@ -224,11 +230,82 @@
     };
 
 
+    struct SCoreNonVolatileData
+    {
+        bool                    dirty;      // set if nonvolatile structure is read out for use (no fast on/off)
+        struct SCoreSetup       setup;      // setup
+        struct SCoreOperation   op;         // operation
+    };
+
+
+    union UCoreNFStatus
+    {
+        uint16 val;
+        struct
+        {
+            uint16 first_start:1;
+
+        } b;
+    };
+
+    struct SCoreNonVolatileFast
+    {
+        union UCoreNFStatus     status;                 // 16bit - BKP2     - core status flags
+        uint32                  next_schedule;          // 2x16bit - BKP3/4 - the next scheduled operation RTC counter
+    };
+
+
+    #define CORE_UISTATE_START_LONGPRESS    0x01    // wait long press for UI start-up
+    #define CORE_UISTATE_SET_DATETIME       0x02    // order date-time setup from UI
+    #define CORE_UISTATE_LOW_BATTERY        0x04    // order low batter UI alarm
+    #define CORE_UISTATE_CHARGING           0x08    // order charging indication
+    #define CORE_UISTATE_EECORRUPTED        0x10    // eeprom content is corrupted
+    #define CORE_UISTATE_SENSOR_P_FAIL      0x20    // pressure sensor failure
+    #define CORE_UISTATE_SENSOR_RH_FAIL     0x40    // RH/Temp sensor failure
+
+    #define CORE_NVSTATE_UNINITTED          0x00    // NV ram is uninitted - data in core.nv is not set yet
+    #define CORE_NVSTATE_PWR_RUNUP          0x01    // NV ram is activated - wait 1ms for start-up
+    #define CORE_NVSTATE_OK_IDLE            0x02    // NV ram is in read and put in idle
+
+
+    union UCoreInternalStatus
+    {
+        struct 
+        {
+            uint32  core_bsy:1;         // core operations in progress
+            uint32  sched:1;            // scheduled time triggered - must look after scheduled operation
+            uint32  sens_read:4;        // wait for sensor read - contains bitmask with the sensors
+
+            uint32  first_run:1;        // first loop - reset afterward
+            uint32  first_pwrup:1;      // first power-up - do not load NV operations from FRAM
+
+            uint32  nv_initted:1;       // nonvolatile structure content initted
+            uint32  nv_reset:1;         // nonvolatile content was broken - it was resetted to default
+            uint32  nv_state:2;         // state of nonvolatile memory init
+
+            uint32  sens_real_time:2;   // sensor in real time - see enum ESensorSelect
+
+        } f;
+        uint32 val;
+    };
+
+
+    struct SCoreVolatileStatus
+    {
+        uint32                      ui_order;       // orders made to UI module - set by core, read/processed/cleared by UI module
+        union UCoreInternalStatus   int_op;         // internal operations
+                                                    // 
+    };
+
+
 
     struct SCore
     {
-        struct SCoreSetup       setup;
-        struct SCoreOperation   op;
+        struct SCoreNonVolatileData nv;         // nonvolatile data - it is written in FRAM at low power entry (unpowering system) and read at startup
+        struct SCoreNonVolatileFast nf;         // nonvolatile data with fast access - holds operational status and such - limitted space in the battery backup domain
+
+        struct SCoreVolatileStatus  vstatus;    // operational status in volatile domain (means - can be discarded when power is down)
+
         struct SCoreMeasure     measure;
     };
 
@@ -239,7 +316,7 @@
     // set up RTC alarm for the next operation after low power op.
     void core_pwr_setup_alarm( enum EPowerMode pwr_mode );
     // get the core's power state
-    int  core_pwr_getstate(void);
+    uint32 core_pwr_getstate(void);
     // measure battery
     void core_update_battery();
 
@@ -257,7 +334,8 @@
     // save / load / reset setup in eeprom
     int core_setup_save( void );
     int core_setup_reset( bool save );
-    int core_setup_load( void );
+    int core_setup_load( bool no_op_load );
+    void core_nvfast_save_struct(void);
 
     // the selected sensor will update it's readings in real time
     void core_op_realtime_sensor_select( enum ESensorSelect sensor );

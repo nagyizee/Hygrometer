@@ -160,8 +160,8 @@
         HW_SPI_interface_init( SPI_PORT_EE, SPI_BaudRatePrescaler_2);   // set up SPI interface
         HW_DMA_Init( DMACH_EE );
         internal_set_write_enable( false );                             // clear the write enable
-        internal_send_command( CMD_DPD );  
-        ee_status = eest_lowpower;
+
+        ee_status = eest_enable_rd;
         return 0;
     }
 
@@ -179,7 +179,7 @@
         {
             // take it out from deep sleep
             internal_send_command( CMD_RDIP );                      // wake up the device
-            HW_Delay( 100 );
+            HW_Delay( 450 );
         }
         if ( write && (ee_status != eest_enable_wr) )
         {

@@ -293,7 +293,7 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         x = 0;
         y = 41;
 
-        mms = core.setup.show_mm_temp;
+        mms = core.nv.setup.show_mm_temp;
         unit = ui.p.mgThermo.unitT;
 
         Graphic_SetColor( 0 );
@@ -344,7 +344,7 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
 
         if ( ui.p.mgHygro.unitH == hu_dew )
         {
-            hygro = core_utils_temperature2unit( core.measure.measured.dewpoint, (enum ETemperatureUnits)core.setup.show_unit_temp );
+            hygro = core_utils_temperature2unit( core.measure.measured.dewpoint, (enum ETemperatureUnits)core.nv.setup.show_unit_temp );
             // temperature display
             if ( hygro == NUM100_MAX )
                 uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "HI" );
@@ -374,7 +374,7 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
         x = 0;
         y = 41;
 
-        mms = core.setup.show_mm_hygro;
+        mms = core.nv.setup.show_mm_hygro;
 
         Graphic_SetColor( 0 );
         Graphic_FillRectangle( x, y+7, x + 75, y + 22, 0 );
@@ -542,7 +542,7 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*C", tu_C );
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", tu_F );
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", tu_K );
-    uiel_control_list_set_index( &ui.p.mgThermo.units, core.setup.show_unit_temp );
+    uiel_control_list_set_index( &ui.p.mgThermo.units, core.nv.setup.show_unit_temp );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 
     for (i=0; i<3; i++)
@@ -554,13 +554,13 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
         uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", mms_day_bfr );
         uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
         uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
-        uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.setup.show_mm_temp, i) );
+        uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_temp, i) );
         ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
     }
 
     ui.ui_elem_nr = 4;
 
-    ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.setup.show_unit_temp;
+    ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.nv.setup.show_unit_temp;
 }
 
 
@@ -571,7 +571,7 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
     uiel_control_list_add_item( &ui.p.mgHygro.units, "%RH", 0 );
     uiel_control_list_add_item( &ui.p.mgHygro.units, "dew", 1 );
     uiel_control_list_add_item( &ui.p.mgHygro.units, "g/m3", 2 );
-    uiel_control_list_set_index( &ui.p.mgHygro.units, core.setup.show_unit_hygro );
+    uiel_control_list_set_index( &ui.p.mgHygro.units, core.nv.setup.show_unit_hygro );
     ui.ui_elems[0] = &ui.p.mgHygro.units;
 
     for (i=0; i<3; i++)

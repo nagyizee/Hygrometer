@@ -16,7 +16,7 @@ int tiv;
 /// display stuff /////////////
 #define MAX_LINES       2
 #define MAX_COLOUMNS    16
-#define EEPROM_SIZE     0x200
+#define EEPROM_SIZE     256*1024        // 256k FRAM
 
 char line[MAX_LINES*MAX_COLOUMNS];
 static bool disp_changed = false;
@@ -70,6 +70,11 @@ bool BtnGet_Left()
 bool BtnGet_Right()
 {
     return pClass->HW_wrapper_getButton(BTN_RIGHT);
+}
+
+bool HW_Charge_Detect()
+{
+    return pClass->HW_wrapper_getChargeState();
 }
 
 void HW_LED_On()
@@ -228,6 +233,10 @@ bool mainw::HW_wrapper_getButton(int index)
     return buttons[index];
 }
 
+bool mainw::HW_wrapper_getChargeState(void)
+{
+    return ui->cb_charge->isChecked();
+}
 
 void mainw::HW_wrapper_set_disp_brt(int brt)
 {
@@ -417,6 +426,7 @@ struct
     bool RH_up;                 // if sensor is shut down - additional time is considered
     bool Press_up;              //
 
+    uint32 ini_progress;        // sensor init in progress
     uint32 in_progress;         // measurement in progress
     uint32 ready;               // measurement is ready
 
@@ -427,6 +437,10 @@ struct
 void Sensor_Init()
 {
     memset( &sens, 0, sizeof(sens));
+
+    sens.ini_progress = SENSOR_PRESS | SENSOR_TEMP | SENSOR_RH;
+    sens.time_ctr_Press = 1;
+    sens.time_ctr_RH = 16;
 }
 
 void Sensor_Shutdown( uint32 mask )
@@ -449,30 +463,33 @@ uint32 Sensor_Acquire( uint32 mask )
     if ( (mask & SENSOR_TEMP) && ((sens.in_progress & SENSOR_TEMP) == 0) )
     {
         if ( sens.RH_up == false )
-            sens.time_ctr_RH = 15 + 70;      // 15ms start-up + 70ms read time
+            sens.time_ctr_RH = 16 + 85;      // 16ms start-up + 85ms read time
         else
-            sens.time_ctr_RH = 70;           // 70ms read time
+            sens.time_ctr_RH = 85;           // 70ms read time
         sens.RH_up = true;
+        sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_TEMP;
         sens.ready &= ~SENSOR_TEMP;
     }
     if ( (mask & SENSOR_RH) && ((sens.in_progress & SENSOR_RH) == 0) )
     {
         if ( sens.RH_up == false )
-            sens.time_ctr_RH = 15 + 25;      // 15ms start-up + 25ms read time
+            sens.time_ctr_RH = 16 + 29;      // 16ms start-up + 29ms read time
         else
-            sens.time_ctr_RH = 25;           // 70ms read time
+            sens.time_ctr_RH = 29;           // 70ms read time
         sens.RH_up = true;
+        sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_RH;
         sens.ready &= ~SENSOR_RH;
     }
     if ( (mask & SENSOR_PRESS) && ((sens.in_progress & SENSOR_PRESS) == 0) )
     {
         if ( sens.Press_up == false )
-            sens.time_ctr_Press = 50 + 80;       // 50ms start-up + 80ms read time
+            sens.time_ctr_Press = 1 + 450;       // 2ms start-up + 450ms read time
         else
-            sens.time_ctr_Press = 80;            // 40ms read time for 8x oversample
+            sens.time_ctr_Press = 450;            // 450ms read time for 128x oversample
         sens.Press_up = true;
+        sens.ini_progress &= ~SENSOR_PRESS;
         sens.in_progress |= SENSOR_PRESS;
         sens.ready &= ~SENSOR_PRESS;
     }
@@ -487,6 +504,11 @@ uint32 Sensor_Is_Ready(void)
 uint32 Sensor_Is_Busy(void)
 {
     return sens.in_progress;
+}
+
+uint32 Sensor_Is_Failed(void)
+{
+    return 0;
 }
 
 uint32 Sensor_Get_Value( uint32 sensor )
@@ -514,8 +536,30 @@ uint32 Sensor_Get_Value( uint32 sensor )
     return SENSOR_VALUE_FAIL;
 }
 
-void Sensor_simu_poll()
+bool Sensor_simu_poll()
 {
+    if ( sens.ini_progress & SENSOR_TEMP )
+    {
+        if ( sens.time_ctr_RH == 0 )
+        {   
+            sens.ini_progress &= ~(SENSOR_TEMP| SENSOR_RH); 
+            sens.RH_up = true;
+        }
+        else
+            sens.time_ctr_RH --;
+    }
+    if ( sens.ini_progress & SENSOR_PRESS )
+    {
+        if ( sens.time_ctr_Press == 0 )
+        {   
+            sens.ini_progress &= ~SENSOR_PRESS; 
+            sens.Press_up = true;
+        }
+        else
+            sens.time_ctr_Press --;
+    }
+
+
     if ( sens.in_progress & SENSOR_TEMP )
     {
         if ( sens.time_ctr_RH == 0 )
@@ -542,15 +586,61 @@ void Sensor_simu_poll()
         {
             sens.in_progress &= ~SENSOR_PRESS;
             sens.ready |= SENSOR_PRESS;
+            return true;
         }
         else
             sens.time_ctr_Press--;
     }
+
+    return false;
 }
 
 void Sensor_Poll(bool tick_ms)
 {
 
+}
+
+uint32 Sensor_GetPwrStatus(void)
+{
+    uint32 pwr = PM_DOWN;
+
+    if ( sens.ini_progress & SENSOR_PRESS )
+        return PM_FULL;
+    if ( sens.ini_progress & SENSOR_RH )
+    {
+        if ( sens.time_ctr_RH > 15 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    if ( sens.in_progress & SENSOR_PRESS )
+    {
+        if ( sens.time_ctr_Press > (450-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_Press < 1 )
+            return PM_FULL;
+        pwr |= PM_HOLD;
+    }
+
+    if ( sens.in_progress & SENSOR_TEMP )
+    {
+        if ( sens.time_ctr_RH > (85-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_Press < 1 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    if ( sens.in_progress & SENSOR_RH )
+    {
+        if ( sens.time_ctr_RH > (29-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_Press < 1 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    return pwr;
 }
 
 /////////////////////////////////////////////////////
@@ -600,6 +690,11 @@ uint32 eeprom_enable( bool write )
 uint32 eeprom_disable()
 {
     ee_enabled = true;
+    return 0;
+}
+
+uint32 eeprom_deepsleep()
+{
     return 0;
 }
 

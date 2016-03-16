@@ -86,7 +86,7 @@ mainw::mainw(QWidget *parent) :
     ui->num_humidity->setValue( ms_hum );
     ui->num_pressure->setValue( ms_press );
 
-    datestruct date;
+/*    datestruct date;
     timestruct time;
     date.day = 15;
     date.mounth = 3;
@@ -95,6 +95,8 @@ mainw::mainw(QWidget *parent) :
     time.minute = 18;
     time.second = 22;
     RTCcounter = utils_convert_date_2_counter( &date, &time );
+    */
+    RTCcounter = 0x00;
     RTCalarm = 0xffffffff;
     PwrMode = pm_down;
     PwrModeToDisp = pm_down;
@@ -186,7 +188,7 @@ void mainw::CPULoopSimulation( bool tick )
         }
 
         // process clocks
-        if ( tick )
+        if ( tick && (PwrWUR != WUR_FIRST) )
         {
             sec_ctr++;
 
@@ -218,10 +220,18 @@ void mainw::CPULoopSimulation( bool tick )
             if ( (PwrMode == pm_sleep) || (PwrMode == pm_full) )
             {
                 TimerSysIntrHandler();    // timer interval - 1ms
-                Sensor_simu_poll();
                 PwrMode = pm_full;
             }
 
+            if ( PwrMode != pm_down )
+            {
+                if ( Sensor_simu_poll() )
+                {
+                    PwrWUR |= WUR_SENS_IRQ;
+                    PwrMode = pm_full;
+                    pwr_exti = true;
+                }
+            }
 
             if ( pwr_exti )
                 pwrdisp_add_pwr_state( pm_exti );
