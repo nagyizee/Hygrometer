@@ -52,9 +52,9 @@ void local_setpower_free(void)
          (ss.hw.psens.sm == psm_read_oneshotcmd ) ||
          (ss.hw.rhsens.sm == rhsm_readrh_01_send_request ) ||
          (ss.hw.rhsens.sm == rhsm_readt_01_send_request )     )
-        ss.flags.sens_pwr = SENSPWR_SLEEP;
+        ss.flags.sens_pwr = PM_SLEEP;       // do not use PM_HOLD because at any point the Psensor IRQ can be set and event will be missed - locking the CPU in stopped state
     else
-        ss.flags.sens_pwr = SENSPWR_FREE;
+        ss.flags.sens_pwr = PM_DOWN;
 }
 
 
@@ -63,7 +63,12 @@ void local_setpower_sleep(void)
     // do not set power management to sleep when an other sensor is operating at full
     if ( ss.hw.bus_busy )
         return;
-    ss.flags.sens_pwr = SENSPWR_SLEEP;
+    ss.flags.sens_pwr = PM_SLEEP;
+
+    if ( (ss.hw.psens.sm == psm_read_oneshotcmd) &&                     // if pressure sensor on one-shot read and bus is free (waiting for IRQ)
+         (ss.hw.rhsens.sm == rhsm_none ) &&                             // and rh sensor has no ongoing operation ( i2c or wait )
+         ((ss.flags.sens_busy & (SENSOR_RH | SENSOR_TEMP)) == 0 ) )     // and RH / Temp is not requested
+        ss.flags.sens_pwr = PM_HOLD;                                    // --> can set CPU stop with event wake-up power management
 }
 
 
@@ -161,7 +166,7 @@ void local_psensor_execute_ini( bool mstick )
         {
             ss.hw.bus_busy = busst_pressure;    // mark bus busy
             ss.hw.psens.sm = psm_init_01;       // mark the current operation state
-            ss.flags.sens_pwr = SENSPWR_FULL;
+            ss.flags.sens_pwr = PM_FULL;
         }
         else
             goto _i2c_failure;
@@ -241,7 +246,7 @@ void local_rhsensor_execute_ini( bool mstick )
         {
             ss.hw.bus_busy = busst_rh;                      // mark bus busy
             ss.hw.rhsens.sm = rhsm_init_02_read_user_reg;    // mark the current operation state
-            ss.flags.sens_pwr = SENSPWR_FULL;
+            ss.flags.sens_pwr = PM_FULL;
         }
         else
             goto _i2c_failure;
@@ -314,7 +319,7 @@ void local_psensor_execute_read( bool tick_ms )
                 ss.hw.bus_busy = busst_pressure;        // mark bus busy
                 ss.hw.psens.sm = psm_read_waitresult;   // mark the current operation state
                 ss.hw.psens.check_ctr = 0;              // reset check counter
-                ss.flags.sens_pwr = SENSPWR_FULL;
+                ss.flags.sens_pwr = PM_FULL;
             }
             else
                 goto _i2c_failure;
@@ -335,7 +340,7 @@ void local_psensor_execute_read( bool tick_ms )
             ss.hw.bus_busy = busst_pressure;        // mark bus busy
             ss.hw.psens.sm = psm_read_oneshotcmd;   // mark the current operation state
             ss.hw.psens.check_ctr = 0;              // reset check counter
-            ss.flags.sens_pwr = SENSPWR_FULL;
+            ss.flags.sens_pwr = PM_FULL;
         }
         else
             goto _i2c_failure;
@@ -372,7 +377,7 @@ void local_rhsensor_execute_read( bool tick_ms )
                 ss.hw.rhsens.sm = rhsm_readt_02_wait4read;
 
             ss.hw.bus_busy = busst_rh;        // mark bus busy
-            ss.flags.sens_pwr = SENSPWR_FULL;
+            ss.flags.sens_pwr = PM_FULL;
             return;
         }
     }
@@ -472,7 +477,7 @@ _reload_operation:  // we need this label to reload sensor read operation for th
 
         ss.hw.bus_busy = busst_rh;              // mark bus busy
         ss.hw.rhsens.to_ctr = 0;                // reset check counter
-        ss.flags.sens_pwr = SENSPWR_FULL;
+        ss.flags.sens_pwr = PM_FULL;
     }
 
     return;
@@ -519,6 +524,7 @@ void local_wait_active_command_finish(void)
 void Sensor_Init()
 {
     memset( &ss, 0, sizeof(ss) );
+    ss.flags.sens_pwr   = PM_DOWN;
 
     local_i2c_reinit();
     
@@ -684,6 +690,11 @@ void Sensor_Poll(bool tick_ms)
 
 uint32 Sensor_GetPwrStatus(void)
 {
+    // prevent power down when Acquire was requested - should call sensor poll as soon as possible
+    //  - that will set PM_FULL / PM_SLEEP / PM_STOP till operations are done
+    if ( (ss.flags.sens_busy) && (ss.flags.sens_pwr == PM_DOWN) )
+        return PM_FULL;
+
     return (uint32)ss.flags.sens_pwr;
 }
 
