@@ -431,6 +431,57 @@
             last data clock -> SC_/-: N/A
 
             - 4 byte should use DMA
+
+
+
+        Benchmarks:
+            Synch write:
+                6bytes:     write op    22.6us
+                            poll op     2.3us
+
+                200bytes:   write op    216us
+                            poll op     2.3us
+
+                500bytes:   write op    562us
+                            poll op     2.3us
+
+
+            Async write:
+                6bytes:     write op    22.6us
+                            poll op     2.3us
+
+                200bytes:   write op    16.4us
+                            poll op     212us
+
+                500bytes:   write op    16.4us
+                            poll op     581us
+
+
+            Wake up from deep sleep:    372us (polled)
+                
+            Synch read:
+                6bytes:     read op     27.8us
+                            poll op     2.3us
+
+                200bytes:   read op     220us
+                            poll op     2.3us
+
+                500bytes:   read op     567us
+                            poll op     2.3us
+
+            Async read:
+                6bytes:     read op     16.1us
+                            poll op     12us
+
+                200bytes:   read op     16.1us
+                            poll op     205us
+
+                500bytes:   read op     16.1us
+                            poll op     552us
+
+
+            Chip erase:     266ms   
+    
 */
     
 
