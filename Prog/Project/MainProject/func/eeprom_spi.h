@@ -26,11 +26,11 @@
     uint32 eeprom_deepsleep();
 
     // read count quantity of data from address in buff, returns the nr. of successfull read bytes
-    uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async );
+    uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async );
 
     // write count quantity of data to address from buff, returns the nr. of successfull written bytes
     // function returns as soon as data is sent - check with eeprom_is_operation_finished() if write operation is finished
-    uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async );
+    uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async );
 
     // erase eeprom - first it must enabled in write mode
     uint32 eeprom_erase(void);

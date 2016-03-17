@@ -2,7 +2,7 @@
 #include "eeprom_spi.h"
 
 /** Important NOTE:
- *  Code for 16MHz clock, using 25AA1024 with 256byte pages
+ *  Code for 16MHz clock, using FM25V20A with 2Mbit memory
  *  SPI on 8MHz
  **/
 
@@ -11,14 +11,12 @@
     #define CMD_WREN        0x06        // write enable
     #define CMD_WRDI        0x04        // write disable
     #define CMD_RDSR        0x05        // read status register
-    #define CMD_CE          0xC7        // chip erase
-    #define CMD_RDIP        0xAB        // release from dpd and read ID
     #define CMD_DPD         0xB9        // deep power down
+    #define CMD_ID          0x9F        // read device ID
 
-    #define EE_SF_BUSY      0x01
     #define EE_SF_WREN      0x02
 
-    #define EE_MAX_SIZE     (128*1024)
+    #define EE_MAX_SIZE     (256*1024)
 
     #define EE_MAX_READ_WO_DMA  4      // nr. of bytes which worth be read without DMA
     #define EE_MAX_WRITE_WO_DMA  8     // nr. of bytes which worth be written without DMA
@@ -30,12 +28,11 @@
         eest_enable_wr,
         eest_read_in_progr,
         eest_write_in_progr,
+        eest_pwrup_in_progr,
+        eest_pwrup_in_progr_w
     } ee_status;
 
-    uint32 wr_to_go = 0;
-    uint32 wr_addr = 0;
-    uint8 *wr_buff = 0;
-    bool   wr_dma_used = false;
+    uint32 ee_erase = 0;
 
 
     static void internal_send_command( uint8 command )
@@ -68,7 +65,7 @@
         volatile uint32 result;
         HW_Chip_EEProm_Enable();
         // write read status command
-        SPI_PORT_EE->DR  = 0x05;
+        SPI_PORT_EE->DR  = CMD_RDSR;
         while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
         while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );    // need this - timing for receiving result
         // read the response
@@ -81,74 +78,26 @@
         return result;
     }
 
-    // using page write - assure that data fits in the page
-    static inline void internal_write_chunk( uint32 address, uint8 *buff, int len, bool async ) 
+
+    static uint32 internal_check_ID(void)
     {
-        uint32 i;
-
-        internal_set_write_enable(true);
-
+        volatile uint32 result;
         HW_Chip_EEProm_Enable();
-        // send the command with the high address bit
-        SPI_PORT_EE->DR  = CMD_WRITE;
+        // write read status command
+        SPI_PORT_EE->DR  = CMD_ID;
         while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
-        // sent the 24bit address with MSB first
-        SPI_PORT_EE->DR  = (address >> 16) & 0x01;
-        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
-        SPI_PORT_EE->DR  = (address >> 8) & 0xff;
-        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
-        SPI_PORT_EE->DR  = address & 0xff;
-        wr_dma_used = false;
-        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );    // need this - timing for receiving result
+        // read the response
+        result = SPI_I2S_ReceiveData( SPI_PORT_EE );     // need this - timing for receiving result 
+        SPI_PORT_EE->DR  = 0x00;
+        while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_RXNE) == 0 );
+        result = SPI_I2S_ReceiveData( SPI_PORT_EE );
+        HW_Chip_EEProm_Disable();
 
-        if ( len < EE_MAX_WRITE_WO_DMA )
-        {
-            // write the data directly if not worth configuring DMA
-            for (i=0; i<len; i++)
-            {
-                SPI_PORT_EE->DR  = *buff;
-                buff++;
-                while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
-            }
-            // wait till data is sent out
-            while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );
-            HW_Chip_EEProm_Disable();                       // initiate write cycle by disabling CS
-        }
-        else
-        {
-            // write using DMA transfer
-            HW_DMA_EE_Enable( DMAREQ_TX );              // enable TX requests for SPI port
-            HW_DMA_Send( DMACH_EE, buff, len );         // set up buffer for data to be received
-
-            if ( async == false )
-            {
-                // not async - wait here for data to be transmitted entirely
-                while ( DMA_EE_RX_Channel->CNDTR );                     // wait for data amount to be sent
-                while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );    // wait TX empty
-                while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );           // wait last bit to shift out
-                HW_DMA_EE_Disable( DMAREQ_RX );                         // disable DMA request for TX
-                HW_Chip_EEProm_Disable();                               // CS _/-
-            }
-            else
-            {
-                // async operation
-                wr_dma_used = true;
-            }
-        }
-    }
-
-    static void internal_write_operation( bool async )
-    {
-        int len;
-
-        len = 0x100 - (wr_addr & 0xff);     // space in the current page
-        if ( len > wr_to_go )
-            len = wr_to_go;                 // copy the remaining data only
-
-        internal_write_chunk( wr_addr, wr_buff, len, async );
-        wr_buff = ((uint8*)wr_buff + len);
-        wr_addr += len;
-        wr_to_go -= len;
+        if ( result == 0x7F )
+            return 1;
+        return 0;
     }
 
 
@@ -159,9 +108,10 @@
         HW_Chip_EEProm_Disable();
         HW_SPI_interface_init( SPI_PORT_EE, SPI_BaudRatePrescaler_2);   // set up SPI interface
         HW_DMA_Init( DMACH_EE );
+
         internal_set_write_enable( false );                             // clear the write enable
-        internal_send_command( CMD_DPD );  
-        ee_status = eest_lowpower;
+        ee_status = eest_enable_rd;
+        ee_erase = 0;
         return 0;
     }
 
@@ -178,9 +128,13 @@
         if ( ee_status == eest_lowpower )
         {
             // take it out from deep sleep
-            internal_send_command( CMD_RDIP );                      // wake up the device
-            HW_Delay( 100 );
+            HW_Chip_EEProm_Enable();                                // device is woken up by CS -\_
+            if ( write )
+                ee_status = eest_pwrup_in_progr_w;
+            else
+                ee_status = eest_pwrup_in_progr_w;
         }
+        else
         if ( write && (ee_status != eest_enable_wr) )
         {
             // set write enable
@@ -204,7 +158,12 @@
         HW_Chip_EEProm_Disable();
         HW_SPI_Set_Rx_mode_only(SPI_PORT_EE, false);
         internal_set_write_enable( false );
+
+        HW_DMA_Uninit( DMACH_EE );
+        HW_DMA_Init( DMACH_EE );
+
         ee_status = eest_enable_rd;
+        ee_erase = 0;
         return 0;
     }
 
@@ -216,7 +175,7 @@
         return 0;
     }
 
-    uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
+    uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async )
     {
         int i;
         volatile uint32 result;
@@ -284,10 +243,13 @@
     }
 
 
-    uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async )
+    uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async )
     {
-        if ( (ee_status != eest_enable_wr) && (ee_status != eest_enable_rd) )
+        uint32 i;
+
+        if ( ee_status != eest_enable_wr )
             return 0;
+
         if ( address >= EE_MAX_SIZE )
             return 0;
         if ( (address + count) > EE_MAX_SIZE )
@@ -295,40 +257,69 @@
         if ( count == 0 )
             return 0;
 
-        wr_to_go = count;
-        wr_buff = buff;
-        wr_addr = address;
-        do
+        internal_set_write_enable(true);
+
+        HW_Chip_EEProm_Enable();
+        // send the command with the high address bit
+        SPI_PORT_EE->DR  = CMD_WRITE;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
+        // sent the 24bit address with MSB first
+        SPI_PORT_EE->DR  = (address >> 16) & 0x01;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
+        SPI_PORT_EE->DR  = (address >> 8) & 0xff;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
+        SPI_PORT_EE->DR  = address & 0xff;
+        while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );        // wait last address byte write
+
+        if ( count < EE_MAX_WRITE_WO_DMA )
         {
-            internal_write_operation( async );
-            if ( wr_to_go && (async == false) )     // if we have more chunks to be sent in non-async mode then need to wait write completion
+            // write the data directly if not worth configuring DMA
+            for (i=0; i<count; i++)
             {
-                uint32 eest;
-                do
-                {
-                    eest = internal_get_status();
-                } while ( eest & EE_SF_BUSY );
+                SPI_PORT_EE->DR  = *buff;
+                buff++;
+                while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );
             }
-            if ( async )                            // for async operation we don't care about to_go here - just exit
-                break;
+            // wait till data is sent out
+            while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );
+            HW_Chip_EEProm_Disable();                       // initiate write cycle by disabling CS
+        }
+        else
+        {
+            // write using DMA transfer
+            HW_DMA_EE_Enable( DMAREQ_TX );                  // enable TX requests for SPI port
+            HW_DMA_Send( DMACH_EE, buff, count );           // set up buffer for data to be received
 
-        } while ( wr_to_go != 0 );
-
-        ee_status = eest_write_in_progr;
+            if ( async == false )
+            {
+                // not async - wait here for data to be transmitted entirely
+                while ( DMA_EE_TX_Channel->CNDTR );                     // wait for data amount to be sent
+                while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );    // wait TX empty
+                while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );           // wait last bit to shift out
+                HW_DMA_EE_Disable( DMAREQ_TX );                         // disable DMA request for TX
+                HW_Chip_EEProm_Disable();                               // CS _/-
+            }
+            else
+            {
+                // async operation
+                ee_status = eest_write_in_progr;
+            }
+        }
         return count;
     }
 
+    const uint8 ee_eb = 0xff;
 
     uint32 eeprom_erase(void)
     {
         if ( ee_status != eest_enable_wr )
             return 1;
 
-        internal_set_write_enable( true );
-        internal_send_command( CMD_CE );
-        wr_dma_used = false;
-        wr_to_go = 0;
-        ee_status = eest_write_in_progr;
+        HW_DMA_Uninit( DMACH_EE );
+        HW_DMA_Init( DMACH_EE | 0x100 );
+        eeprom_write( 0x00, &ee_eb, 0x8000, true );
+        ee_erase = EE_MAX_SIZE / 0x8000;
+ 
         return 0;
     }
 
@@ -340,8 +331,8 @@
             if ( DMA_EE_RX_Channel->CNDTR == 0)         // check if DMA finished it's job
             {
                 HW_Chip_EEProm_Disable();
-                HW_SPI_Set_Rx_mode_only(SPI_PORT_EE, false);             // stop the unidirectional RX mode (stops the clock generation also)  
-                HW_DMA_EE_Disable( DMAREQ_RX );             // disable DMA request for RX on SPI
+                HW_SPI_Set_Rx_mode_only(SPI_PORT_EE, false);    // stop the unidirectional RX mode (stops the clock generation also)  
+                HW_DMA_EE_Disable( DMAREQ_RX );                 // disable DMA request for RX on SPI
                 ee_status = eest_enable_rd;                 
             }
             else
@@ -349,39 +340,68 @@
         }
         else if ( ee_status == eest_write_in_progr )    // write in progress
         {
-            if ( (wr_dma_used == false) || (DMA_EE_RX_Channel->CNDTR == 0) )    // if DMA was not used or it finished it's job
+            if ( DMA_EE_TX_Channel->CNDTR == 0 )        // if DMA finished it's job
             {
-                uint32 eest = 0;
-                if ( wr_dma_used )
+                while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );    // wait TX empty
+                while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );           // wait last bit to shift out
+                HW_DMA_EE_Disable( DMAREQ_TX );                         // disable DMA request for TX
+                HW_Chip_EEProm_Disable();                               // CS _/-  -> write operation started
+
+                if ( ee_erase )
                 {
-                    while ( (SPI_PORT_EE->SR & SPI_I2S_FLAG_TXE) == 0 );    // wait TX empty
-                    while ( SPI_PORT_EE->SR & SPI_I2S_FLAG_BSY );           // wait last bit to shift out
-                    HW_DMA_EE_Disable( DMAREQ_RX );                         // disable DMA request for TX
-                    HW_Chip_EEProm_Disable();                               // CS _/-  -> write operation started
-                    wr_dma_used = false;                                    // set to false since we disabled the DMA
+                    ee_erase--;
+                    if ( ee_erase )
+                    {
+                        ee_status = eest_enable_wr;
+                        eeprom_write( ee_erase * 0x8000, &ee_eb, 0x8000, true );
+                        return false;
+                    }
+                    else
+                    {
+                        HW_DMA_Uninit( DMACH_EE );
+                        HW_DMA_Init( DMACH_EE );
+                        ee_status = eest_enable_wr;                     // mark as finished
+                        return true;
+                    }
                     return false;
                 }
-                eest = internal_get_status();
-                if ( (eest & EE_SF_BUSY) == 0 )               // check if the write operation is finished
-                {
-                    if ( wr_to_go )                         // if it was an async sending and there are still some data chunks to be sent
-                    {
-                        internal_write_operation( true );   // send them as async
-                        return false;                       // signal busy
-                    }
-                    ee_status = eest_enable_rd;             // mark as finished
-                    return true;                            // signal finished
-                }
-                return false;                               // signal busy
+                ee_status = eest_enable_wr;                             // mark as finished
+                return true;
             }
             else
                 return false;                               // signal busy since DMA didn't finished it's job
         }
+        else if ( ee_status >= eest_pwrup_in_progr )
+        {
+            if ( internal_check_ID() )                      // if device responds with ID then everything is fine
+            {
+                if ( ee_status == eest_pwrup_in_progr_w )
+                {
+                    uint32 result;
+                    internal_set_write_enable( true );
+                    result = internal_get_status();
+                    if ( (result & EE_SF_WREN) == 0 )
+                        ee_status = eest_enable_rd;         // indicates failure
+                    else
+                        ee_status = eest_enable_wr;
+                }
+                else
+                    ee_status = eest_enable_rd; 
+                return true;
+            }
+            else 
+                return false;
+        }
+
         return true;                                    // by default signal finished (no write/read pending)
     }
 
 
 /* Performance measurements:
+
+        Wake up from deep sleep: 375us 
+        
+
         CS -\___/- for CMD_RDIP: 2.3us
 
         Write small amount of data:

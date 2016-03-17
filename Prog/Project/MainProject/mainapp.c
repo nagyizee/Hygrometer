@@ -170,10 +170,11 @@ void main_entry( uint32 *stack_top )
         }
 
         eeprom_init();
+
         eeprom_enable(true);
+        while ( eeprom_is_operation_finished() == false );
 
         // write operations
-#if 1
         i=0;
         while ( i < 2 )
         {
@@ -223,7 +224,7 @@ void main_entry( uint32 *stack_top )
         while( !BtnGet_Mode() );
         HW_Delay( 500000 );
 
-#endif        
+
         eeprom_deepsleep();
         eeprom_is_operation_finished();     // just try it out
         HW_LED_On();
@@ -255,9 +256,17 @@ void main_entry( uint32 *stack_top )
 
                 if ( (i==0) && (j==0) )
                 {
+                    // wake up the eeprom
+                    volatile uint32 cycles = 0;
                     HW_LED_On();
                     eeprom_enable(false);
+                    while ( eeprom_is_operation_finished() == false )
+                        cycles++;
                     HW_LED_Off();
+
+                    for ( i=0; i<cycles;i++ )
+                        __asm("    nop\n");
+                    i = 0;
                 }
                 HW_LED_On();
                 eeprom_read( addr, len, buffer, i );
@@ -276,8 +285,8 @@ void main_entry( uint32 *stack_top )
 
 
         eeprom_enable(true);
-        eeprom_erase();
         HW_LED_On();
+        eeprom_erase();
         while ( eeprom_is_operation_finished() == false );      // will exit imediately for sync operations
         HW_LED_Off();
 

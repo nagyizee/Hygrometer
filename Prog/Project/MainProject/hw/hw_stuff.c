@@ -291,7 +291,7 @@
     {
         NVIC_InitTypeDef    NVIC_InitStructure;
 
-        switch ( dma_ch )
+        switch ( dma_ch & 0xff )
         {
             case DMACH_DISP:
                 DMA_DISP_TX_Channel->CCR = ( DMA_DISP_TX_Channel->CCR & 0xFFFF800F ) |      // filter.value copied from stm32f10x_dma.c - not defined anywhere
@@ -307,10 +307,20 @@
                 NVIC_Init( &NVIC_InitStructure );
                 break;
             case DMACH_EE:
-                DMA_EE_TX_Channel->CCR = ( DMA_EE_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
-                                           ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
-                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
-                                             DMA_Priority_Medium         | DMA_M2M_Disable );
+                if ( dma_ch & 0x100 )
+                {
+                    DMA_EE_TX_Channel->CCR = ( DMA_EE_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                               ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                                 DMA_MemoryInc_Disable     | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                                 DMA_Priority_Medium       | DMA_M2M_Disable );
+                }
+                else
+                {
+                    DMA_EE_TX_Channel->CCR = ( DMA_EE_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                               ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                                 DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                                 DMA_Priority_Medium       | DMA_M2M_Disable );
+                }
                 DMA_EE_TX_Channel->CPAR     = (uint32_t)(&SPI_PORT_EE->DR );                // base address for SPI data register
                 DMA_EE_RX_Channel->CCR = ( DMA_EE_RX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
                                            ( DMA_DIR_PeripheralSRC     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |

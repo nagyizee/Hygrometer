@@ -587,7 +587,7 @@ uint32 eeprom_read( uint32 address, int count, uint8 *buff )
 }
 
 // write count quantity of data to address from buff, returns the nr. of successfull written bytes
-uint32 eeprom_write( uint32 address, uint8 *buff, int count )
+uint32 eeprom_write( uint32 address, const uint8 *buff, int count )
 {
     FILE *eefile;
     if ( (ee_enabled == false) || (ee_wren == false) )
