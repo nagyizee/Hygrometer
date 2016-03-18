@@ -30,6 +30,8 @@
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
 
+    #define convert_press_20fp2_16bit( press )  ( ((press) >> 2) - 50000 ) 
+    #define convert_press_16bit_20fp2( press )  ( ((uint32)(press)+50000) << 2 )
 
     #define CORE_SCHED_TEMP_REALTIME    2       // 2x RTC tick - 1sec. rate for temperature sensor
     #define CORE_SCHED_TEMP_MONITOR     10      // 5sec rate
@@ -45,8 +47,8 @@
 
     #define CORE_MMP_TEMP       0
     #define CORE_MMP_RH         1
-    #define CORE_MMP_ABSH       2
     #define CORE_MMP_PRESS      3
+    #define CORE_MMP_ABSH       2
 
     #define CORE_MSR_SET        4   // we track 4 parameters for monitoring (see CORE_MMP_xxx)
 
@@ -101,6 +103,7 @@
         ut_5min,                    // 3.25hr data
         ut_10min,                   // 6.5hr data
         ut_30min,                   // 19.5hr data
+        ut_60min                    // 39hr data
     };
 
 
@@ -122,6 +125,8 @@
         uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
 
         uint8                   tim_tend_temp;      // tendency update rate for temperature - see enum EUpdateTimings for values
+        uint8                   tim_tend_hygro;     // for hyrometer (RH / AbsH)
+        uint8                   tim_tend_press;     // for pressure
     };
 
     union UCoreOperationFlags
@@ -145,7 +150,9 @@
         uint32  avg_sum_abshum;     // sum of values for absolute humidity
         uint32  avg_sum_press;      // sum of values for pressure
 
-        uint32  sch_moni_temp;
+        uint32  sch_moni_temp;      // schedule temperature monitoring. 
+        uint32  sch_moni_hygro;     // schedule humidity monitoring (RH / AbsH). 
+        uint32  sch_moni_press;     // schedule pressure monitoring
 
         uint16  clk_last_day;       // saved day for checking if day border is passed
         uint16  clk_last_week;      // saved week for checking if week border is passed
@@ -167,8 +174,8 @@
 
     struct STendencyBuffer
     {
-        uint16 value[STORAGE_TENDENCY];
-        uint8   c;                      // data count
+        uint16 value[STORAGE_TENDENCY]; // Temperature: 16fp9 + 40*C,  RH in x100 %,  ABSH in x100 g/m3,  Pressure in Pa+50kPa  ( 110hpa -> 50hpa in 60k->0k value )
+        uint8   c;                      // data count                                                     working altitude: -500m -> 4500m
         uint8   w;                      // write pointer 
     };
 
@@ -197,7 +204,7 @@
             uint32 upd_battery:1;          // battery measurement updated
             uint32 upd_temp:1;             // temperature measurement updated
             uint32 upd_temp_minmax:1;      // temperature minim/maxim updated
-            uint32 upd_hum:1;              // humidity value updated
+            uint32 upd_hygro:1;            // humidity value updated
             uint32 upd_hum_minmax:1;       // humidity min/max values updated
             uint32 upd_abshum_minmax:1;    // absolute humidity min/max values updated
             uint32 upd_th_tendency:1;      // updated tendency value set ( 39 values for temperature/humidity - averaged between samples, shifted at update )
@@ -210,7 +217,7 @@
     struct SMeasurements
     {
         uint16  temperature;        // current temperature in 16fp9 + 40*C base. 0x0000 - means low error, 0xFFFF - means high error
-        int16   dewpoint;           // current dewpoint in 16fp9+40*C
+        uint16  dewpoint;           // current dewpoint in 16fp9+40*C
         uint16  rh;                 // current humidity in x100 %
         uint16  absh;               // absolute humidity in x100 g/m3
         uint32  pressure;           // current barometric pressure in 20fp2 Pa

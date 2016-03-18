@@ -699,7 +699,7 @@ uint32 eeprom_deepsleep()
 }
 
 // read count quantity of data from address in buff, returns the nr. of successfull read bytes
-uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
+uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async )
 {
     if (ee_enabled == false)
         return (uint32)-1;
@@ -712,7 +712,7 @@ uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
 }
 
 // write count quantity of data to address from buff, returns the nr. of successfull written bytes
-uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count )
+uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async )
 {
     FILE *eefile;
     if ( (ee_enabled == false) || (ee_wren == false) )
