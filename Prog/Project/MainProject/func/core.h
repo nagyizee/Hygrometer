@@ -33,6 +33,11 @@
     #define convert_press_20fp2_16bit( press )  ( ((press) >> 2) - 50000 ) 
     #define convert_press_16bit_20fp2( press )  ( ((uint32)(press)+50000) << 2 )
 
+    #define SYSSTAT_CORE_BULK           PM_FULL         // core needs bulk run, need to run main loop continuously
+    #define SYSSTAT_CORE_RUN_FULL       PM_SLEEP        // core run with high speed clock needed (1ms ticks)
+    #define SYSYTAT_CORE_MONITOR        PM_HOLD         // core in monitoring / fast registering mode, maintain memory - no full power down possible
+    #define SYSSTAT_CORE_STOPPED        PM_DOWN         // core stopped, no operation in progress
+
     #define CORE_SCHED_TEMP_REALTIME    2       // 2x RTC tick - 1sec. rate for temperature sensor
     #define CORE_SCHED_TEMP_MONITOR     10      // 5sec rate
     #define CORE_SCHED_RH_REALTIME      2
@@ -294,7 +299,7 @@
 
     struct SCoreVolatileStatus
     {
-        uint32                      ui_order;       // orders made to UI module - set by core, read/processed/cleared by UI module
+        uint32                      ui_cmd;         // commands made to UI module - set by core, read/processed/cleared by UI module
         union UCoreInternalStatus   int_op;         // internal operations
                                                     // 
     };

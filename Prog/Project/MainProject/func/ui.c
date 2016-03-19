@@ -28,6 +28,19 @@ struct SUIstatus ui;
 extern struct SCore core;
 
 
+static void local_uist_display_init(void)
+{
+    if ( ui.pwr_dispinit == false )
+    {
+        Graphics_Init( NULL, NULL );
+        DispHAL_Display_On( );
+        DispHAL_SetContrast( core.nv.setup.disp_brt_on );
+        ui.pwr_state = SYSSTAT_UI_ON;
+        ui.pwr_dispdim = false;
+        ui.pwr_dispoff = false;
+        ui.pwr_dispinit = true;
+    }
+}
 
 
 ////////////////////////////////////////////////////
@@ -171,45 +184,15 @@ static void uist_goto_shutdown(void)
 
 static inline void ui_power_management( struct SEventStruct *evmask )
 {
-    if (ui.pwr_state == SYSSTAT_UI_ON_WAKEUP)
-    {
-        // UI is set in wake-up mode after a power down when power button is pressed (wake up by reset from power down or EXTI event from stop)
-        // if power/mode key is long pressed in a given interval then the UI wake up is valid and UI is set to ON,
-        // else on timeout, UI will be set to OFF.
-        if ( evmask->key_event && (evmask->key_longpressed & KEY_MODE) )
-        {
-            DispHAL_Display_On( );
-            DispHAL_SetContrast( core.nv.setup.disp_brt_on );
-            ui.pwr_state = SYSSTAT_UI_ON;
-            ui.pwr_dispdim = false;
-            ui.pwr_dispoff = false;
-            // clear the key events since ui was in off state - just wake it up
-            evmask->key_event = 0;
-            evmask->key_released = 0;
-            evmask->key_pressed = 0;
-            evmask->key_longpressed = 0;
-            core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
-        }
-        else if ( evmask->timer_tick_05sec )
-        {
-            ui.incativity++;
-            if ( ui.incativity > 3 )        // 1.5sec
-            {
-                ui.pwr_state = SYSSTAT_UI_PWROFF;
-            }
-        }
-        return;
-    }
-
     if ( evmask->key_event )
     {
         // for the case when UI was shut down - ony longpress on pwr/mode button is allowed
         // if key activity detected (most probably from pwr/mode - because evnets are set up for this only) then start up in
         // wake-up mode
-        if ( ui.pwr_state == SYSSTAT_UI_PWROFF )
+        if ( (ui.pwr_state == SYSSTAT_UI_PWROFF) ||
+             (ui.pwr_dispinit == false) )
         {
             ui.incativity = 0;
-            ui.pwr_state = SYSSTAT_UI_ON_WAKEUP;
             return;
         }
 
@@ -280,11 +263,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
 
 void uist_startup_entry( void )
 {
-    Graphics_ClearScreen(0);
-//    uibm_put_bitmap( 5, 16, BMP_START_SCREEN );
-    DispHAL_UpdateScreen();
-    core_beep( beep_pwron );
-    ui.m_substate = 1;
+    ui.m_substate = 110;
 }
 
 
@@ -295,18 +274,20 @@ void uist_startup( struct SEventStruct *evmask )
         ui.m_substate--;
     }
 
-    if ( evmask->key_event || (ui.m_substate == 0) )
+    if ( evmask->key_event && 
+         evmask->key_longpressed & KEY_MODE )
     {
-        if ( evmask->key_pressed & KEY_OK )
-        {
-            ui.m_state = UI_STATE_DBG_INPUTS;
-            ui.m_substate = 0;
-            return;
-        }
-
+        local_uist_display_init();
         ui.m_state = UI_STATE_MAIN_GAUGE;
         ui.m_substate = 0;
         ui.main_mode = UImm_gauge_thermo;
+        return;
+    }
+
+    if ( ui.m_substate == 0 )
+    {
+        // no pwr.on long press, timed out - power down
+        ui.pwr_state = SYSSTAT_UI_PWROFF;
     }
 }
 
@@ -594,27 +575,37 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 //
 ////////////////////////////////////////////////////
 
-void ui_init( struct SCore *instance )
+uint32 ui_init( struct SCore *instance )
 {
-    //core = instance;
-
-    Graphics_Init( NULL, NULL );
+    uint32 core_cmd;
 
     memset( &ui, 0, sizeof(ui) );
-    ui.pwr_state = SYSSTAT_UI_ON_WAKEUP;
+    ui.pwr_state = SYSSTAT_UI_PWROFF;
+    core_cmd = core.vstatus.ui_cmd;
 
+    if ( core_cmd &= CORE_UISTATE_START_LONGPRESS )
+    {
+        ui.m_state = UI_STATE_STARTUP;
+        ui.pwr_state = SYSSTAT_UI_ON;
+    }
+
+
+    return ui.pwr_state;
 }//END: ui_init
 
 
-int ui_poll( struct SEventStruct *evmask )
+uint32 ui_poll( struct SEventStruct *evmask )
 {
     struct SEventStruct evm_bkup = *evmask;         // save a backup since ui routines can alter states, and those will not be cleared then
+
+    if ( ui.m_state == UI_STATE_NONE)
+        return SYSSTAT_UI_PWROFF;
 
     // process power management stuff for ui part
     ui_power_management( evmask );
 
     // ui state machine
-    if ( (ui.pwr_state & (SYSSTAT_UI_ON_WAKEUP | SYSSTAT_UI_PWROFF)) == 0 )
+    if ( (ui.pwr_state & SYSSTAT_UI_PWROFF) == 0 )
     {
         if ( ui.m_substate == UI_SUBST_ENTRY )
         {
@@ -665,7 +656,7 @@ int ui_poll( struct SEventStruct *evmask )
     {   
         if ( DispHAL_ReleaseSPI() )             // release display SPI bus - will be reactivated as soon a new display operation is done
         {
-            core_setup_save();
+//            core_setup_save();
             ui.setup_mod = false;
         }
         else

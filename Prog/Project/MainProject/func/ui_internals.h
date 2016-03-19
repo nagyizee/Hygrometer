@@ -14,20 +14,21 @@
     // user interface main states
     enum EUIStates
     {
-        UI_STATE_STARTUP = 0,                   // state entered after power on (by user) and device was shut down before (no monitoring)
+        UI_STATE_NONE = 0,
+        UI_STATE_STARTUP,                       // state entered after power on
         UI_STATE_MAIN_GAUGE,                    // main window with value gauges (temperature, humidity, pressure)
         UI_STATE_MAIN_GRAPH,                    // graph display for the abowe stuff
         UI_STATE_MAIN_ALTIMETER,                // altimeter mode - this include variometer function
         UI_STATE_MODE_SELECT,                   // mode selector window - navigate bw. gauge - graph - altimeter - recording - setup
         UI_STATE_SHUTDOWN,                      // shut-down window
-        UI_STATE_DBG_INPUTS,                    // debug button press, sensor readings, etc
+        UI_STATE_DBG_INPUTS                     // debug button press, sensor readings, etc
     };
 
     enum UIMainMode
     {
         UImm_gauge_thermo = 0,
         UImm_gauge_hygro,
-        UImm_gauge_pressure,
+        UImm_gauge_pressure
     };
 
 
@@ -93,6 +94,7 @@
         uint32 pwr_state;       // current power management state
         bool pwr_dispdim;       // display is dimmed
         bool pwr_dispoff;       // display is off
+        bool pwr_dispinit;      // if display is initted
 
         uint16 upd_batt;        // battery update counter
         uint16 upd_dynamics;    // update dynamic stuff

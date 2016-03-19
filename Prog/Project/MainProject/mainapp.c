@@ -24,7 +24,7 @@ static uint32 wake_up = WUR_NONE;
 static uint32 *stack_limit;
 
 static uint32 sys_pwr = 0;
-static uint32 ui_st = SYSSTAT_UI_PWROFF;
+static uint32 ui_st = PM_DOWN;
 
 static inline void CheckStack(void)
 {
@@ -88,7 +88,7 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 
     if ( evmask->timer_tick_10ms || evmask->key_event )
     {
-//dev        ui_st = ui_poll( evmask );
+        ui_st = ui_poll( evmask );
     }
     sys_pwr |= ui_st;
 }
@@ -104,7 +104,7 @@ void main_entry( uint32 *stack_top )
         return;
     }
 
-    ui_init( NULL );
+    ui_st = ui_init( NULL );
 }
 
 
@@ -136,10 +136,6 @@ void main_loop(void)
 #endif
 
         event = Event_Poll( );
-        if ( wake_up )
-        {
-            event.key_event = 1;    // forces display update
-        }
 
         ProcessApplication( &event );
 

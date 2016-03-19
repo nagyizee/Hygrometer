@@ -616,7 +616,7 @@ void core_beep( enum EBeepSequence beep )
 
 int core_setup_save( void )
 {
-    int i;
+    uint32 i;
     uint16  cksum_setup  = 0xABCD;
     uint16  cksum_op     = 0xABCD;
     uint8   *buffer;
@@ -695,7 +695,7 @@ int core_setup_reset( bool save )
 
 int core_setup_load( bool no_op_load )
 {
-    uint8   i;
+    uint32  i;
     uint16  cksum;
     uint16  cksum_setup;
     uint16  cksum_op;
@@ -739,11 +739,11 @@ int core_setup_load( bool no_op_load )
 
         buffer = (uint8*)&core.nv.op;
         cksum = 0xABCD;
-        for ( i=0; i<sizeof(core.nv.op); i++ )
+        for ( i=0; i<sizeof(struct SCoreOperation); i++ )
             cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
         if ( cksum != cksum_op )
             goto _error_exit;
-    }
+  }
 
     eeprom_disable();
     return 0;
@@ -956,14 +956,14 @@ int core_init( struct SCore **instance )
 
     // activate power button long press detection in the UI module
     if ( wur & WUR_USR )
-        core.vstatus.ui_order = CORE_UISTATE_START_LONGPRESS;       // order pwr/mode button long press detection from UI
+        core.vstatus.ui_cmd = CORE_UISTATE_START_LONGPRESS;       // order pwr/mode button long press detection from UI
     if ( core.nf.status.b.first_start )
-        core.vstatus.ui_order |= CORE_UISTATE_SET_DATETIME;         // order date/time setup
+        core.vstatus.ui_cmd |= CORE_UISTATE_SET_DATETIME;         // order date/time setup
     if ( charge )
-        core.vstatus.ui_order |= CORE_UISTATE_CHARGING;             // indicate charging
+        core.vstatus.ui_cmd |= CORE_UISTATE_CHARGING;             // indicate charging
 
     // get the current RTC counter and check if operation is scheduled
-    if ( (core.nf.next_schedule <= RTCclock) || charge )
+    if ( (core.nf.next_schedule <= RTCclock) || charge || (wur & (WUR_USR | WUR_FIRST)) )
     {
         // schedule was made on an operation - we need to check out the core.nv with setup and saved status
         // we will fetch nonvolatile data also when charger is connected because it will not go back in power save mode
@@ -1066,7 +1066,7 @@ void core_poll( struct SEventStruct *evmask )
             if ( evmask->timer_tick_system && (core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP) )
             {
                 if ( core_setup_load( core.vstatus.int_op.f.first_pwrup ) )
-                    core.vstatus.ui_order |= CORE_UISTATE_EECORRUPTED;
+                    core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
 
                 core.vstatus.int_op.f.first_pwrup = 0;
                 core.nv.dirty = true;
@@ -1078,16 +1078,15 @@ void core_poll( struct SEventStruct *evmask )
                 // init the sensor module
                 Sensor_Init();
 
-//dev
-    core.nv.op.op_flags.b.op_monitoring = 1;
-
-                // set up operation mode from nv data
+/*                // set up operation mode from nv data
                 if ( core.nv.op.op_flags.b.op_monitoring )
                 {
                     core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.nv.setup.tim_tend_temp );
+                    core_op_monitoring_rate( ss_rh, (enum EUpdateTimings)core.nv.setup.tim_tend_hygro );
+                    core_op_monitoring_rate( ss_pressure, (enum EUpdateTimings)core.nv.setup.tim_tend_press );
                     core_op_monitoring_switch( true );
                 }
-
+*/
                 if ( core.vstatus.int_op.f.sched == 0 )
                     core.vstatus.int_op.f.core_bsy = 0;
 

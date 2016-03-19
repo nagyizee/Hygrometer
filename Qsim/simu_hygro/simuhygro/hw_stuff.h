@@ -69,18 +69,6 @@ struct STIM1
     // all these modes are mutally exclussive per group
     #define SYSSTAT_DISP_BUSY           PM_SLEEP        // flag indicating that display is busy
 
-    #define SYSSTAT_CORE_BULK           PM_FULL         // core needs bulk run, need to run main loop continuously
-    #define SYSSTAT_CORE_RUN_FULL       PM_SLEEP        // core run with high speed clock needed (1ms ticks)
-    #define SYSYTAT_CORE_MONITOR        PM_HOLD         // core in monitoring / fast registering mode, maintain memory - no full power down possible
-    #define SYSSTAT_CORE_STOPPED        PM_DOWN         // core stopped, no operation in progress
-
-    #define SYSSTAT_UI_ON               PM_SLEEP            // ui is fully functional, display is eventually dimmed 
-    #define SYSSTAT_UI_ON_WAKEUP        (0x0100 | PM_SLEEP) // ui is in wake-up state after pm_down / pm_hold power mode - if long press on power button or UI wakeup event - UI will be up and running, otherwise is considered as 
-    #define SYSSTAT_UI_STOPPED          PM_HOLD             // ui stopped, wake up on keypress but keys are not captured
-    #define SYSSTAT_UI_STOP_W_ALLKEY    PM_HOLD_BTN         // ui stopped, wake up with immediate key action for any key
-    #define SYSSTAT_UI_PWROFF           PM_DOWN             // ui is in off mode, or power off requested
-
-
     // wake up reasons
     #define WUR_NONE        0x00
     #define WUR_FIRST       0x01        // first startup
