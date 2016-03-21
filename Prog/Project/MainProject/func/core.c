@@ -780,19 +780,20 @@ void core_op_realtime_sensor_select( enum ESensorSelect sensor )
     switch ( sensor )
     {
         case ss_thermo:
-            if ( core.nv.op.sched.sch_thermo < RTCclock )
+            if ( core.nv.op.sched.sch_thermo > RTCclock )
                 core.nv.op.sched.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_rh:
-            if ( core.nv.op.sched.sch_hygro < RTCclock )
+            if ( core.nv.op.sched.sch_hygro > RTCclock )
                 core.nv.op.sched.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_pressure:
-            if ( core.nv.op.sched.sch_press < RTCclock )
+            if ( core.nv.op.sched.sch_press > RTCclock )
                 core.nv.op.sched.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
     }
     core.vstatus.int_op.f.sens_real_time = sensor;
+    local_check_first_scheduled_op();
 }
 
 void core_op_monitoring_switch( bool enable )

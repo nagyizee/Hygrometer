@@ -626,7 +626,7 @@ uint32 Sensor_GetPwrStatus(void)
     {
         if ( sens.time_ctr_RH > (85-1) )
             return PM_FULL;
-        if ( sens.time_ctr_Press < 1 )
+        if ( sens.time_ctr_RH < 1 )
             return PM_FULL;
         pwr |= PM_SLEEP;
     }
@@ -635,7 +635,7 @@ uint32 Sensor_GetPwrStatus(void)
     {
         if ( sens.time_ctr_RH > (29-1) )
             return PM_FULL;
-        if ( sens.time_ctr_Press < 1 )
+        if ( sens.time_ctr_RH < 1 )
             return PM_FULL;
         pwr |= PM_SLEEP;
     }

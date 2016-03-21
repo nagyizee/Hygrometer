@@ -274,14 +274,21 @@ void uist_startup( struct SEventStruct *evmask )
         ui.m_substate--;
     }
 
-    if ( evmask->key_event && 
-         evmask->key_longpressed & KEY_MODE )
+    if ( evmask->key_event )
     {
-        local_uist_display_init();
-        ui.m_state = UI_STATE_MAIN_GAUGE;
-        ui.m_substate = 0;
-        ui.main_mode = UImm_gauge_thermo;
-        return;
+        if ( evmask->key_pressed & KEY_MODE )           // if power button is pressed - put in long-press waiting state
+        {
+            ui.pwr_state = SYSSTAT_UI_ON;
+            ui.m_substate = 110;
+        }
+        else if ( evmask->key_longpressed & KEY_MODE )  // when long press on power button
+        {
+            local_uist_display_init();
+            ui.m_state = UI_STATE_MAIN_GAUGE;
+            ui.m_substate = 0;
+            ui.main_mode = UImm_gauge_thermo;
+            return;
+        }
     }
 
     if ( ui.m_substate == 0 )
@@ -376,9 +383,13 @@ void uist_shutdown( struct SEventStruct *evmask )
 
     if ( ui.m_substate <= 2 )
     { 
-        ui.pwr_state = SYSSTAT_UI_PWROFF;
-        ui.m_state = UI_STATE_STARTUP;
+        ui.m_state = UI_STATE_STARTUP;      // just put in start-up mode (wait for long-press if in shutdown)
         ui.m_substate = UI_SUBST_ENTRY;
+        Graphics_ClearScreen(0);
+        DispHAL_Display_Off();
+        ui.pwr_dispdim = true;
+        ui.pwr_dispoff = true;
+        ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
         return;
     }
 
@@ -518,7 +529,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         else
         {
             // operations if no focus yet - OK presssed
-            if ( (evmask->key_pressed & KEY_UP) && (ui.main_mode > 0) )
+            if ( (evmask->key_pressed & KEY_LEFT) && (ui.main_mode > 0) )
             {
                 ui.main_mode--;
                 uist_setupview_mainwindow( true );
@@ -526,7 +537,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
                 core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
             }
-            if ( (evmask->key_pressed & KEY_DOWN) && (ui.main_mode < UImm_gauge_pressure) )
+            if ( (evmask->key_pressed & KEY_RIGHT) && (ui.main_mode < UImm_gauge_pressure) )
             {
                 ui.main_mode++;
                 uist_setupview_mainwindow( true );
