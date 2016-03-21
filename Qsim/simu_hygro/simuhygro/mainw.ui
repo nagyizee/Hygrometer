@@ -554,6 +554,45 @@
      <string>Charger plugged in</string>
     </property>
    </widget>
+   <widget class="QCheckBox" name="cb_sensread_temp">
+    <property name="geometry">
+     <rect>
+      <x>500</x>
+      <y>162</y>
+      <width>21</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="cb_sensread_hygro">
+    <property name="geometry">
+     <rect>
+      <x>500</x>
+      <y>192</y>
+      <width>21</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="cb_sensread_baro">
+    <property name="geometry">
+     <rect>
+      <x>500</x>
+      <y>222</y>
+      <width>21</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>

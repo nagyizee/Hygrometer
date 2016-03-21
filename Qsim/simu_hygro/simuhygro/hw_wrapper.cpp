@@ -415,6 +415,22 @@ void mainw::on_tb_time_editingFinished()
 }
 
 
+void mainw::HW_wrapper_show_sensor_read( uint32 sensor, bool on )
+{
+    switch ( sensor )
+    {
+        case SENSOR_TEMP:
+            ui->cb_sensread_temp->setChecked(on);
+            break;
+        case SENSOR_RH:
+            ui->cb_sensread_hygro->setChecked(on);
+            break;
+        case SENSOR_PRESS:
+            ui->cb_sensread_baro->setChecked(on);
+            break;
+    }
+}
+
 /////////////////////////////////////////////////////
 // Sensor emulation
 /////////////////////////////////////////////////////
@@ -469,6 +485,7 @@ uint32 Sensor_Acquire( uint32 mask )
         sens.RH_up = true;
         sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_TEMP;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_TEMP, true );
         sens.ready &= ~SENSOR_TEMP;
     }
     if ( (mask & SENSOR_RH) && ((sens.in_progress & SENSOR_RH) == 0) )
@@ -480,6 +497,7 @@ uint32 Sensor_Acquire( uint32 mask )
         sens.RH_up = true;
         sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_RH;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_RH, true );
         sens.ready &= ~SENSOR_RH;
     }
     if ( (mask & SENSOR_PRESS) && ((sens.in_progress & SENSOR_PRESS) == 0) )
@@ -491,6 +509,7 @@ uint32 Sensor_Acquire( uint32 mask )
         sens.Press_up = true;
         sens.ini_progress &= ~SENSOR_PRESS;
         sens.in_progress |= SENSOR_PRESS;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_PRESS, true );
         sens.ready &= ~SENSOR_PRESS;
     }
     return 0;
@@ -519,16 +538,19 @@ uint32 Sensor_Get_Value( uint32 sensor )
             if ( (sens.ready & SENSOR_TEMP) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_TEMP;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_TEMP, false );
             return pClass->HW_wrapper_get_temperature();
         case SENSOR_PRESS:
             if ( (sens.ready & SENSOR_PRESS) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_PRESS;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_PRESS, false );
             return pClass->HW_wrapper_get_pressure();
         case SENSOR_RH:
             if ( (sens.ready & SENSOR_RH) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_RH;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_RH, false );
             return pClass->HW_wrapper_get_humidity();
         default:
             return SENSOR_VALUE_FAIL;

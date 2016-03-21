@@ -119,7 +119,7 @@ public:
     int HW_wrapper_get_pressure();
 
     void HW_wrapper_Beep( int op );
-
+    void HW_wrapper_show_sensor_read( uint32 sensor, bool on );
 
     void dispsim_redraw_content();
     void disppwr_redraw_content();
