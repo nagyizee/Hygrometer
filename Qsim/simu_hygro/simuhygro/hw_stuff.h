@@ -54,7 +54,8 @@ struct STIM1
         pm_down,                // all electronics switched off, RTC alarm will wake it up, Starts from reset state
                                 //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
         pm_close,               // used for simulation only - closes the application
-        pm_exti                 // used for simulation only - notifies EXTI event
+        pm_exti,                // used for simulation only - notifies EXTI event
+        pm_disp_update          // used for simulation only - used to simulate dma load when display is written (sleep state)
     };
 
     // power mode bitmasks

@@ -67,16 +67,19 @@ private:
         cm_grid_bright,
         cm_pwr_full,
         cm_pwr_sleep,
+        cm_pwr_slpdisp,
         cm_pwr_hold_btn,
         cm_pwr_hold,
         cm_pwr_down,
         cm_pwr_exti,
         cm_pwr_br_full,
         cm_pwr_br_sleep,
+        cm_pwr_br_slpdisp,
         cm_pwr_br_hold_btn,
         cm_pwr_br_hold,
         cm_pwr_drk_full,
         cm_pwr_drk_sleep,
+        cm_pwr_drk_slpdisp,
         cm_pwr_drk_hold_btn,
         cm_pwr_drk_hold
     };
@@ -142,6 +145,7 @@ public:
     uint32  RTCNextAlarm;
     enum EPowerMode PwrMode;
     enum EPowerMode PwrModeToDisp;
+    uint32  PwrDispUd;
     uint32  PwrWUR;
 
     uint16  BKPregs[10];

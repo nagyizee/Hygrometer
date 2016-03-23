@@ -40,6 +40,7 @@ mainw::mainw(QWidget *parent) :
     pwr_colors.append( 0xff403025 );       // cm_grid_bright
     pwr_colors.append( 0xfffce000 );       // cm_pwr_full
     pwr_colors.append( 0xff807010 );       // cm_pwr_sleep
+    pwr_colors.append( 0xffA09010 );       // cm_pwr_slpdisp
     pwr_colors.append( 0xffA01010 );       // cm_pwr_hold_btn
     pwr_colors.append( 0xffA010f0 );       // cm_pwr_hold
     pwr_colors.append( 0xff000000 );       // cm_pwr_down
@@ -47,11 +48,13 @@ mainw::mainw(QWidget *parent) :
 
     pwr_colors.append( 0xf0fce000 );       // cm_pwr_br_full
     pwr_colors.append( 0xf0807010 );       // cm_pwr_br_sleep
+    pwr_colors.append( 0xf0A09010 );       // cm_pwr_br_slpdisp
     pwr_colors.append( 0xf0A01010 );       // cm_pwr_br_hold_btn
     pwr_colors.append( 0xf0A010f0 );       // cm_pwr_br_hold
 
     pwr_colors.append( 0xe0fce000 );       // cm_pwr_drk_full
     pwr_colors.append( 0xe0807010 );       // cm_pwr_drk_sleep
+    pwr_colors.append( 0xe0A09010 );       // cm_pwr_drk_slpdisp
     pwr_colors.append( 0xe0A01010 );       // cm_pwr_drk_hold_btn
     pwr_colors.append( 0xe0A010f0 );       // cm_pwr_drk_hold
 
@@ -101,6 +104,7 @@ mainw::mainw(QWidget *parent) :
     PwrMode = pm_down;
     PwrModeToDisp = pm_down;
     PwrWUR = WUR_FIRST;
+    PwrDispUd = 0;
 
     //--- test phase
     qsrand(0x64892354);
@@ -192,6 +196,9 @@ void mainw::CPULoopSimulation( bool tick )
         {
             sec_ctr++;
 
+            if ( PwrDispUd )
+                PwrDispUd--;
+
             // increment RTC and check for alarms
             if ( sec_ctr == 500 )
             {
@@ -236,7 +243,14 @@ void mainw::CPULoopSimulation( bool tick )
             if ( pwr_exti )
                 pwrdisp_add_pwr_state( pm_exti );
             else
-                pwrdisp_add_pwr_state( PwrModeToDisp );
+            {
+                if ( (PwrModeToDisp == pm_sleep) && (PwrDispUd) )
+                {
+                    pwrdisp_add_pwr_state( pm_disp_update );
+                }
+                else
+                    pwrdisp_add_pwr_state( PwrModeToDisp );
+            }
 
             pwr_main_executed = false;
             pwr_exti = false;
@@ -329,6 +343,14 @@ void mainw::pwrdisp_add_pwr_state( enum EPowerMode mode )
                 val = cm_pwr_br_sleep;
             else
                 val = cm_pwr_drk_sleep;
+            break;
+        case pm_disp_update:
+            if (grid == 0)
+                val = cm_pwr_slpdisp;
+            else if (grid == 1)
+                val = cm_pwr_br_slpdisp;
+            else
+                val = cm_pwr_drk_slpdisp;
             break;
         case pm_hold_btn:
             if (grid == 0)

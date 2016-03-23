@@ -810,6 +810,7 @@ bool DispHAL_ReleaseSPI( void )
 
 void DispHAL_UpdateScreen()
 {
+    pClass->PwrDispUd = 9;                  // simulate 9 ms display update time
     pClass->dispsim_redraw_content();
 }
 

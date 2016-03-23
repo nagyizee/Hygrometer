@@ -176,6 +176,7 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
 
 static void uist_goto_shutdown(void)
 {
+    core_op_realtime_sensor_select( ss_none );
     ui.m_state = UI_STATE_SHUTDOWN;
     ui.m_substate = 0;
 }
@@ -229,16 +230,18 @@ static inline void ui_power_management( struct SEventStruct *evmask )
              ( core.nv.setup.pwr_off ) &&
              ( core.nv.setup.pwr_off < ui.incativity) )
         {
+            ui.pwr_dispdim = true;
+            ui.pwr_dispoff = true;
             DispHAL_Display_Off();
             ui.pwr_state = SYSSTAT_UI_PWROFF;
         }
         else if ( ( core.nv.setup.pwr_disp_off ) &&           // display off limit reached
                   ( core.nv.setup.pwr_disp_off < ui.incativity) )
         {
-            DispHAL_Display_Off();
             ui.pwr_dispdim = true;
             ui.pwr_dispoff = true;
-            ui.pwr_state = SYSSTAT_UI_STOPPED;
+            DispHAL_Display_Off();
+            ui.pwr_state = SYSSTAT_UI_STOP_W_ALLKEY;
             core_op_realtime_sensor_select( ss_none );
         }
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
@@ -248,6 +251,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         {
             DispHAL_SetContrast( core.nv.setup.disp_brt_dim );
             ui.pwr_dispdim = true;
+            ui.pwr_state = SYSSTAT_UI_STOP_W_ALLKEY;
         } 
     }
 }

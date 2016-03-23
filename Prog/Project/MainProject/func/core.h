@@ -299,9 +299,10 @@
 
     struct SCoreVolatileStatus
     {
-        uint32                      ui_cmd;         // commands made to UI module - set by core, read/processed/cleared by UI module
-        union UCoreInternalStatus   int_op;         // internal operations
-                                                    // 
+        uint32                      battcheck;  // battery check schedule
+        uint32                      ui_cmd;     // commands made to UI module - set by core, read/processed/cleared by UI module
+        union UCoreInternalStatus   int_op;     // internal operations
+                                                // 
     };
 
 

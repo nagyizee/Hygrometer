@@ -86,6 +86,9 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 {
     core_poll( evmask );
 
+    if ( wake_up & WUR_USR )            // wake-up from stop state by keypress
+        ui_st = PM_SLEEP;
+
     if ( evmask->timer_tick_10ms || evmask->key_event )
     {
         ui_st = ui_poll( evmask );

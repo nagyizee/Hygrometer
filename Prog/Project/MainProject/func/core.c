@@ -527,6 +527,30 @@ static void local_initialize_core_operation(void)
 
 }
 
+
+static inline void local_poll_aux_operations(void)
+{
+    // check battery
+    if ( RTCclock >= core.vstatus.battcheck )
+    {
+        local_update_battery();
+        core.measure.dirty.b.upd_battery;
+        if ( HW_Charge_Detect() )
+        {
+            core.vstatus.ui_cmd &= ~CORE_UISTATE_LOW_BATTERY;
+            core.vstatus.ui_cmd |= CORE_UISTATE_CHARGING;
+        }
+        else if ( core.measure.battery < 5 )        // 3.25V treshold or below and no charge
+        {
+            core.vstatus.ui_cmd |= CORE_UISTATE_LOW_BATTERY;
+            core.vstatus.ui_cmd &= ~CORE_UISTATE_CHARGING;
+        }
+
+        // schedule to 5sec intervals
+        core.vstatus.battcheck = RTCclock + 10;
+    }
+}
+
 /////////////////////////////////////////////////////
 //
 //   main routines
@@ -665,9 +689,9 @@ int core_setup_reset( bool save )
 
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
-    setup->pwr_stdby = 3000;          // 30sec standby
-    setup->pwr_disp_off = 6000;     // 1min standby
-    setup->pwr_off = 30000;         // 5min pwr off
+    setup->pwr_stdby = 30;          // 30sec standby
+    setup->pwr_disp_off = 60;       // 1min standby
+    setup->pwr_off = 5*60;          // 5min pwr off
 
     setup->beep_on = 1;
     setup->beep_hi = 1554;
@@ -780,15 +804,18 @@ void core_op_realtime_sensor_select( enum ESensorSelect sensor )
     switch ( sensor )
     {
         case ss_thermo:
-            if ( core.nv.op.sched.sch_thermo > RTCclock )
+            if ( (core.nv.op.sched.sch_thermo > (RTCclock + CORE_SCHED_TEMP_REALTIME)) ||
+                 (core.nv.op.sched.sch_thermo < RTCclock) )
                 core.nv.op.sched.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_rh:
-            if ( core.nv.op.sched.sch_hygro > RTCclock )
+            if ( (core.nv.op.sched.sch_hygro > (RTCclock + CORE_SCHED_RH_REALTIME)) ||
+                 (core.nv.op.sched.sch_hygro < RTCclock) )
                 core.nv.op.sched.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
         case ss_pressure:
-            if ( core.nv.op.sched.sch_press > RTCclock )
+            if ( (core.nv.op.sched.sch_press > (RTCclock + CORE_SCHED_PRESS_REALTIME)) ||
+                 (core.nv.op.sched.sch_press < RTCclock) )
                 core.nv.op.sched.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
             break;
     }
@@ -997,6 +1024,8 @@ void core_poll( struct SEventStruct *evmask )
             core.vstatus.int_op.f.sched = 1;            // sheduled event
             core.vstatus.int_op.f.core_bsy = 1;         // core busy
         }
+
+        local_poll_aux_operations();
     }
 
     // poll the sensor module
@@ -1079,15 +1108,6 @@ void core_poll( struct SEventStruct *evmask )
                 // init the sensor module
                 Sensor_Init();
 
-/*                // set up operation mode from nv data
-                if ( core.nv.op.op_flags.b.op_monitoring )
-                {
-                    core_op_monitoring_rate( ss_thermo, (enum EUpdateTimings)core.nv.setup.tim_tend_temp );
-                    core_op_monitoring_rate( ss_rh, (enum EUpdateTimings)core.nv.setup.tim_tend_hygro );
-                    core_op_monitoring_rate( ss_pressure, (enum EUpdateTimings)core.nv.setup.tim_tend_press );
-                    core_op_monitoring_switch( true );
-                }
-*/
                 if ( core.vstatus.int_op.f.sched == 0 )
                     core.vstatus.int_op.f.core_bsy = 0;
 
@@ -1124,18 +1144,6 @@ uint32 core_pwr_getstate(void)
         if ( core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP )       // in uninitted state it waits for 1ms NVram start-up
             return (pwr | SYSSTAT_CORE_RUN_FULL);
     }
-
-/*
-    if ( core.op.op_flags.val == 0 )
-        return SYSSTAT_CORE_STOPPED;                // core is stopped - no operation is done
-    else
-    {
-        if ( core.op.op_flags.b.check_sensor )
-            return SYSSTAT_CORE_RUN_FULL;           // operate with full 1ms interrupt interval for checking sensor result
-        if ( core.op.op_flags.b.op_monitoring )
-            return SYSYTAT_CORE_MONITOR;            // operate on RTC alarm basis
-    }
-*/
 
     return pwr;
 }
