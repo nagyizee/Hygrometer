@@ -159,6 +159,20 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
                              core.measure.dirty.b.upd_th_tendency )
                             update |= RDRW_UI_CONTENT;
                         break;
+                    case UImm_gauge_hygro:
+                        if ( core.measure.dirty.b.upd_hygro )
+                            update |= RDRW_UI_DYNAMIC;
+                        if ( core.measure.dirty.b.upd_hum_minmax ||
+                             core.measure.dirty.b.upd_th_tendency )
+                            update |= RDRW_UI_CONTENT;
+                        break;
+                    case UImm_gauge_pressure:
+                        if ( core.measure.dirty.b.upd_pressure )
+                            update |= RDRW_UI_DYNAMIC;
+                        if ( core.measure.dirty.b.upd_press_minmax ||
+                             core.measure.dirty.b.upd_press_tendency )
+                            update |= RDRW_UI_CONTENT;
+                        break;
                 }
                 break;
             case UI_STATE_MODE_SELECT:
@@ -168,8 +182,9 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
         if ( evmask->timer_tick_05sec )
         {
             ui.upd_batt++;
-            if( ui.upd_batt == 10 )          // battery status update on every 5sec
+            if( (ui.upd_batt == 10) || core.measure.dirty.b.upd_battery )          // battery status update on every 5sec
             {
+                core.measure.dirty.b.upd_battery = 0;
                 ui.upd_batt = 0;
                 update |= RDRW_BATTERY;
             }
@@ -240,7 +255,9 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             DispHAL_Display_On();
             ui.pwr_dispoff = false;
         }
-        core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
+
+        if ( ui.m_state == UI_STATE_MAIN_GAUGE )
+            core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
     }
     else if ( evmask->timer_tick_05sec )
     {

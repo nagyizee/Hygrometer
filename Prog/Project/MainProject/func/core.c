@@ -534,7 +534,7 @@ static inline void local_poll_aux_operations(void)
     if ( RTCclock >= core.vstatus.battcheck )
     {
         local_update_battery();
-        core.measure.dirty.b.upd_battery;
+        core.measure.dirty.b.upd_battery = 1;
         if ( HW_Charge_Detect() )
         {
             core.vstatus.ui_cmd &= ~CORE_UISTATE_LOW_BATTERY;
@@ -571,7 +571,7 @@ int core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit )
         case tu_F:
             return (int)( ((int)temp16fp9 * 180) >> TEMP_FP ) - 4000;       // see the mathcad sheet why this formula
         case tu_K:
-            return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) + 23315;              // substract the 40*C from the 273.15*K
+            return (int)( ((int)temp16fp9 * 100) >> TEMP_FP ) + 23315;      // substract the 40*C from the 273.15*K
     }
     return 0;
 }
@@ -699,7 +699,7 @@ int core_setup_reset( bool save )
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
     setup->pwr_stdby = 30*2;          // 30sec standby
-    setup->pwr_disp_off = 60*2;       // 1min standby
+    setup->pwr_disp_off = 2*60*2;     // 2min standby
     setup->pwr_off = 5*60*2;          // 5min pwr off
 
     setup->beep_on = 1;

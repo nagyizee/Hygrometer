@@ -182,7 +182,7 @@ static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
     clock = core_get_clock_counter();
 
     if ( rdrw & RDRW_BATTERY)
-        uigrf_draw_battery(120, 0, 50);
+        uigrf_draw_battery(120, 0, core.measure.battery );
 
     if ( (rdrw & RDRW_STATUSBAR) == RDRW_STATUSBAR )
     {
@@ -304,7 +304,7 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         for ( i=0; i<3; i++ )
         {
             internal_drawthermo_minmaxval( x+i*27, y+8,  core_utils_temperature2unit( core.nv.op.sens_rd.minmax[CORE_MMP_TEMP].max[GET_MM_SET_SELECTOR( mms, i )],(enum ETemperatureUnits)unit ) );
-            internal_drawthermo_minmaxval( x+i*27, y+16, core_utils_temperature2unit( core.nv.op.sens_rd.minmax[CORE_MMP_TEMP].min[GET_MM_SET_SELECTOR( mms, i )], (enum ETemperatureUnits)unit ) );
+            internal_drawthermo_minmaxval( x+i*27, y+16, core_utils_temperature2unit( core.nv.op.sens_rd.minmax[CORE_MMP_TEMP].min[GET_MM_SET_SELECTOR( mms, i )],(enum ETemperatureUnits)unit ) );
         }
 
         // for tendency meter
