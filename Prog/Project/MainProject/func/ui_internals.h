@@ -90,11 +90,13 @@
 
         union UUIstatusParams   p;      // parameters for the curent ui state
 
-        uint32 incativity;      // inactivity counter
-        uint32 pwr_state;       // current power management state
-        bool pwr_dispdim;       // display is dimmed
-        bool pwr_dispoff;       // display is off
-        bool pwr_dispinit;      // if display is initted
+        uint32 pwr_sched_dim;       // inactivity time scheduler for display dimming
+        uint32 pwr_sched_dispoff;   // inactivity time scheduler for display off
+        uint32 pwr_sched_pwroff;    // inactivity time scheduler for power down
+        uint32 pwr_state;           // current power management state
+        bool pwr_dispdim;           // display is dimmed
+        bool pwr_dispoff;           // display is off
+        bool pwr_dispinit;          // if display is initted
 
         uint16 upd_batt;        // battery update counter
         uint16 upd_dynamics;    // update dynamic stuff

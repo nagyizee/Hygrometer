@@ -42,6 +42,17 @@ static void local_uist_display_init(void)
     }
 }
 
+static void local_ui_set_shutdown_state(void)
+{
+    ui.m_state = UI_STATE_STARTUP;      // just put in start-up mode (wait for long-press if in shutdown)
+    ui.m_substate = UI_SUBST_ENTRY;
+    Graphics_ClearScreen(0);
+    DispHAL_Display_Off();
+    ui.pwr_dispdim = true;
+    ui.pwr_dispoff = true;
+    ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
+}
+
 
 ////////////////////////////////////////////////////
 //
@@ -185,19 +196,30 @@ static void uist_goto_shutdown(void)
 
 static inline void ui_power_management( struct SEventStruct *evmask )
 {
+    if ( ui.pwr_state == SYSSTAT_UI_PWROFF )
+        return;
+
+    uint32 crt_rtc = core_get_clock_counter();
+
     if ( evmask->key_event )
     {
+        ui.pwr_sched_dim = CORE_SCHED_NONE;
+        ui.pwr_sched_dispoff = CORE_SCHED_NONE;
+        ui.pwr_sched_pwroff = CORE_SCHED_NONE;
+        // reset inactivity counter
+        if ( core.nv.setup.pwr_stdby )
+            ui.pwr_sched_dim        = crt_rtc + core.nv.setup.pwr_stdby;
+        if ( core.nv.setup.pwr_disp_off )
+            ui.pwr_sched_dispoff    = crt_rtc + core.nv.setup.pwr_disp_off;
+        if ( core.nv.setup.pwr_off )
+            ui.pwr_sched_pwroff     = crt_rtc + core.nv.setup.pwr_off;
+
         // for the case when UI was shut down - ony longpress on pwr/mode button is allowed
         // if key activity detected (most probably from pwr/mode - because evnets are set up for this only) then start up in
         // wake-up mode
-        if ( (ui.pwr_state == SYSSTAT_UI_PWROFF) ||
-             (ui.pwr_dispinit == false) )
-        {
-            ui.incativity = 0;
+        if ( ui.pwr_dispinit == false )
             return;
-        }
 
-        ui.incativity = 0;          // reset inactivity counter
         if ( ui.pwr_state != SYSSTAT_UI_ON )
         {
             ui.pwr_state = SYSSTAT_UI_ON;
@@ -206,6 +228,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
             evmask->key_released = 0;
             evmask->key_pressed = 0;
             evmask->key_longpressed = 0;
+            core_restart_rtc_tick();
         }
         if ( ui.pwr_dispdim )
         {
@@ -219,25 +242,16 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         }
         core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
     }
-    else if ( evmask->timer_tick_1sec )
+    else if ( evmask->timer_tick_05sec )
     {
-        if ( ui.incativity < 0x7FFF )
+        if ( crt_rtc >= ui.pwr_sched_pwroff )       // power off time limit reached
         {
-            ui.incativity++;
+            ui.pwr_sched_pwroff = CORE_SCHED_NONE;
+            local_ui_set_shutdown_state();
         }
-
-        if ( ( ui.pwr_state != SYSSTAT_UI_PWROFF ) &&       // power off time limit reached
-             ( core.nv.setup.pwr_off ) &&
-             ( core.nv.setup.pwr_off < ui.incativity) )
+        else if ( crt_rtc >= ui.pwr_sched_dispoff ) // display off limit reached
         {
-            ui.pwr_dispdim = true;
-            ui.pwr_dispoff = true;
-            DispHAL_Display_Off();
-            ui.pwr_state = SYSSTAT_UI_PWROFF;
-        }
-        else if ( ( core.nv.setup.pwr_disp_off ) &&           // display off limit reached
-                  ( core.nv.setup.pwr_disp_off < ui.incativity) )
-        {
+            ui.pwr_sched_dispoff = CORE_SCHED_NONE;
             ui.pwr_dispdim = true;
             ui.pwr_dispoff = true;
             DispHAL_Display_Off();
@@ -247,8 +261,9 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         else if ( ( (ui.pwr_state & (SYSSTAT_UI_STOPPED | SYSSTAT_UI_STOP_W_ALLKEY)) == 0) && // display dimmed, ui stopped - waiting for interrupts
                   ( ui.pwr_dispdim == false ) &&
                   ( core.nv.setup.pwr_stdby ) &&
-                  ( core.nv.setup.pwr_stdby < ui.incativity) )
+                  ( crt_rtc >= ui.pwr_sched_dim ) )
         {
+            ui.pwr_sched_dim = CORE_SCHED_NONE;
             DispHAL_SetContrast( core.nv.setup.disp_brt_dim );
             ui.pwr_dispdim = true;
             ui.pwr_state = SYSSTAT_UI_STOP_W_ALLKEY;
@@ -387,13 +402,7 @@ void uist_shutdown( struct SEventStruct *evmask )
 
     if ( ui.m_substate <= 2 )
     { 
-        ui.m_state = UI_STATE_STARTUP;      // just put in start-up mode (wait for long-press if in shutdown)
-        ui.m_substate = UI_SUBST_ENTRY;
-        Graphics_ClearScreen(0);
-        DispHAL_Display_Off();
-        ui.pwr_dispdim = true;
-        ui.pwr_dispoff = true;
-        ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
+        local_ui_set_shutdown_state();
         return;
     }
 
@@ -667,18 +676,6 @@ uint32 ui_poll( struct SEventStruct *evmask )
     }
 
     *evmask = evm_bkup;
-    if ( (ui.pwr_state == SYSSTAT_UI_PWROFF) && (ui.setup_mod == true) )
-    {   
-        if ( DispHAL_ReleaseSPI() )             // release display SPI bus - will be reactivated as soon a new display operation is done
-        {
-//            core_setup_save();
-            ui.setup_mod = false;
-        }
-        else
-        { 
-            ui.pwr_state = SYSSTAT_UI_STOPPED; // do not send power off state till settings are not saved
-        }
-    }
     
     return ui.pwr_state;
 }

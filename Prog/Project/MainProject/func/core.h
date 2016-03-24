@@ -333,7 +333,8 @@
     uint32  core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit );
 
     // gets or sets the RTC clock
-    uint32 core_get_clock_counter();
+    uint32 core_get_clock_counter(void);
+    uint32 core_restart_rtc_tick(void);
     void core_set_clock_counter( uint32 counter );
 
     // generate beeps

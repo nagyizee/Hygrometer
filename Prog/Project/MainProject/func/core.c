@@ -131,10 +131,6 @@ extern void DispHAL_ISR_Poll(void);
         events.timer_tick_system = 1;
         events.timer_tick_10ms = 1;
         events.timer_tick_05sec = 1;
-        if ( (RTCctr & 0x01) == 0)
-        {
-            events.timer_tick_1sec = 1;
-        }
     }//END: Timer1IntrHandler
 
 
@@ -513,6 +509,10 @@ static void local_nvfast_load_struct(void)
 {
     core.nf.status.val = BKP_ReadBackupRegister( BKP_DR2 );
     core.nf.next_schedule = BKP_ReadBackupRegister( BKP_DR3 ) | ((uint32)(BKP_ReadBackupRegister( BKP_DR4 )) << 8);
+
+    core.measure.measured.temperature = BKP_ReadBackupRegister( BKP_DR5 );
+    core.measure.measured.rh = BKP_ReadBackupRegister( BKP_DR6 );
+
 }
 
 static void local_initialize_core_operation(void)
@@ -604,9 +604,18 @@ uint32 core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit )
 
 
 
-uint32 core_get_clock_counter()
+uint32 core_get_clock_counter(void)
 {
-    return RTCctr;
+    return RTCclock;
+}
+
+uint32 core_restart_rtc_tick(void)
+{
+    __disable_interrupt();
+    RTC_WaitForLastTask();
+    RTCctr = RTC_GetCounter();
+    RTC_SetAlarm( RTCctr + 1 );
+    __enable_interrupt();
 }
 
 void core_set_clock_counter( uint32 counter )
@@ -689,9 +698,9 @@ int core_setup_reset( bool save )
 
     setup->disp_brt_on  = 0x30;
     setup->disp_brt_dim = 12;
-    setup->pwr_stdby = 30;          // 30sec standby
-    setup->pwr_disp_off = 60;       // 1min standby
-    setup->pwr_off = 5*60;          // 5min pwr off
+    setup->pwr_stdby = 30*2;          // 30sec standby
+    setup->pwr_disp_off = 60*2;       // 1min standby
+    setup->pwr_off = 5*60*2;          // 5min pwr off
 
     setup->beep_on = 1;
     setup->beep_hi = 1554;
@@ -787,6 +796,11 @@ void core_nvfast_save_struct(void)
     BKP_WriteBackupRegister( BKP_DR2, core.nf.status.val );
     BKP_WriteBackupRegister( BKP_DR3, core.nf.next_schedule & 0xffff );
     BKP_WriteBackupRegister( BKP_DR4, (core.nf.next_schedule >> 8) & 0xffff );
+
+    // save the measured temperature and dewpoint because we need them independently from each-other after start-up for calculations
+    BKP_WriteBackupRegister( BKP_DR5, core.measure.measured.temperature );
+    BKP_WriteBackupRegister( BKP_DR6, core.measure.measured.rh );
+
 
     if ( core.nv.dirty )
     {
