@@ -64,12 +64,21 @@
         enum EHumidityUnits          unitH;
     };
 
+    struct SUIMainGaugePress
+    {
+        struct Suiel_control_list    units;
+        struct Suiel_control_list    minmaxset;
+        struct Suiel_control_edit    msl_press;
+        struct Suiel_control_edit    crt_altitude;
+        bool                         msl_ref;       // if true - mean see level pressure is the reference -> calculate altitude
+    };                                              // if false - altitude is the reference -> calculate the msl pressure
 
     union UUIstatusParams
     {
         // main window stuff
         struct SUIMainGaugeThermo  mgThermo;
         struct SUIMainGaugeHygro   mgHygro;
+        struct SUIMainGaugePress   mgPress;
     };
 
 

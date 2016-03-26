@@ -708,6 +708,7 @@ int core_setup_reset( bool save )
 
     setup->show_unit_temp = tu_C;
     setup->show_unit_hygro = hu_rh;
+    setup->show_unit_press = pu_hpa;
     setup->show_mm_temp = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_hygro = ( mms_set1 | (mms_set2 << 4) | (mms_day_crt << 8) );
     setup->show_mm_press = mms_set1;
@@ -979,8 +980,11 @@ int core_init( struct SCore **instance )
         // first start-up - means that clock and work status is uninitialized
         local_initialize_core_operation();
 
+        // init some default stuff for first start-up
         core.vstatus.int_op.f.first_pwrup = 1;
         core.nf.status.b.first_start = 1;
+
+        core.nv.op.params.press_msl = 101325 - 50000;   // 1013.25 hpa reference pressure
     }
     else
     {

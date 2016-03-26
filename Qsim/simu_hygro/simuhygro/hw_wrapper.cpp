@@ -345,7 +345,7 @@ int mainw::HW_wrapper_get_humidity()
 
 int mainw::HW_wrapper_get_pressure()
 {
-    return ms_press * 100;
+    return ms_press << 2;
 }
 
 void mainw::HW_wrapper_Beep( int op )

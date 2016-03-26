@@ -88,6 +88,12 @@
         hu_abs                      // absolute humidity in g/m3
     };
 
+    enum EPressureUnits
+    {
+        pu_hpa = 0,
+        hu_hgmm
+    };
+
     enum EMinimumMaximumStorage     // NOTE: keep the nr of elements in sync with STORAGE_MINMAX
     {
         mms_set1 = 0,               // generic location 1
@@ -125,6 +131,7 @@
 
         uint8                   show_unit_temp;     // see ETemperatureUnits for values
         uint8                   show_unit_hygro;    // humidity display selector
+        uint8                   show_unit_press;    // pressure display selector
         uint8                   show_mm_press;      // show min/max set for pressure
         uint16                  show_mm_temp;       // show min/max set for temperature: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
         uint16                  show_mm_hygro;      // show min/max set for hygrometer: selectors for displaying location 1,2,3:  ( ssm1 << 0 | mms2 << 4 | mms3 << 8 )
@@ -192,12 +199,18 @@
         struct STendencyBuffer  tendency[CORE_MSR_SET];    // tendency value list. See CORE_MMP_xxx for indexes.           336 bytes
     };
 
+    struct SOperationalParams
+    {
+        uint16  press_msl;          // mean sea level pressure in Pa+50kPa
+        uint16  press_alt;          // reference altitude (in meters) for msl pressure calculation
+    };
 
     struct SCoreOperation           // core operations in nonvolatile space
     {
         union UCoreOperationFlags   op_flags;       // operation flags - see CORE_OP_XXX defines
         struct SSchedules           sched;          // sheduled events
         struct SSensorReads         sens_rd;        // sensor read operations
+        struct SOperationalParams   params;
     };
 
 

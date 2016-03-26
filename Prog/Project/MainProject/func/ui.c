@@ -106,6 +106,55 @@ static inline bool ui_imchanges_gauge_thermo( bool to_default )
     return false;
 }
 
+static inline bool ui_imchanges_gauge_hygro( bool to_default )
+{
+    switch ( ui.focus )
+    {
+        case 1:                 // temperature measurement unit change actions
+            if ( to_default )
+            {
+                ui.p.mgHygro.unitH = (enum EHumidityUnits)core.nv.setup.show_unit_hygro;
+                uiel_control_list_set_index( &ui.p.mgHygro.units, ui.p.mgHygro.unitH );
+                core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
+                return true;
+            }
+            else
+            {
+                int val = uiel_control_list_get_index( &ui.p.mgHygro.units );
+                if ( val != ui.p.mgHygro.unitH )
+                {
+                    ui.p.mgHygro.unitH = (enum EHumidityUnits)val;
+                    core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
+                    return true;
+                }
+            }
+            break;
+        case 2:
+        case 3:
+        case 4:
+            if ( to_default )
+            {
+                core_op_monitoring_reset_minmax( ss_rh, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, ui.focus - 2 ) );
+                return true;
+            }
+            else
+            {
+                int val = uiel_control_list_get_value( ui.ui_elems[ui.focus-1] );
+                if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, ui.focus - 2 ) )
+                {
+                    SET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, val, ui.focus - 2 );
+                    return true;
+                }
+            }
+            break;
+    }
+    return false;
+}
+
+static inline bool ui_imchanges_gauge_pressure( bool to_default )
+{
+    
+}
 
 
 static bool ui_process_intermediate_changes( bool to_default )
@@ -116,7 +165,8 @@ static bool ui_process_intermediate_changes( bool to_default )
             switch ( ui.main_mode )
             {
                 case UImm_gauge_thermo: return ui_imchanges_gauge_thermo(to_default);
-
+                case UImm_gauge_hygro: return ui_imchanges_gauge_hygro(to_default);
+                case UImm_gauge_pressure: return ui_imchanges_gauge_pressure(to_default);
             }
             break;
     }
@@ -163,6 +213,7 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
                         if ( core.measure.dirty.b.upd_hygro )
                             update |= RDRW_UI_DYNAMIC;
                         if ( core.measure.dirty.b.upd_hum_minmax ||
+                             core.measure.dirty.b.upd_abshum_minmax ||
                              core.measure.dirty.b.upd_th_tendency )
                             update |= RDRW_UI_CONTENT;
                         break;

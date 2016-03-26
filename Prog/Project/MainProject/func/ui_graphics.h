@@ -8,6 +8,8 @@
 
     #define BMP_MAIN_SELECTOR   0
     #define BMP_GRF_SELECTED    1
+    #define BMP_GAUGE_HI        2
+    #define BMP_GAUGE_LO        3
 
     enum Etextstyle
     {

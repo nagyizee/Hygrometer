@@ -255,6 +255,17 @@ void internal_drawthermo_minmaxval( int x, int y, int value )
         uigrf_putfixpoint( x, y, uitxt_small, value / 10, 3, 1, 0x00, false );
 }
 
+void internal_gauge_put_hi_lo( bool high )
+{
+    Graphic_SetColor(0);
+    Graphic_FillRectangle(13, 16, 47, 37, 0 );
+    Graphic_FillRectangle(47, 30, 63, 37, 0 );
+    
+    if ( high )
+        uibm_put_bitmap( 21, 16, BMP_GAUGE_HI );
+    else
+        uibm_put_bitmap( 21, 16, BMP_GAUGE_LO );
+}
 
 ////////////////////////////////////////////////////
 //
@@ -273,11 +284,11 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
 
         // temperature display
         if ( temp == NUM100_MAX )
-            uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "HI" );
+            internal_gauge_put_hi_lo( true );
         else if ( temp == NUM100_MIN )
-            uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "LO" );
+            internal_gauge_put_hi_lo( false );
         else
-            uigrf_putvalue_impact( 13, 17, temp, 3, 2, true );
+            uigrf_putvalue_impact( 13, 16, temp, 3, 2, true );
 
         // tendency meter
         uigrf_putfixpoint( 81, 59, uitxt_micro, -2253, 3, 2, 0x00, false );
@@ -346,11 +357,11 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
             hygro = core_utils_temperature2unit( core.measure.measured.dewpoint, (enum ETemperatureUnits)core.nv.setup.show_unit_temp );
             // temperature display
             if ( hygro == NUM100_MAX )
-                uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "HI" );
+                internal_gauge_put_hi_lo( true );
             else if ( hygro == NUM100_MIN )
-                uigrf_text( 13, 17, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), "LO" );
+                internal_gauge_put_hi_lo( false );
             else
-                uigrf_putvalue_impact( 13, 17, hygro, 3, 2, true );
+                uigrf_putvalue_impact( 13, 16, hygro, 3, 2, true );
         }
         else
         {
@@ -358,7 +369,7 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
                 hygro = core.measure.measured.rh;
             else
                 hygro = core.measure.measured.absh;
-            uigrf_putvalue_impact( 13, 17, hygro, 3, 2, false );
+            uigrf_putvalue_impact( 13, 16, hygro, 3, 2, false );
         }
 
         // tendency meter
@@ -432,8 +443,8 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
                 uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
                                        core.nv.op.sens_rd.tendency[CORE_MMP_RH].w,                  // should be the same for RH and abs hum.
                                        grf_up_lim, grf_dn_lim, 3, grf_decpts );
-                core.measure.dirty.b.upd_th_tendency = 0;
             }
+            core.measure.dirty.b.upd_th_tendency = 0;
         }
         core.measure.dirty.b.upd_hum_minmax = 0;
         core.measure.dirty.b.upd_abshum_minmax = 0;
@@ -448,81 +459,70 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
     int press_int = press / 100;
     int press_fract = press % 100;
 
-    // pressure display
-    int x = 7;
-    int y = 17;
-    uigrf_putnr(x, y, (enum Etextstyle)(uitxt_large_num | uitxt_MONO), press_int, 4, ' ', false );
-    uigrf_putnr(x+48, y+14, (enum Etextstyle)(uitxt_smallbold | uitxt_MONO), press_fract, 2, '0', false );
-    Graphic_SetColor( 1 );
-    Graphic_Rectangle( x+44, y+19, x+45, y+20 );
-    uigrf_text( x+48, y+2, uitxt_small,  "hPa" );
+    int x,y;
 
-    // altimetric setup
-    x = 0;
-    y = 41;
-
-    Graphic_SetColor( 1 );
-    Graphic_FillRectangle( x, y, x + 41, y + 6, 1 );
-    uigrf_text_inv( x+3, y+1, uitxt_micro,  "REFERENCE" );
-
-    uigrf_text( x, y+9, uitxt_micro,  "SLP:" );
-    uigrf_text( x+16, y+9, uitxt_micro, "1013.25" );
-    Graphic_SetColor( -1 );
-    Graphic_FillRectangle( x, y+8, x + 41, y + 14, -1 );
-    Graphic_PutPixel(x, y, 0);
-    Graphic_PutPixel(x+41, y, 1);
-    uigrf_text( x, y+17, uitxt_micro,  "ALT:" );
-    uigrf_text( x+16, y+17, uitxt_micro,  "26495 F" );
-
-
-    // min/max set display
-    x = 42;
-    y = 41;
-    Graphic_SetColor( 1 );
-    Graphic_Rectangle( x, y+1, x, y+22);
-    Graphic_FillRectangle( x+1, y, x + 34, y + 6, 1 );
-    Graphic_PutPixel(x+34, y, 0);
-    uigrf_text_inv( x+10, y+1, uitxt_micro,  "SET1" );
-    uigrf_text( x+8, y+9, uitxt_micro, "1002.5" );
-    uigrf_text( x+8, y+17, uitxt_micro, " 996.4" );
-
-
-
-    // tendency meter
-    x = 77;
-    y = 16;
-    uigrf_putfixpoint( x+4, y+43, uitxt_micro, 1231, 4, 2, 0x00, false );
-    uigrf_text( x+32, y+43, uitxt_micro, "U/MIN" );
-
-    // tendency graph
-    uigrf_putfixpoint( x+40, y, uitxt_micro, 29, 2, 1, 0x00, false );
-    uigrf_putfixpoint( x+40, y+36, uitxt_micro, 01, 2, 1, 0x00, false );
-    Graphic_Rectangle( x+40, y+6, x+41, y+34 );
-    Graphic_Rectangle( x, y, x, y+40 );
-
+    if ( redraw_all & RDRW_UI_DYNAMIC )
     {
-        uint8 values[39] = {4, 3, 3, 2, 0, 1, 1, 5, 6, 9,
-                            12,14,15,30,33,39,40,40,38,34,
-                            30,32,33,33,35,36,32,28,24,23,
-                            22,22,21,18,19,25,26,27,26 };
-        int i, j;
+        int press;
 
-        Graphic_SetColor( 1 );
+        press = core.measure.measured.pressure >> 2;
+        uigrf_putvalue_impact( 7, 16, press, 4, 2, false );
 
-        for (j=0; j<=5; j++)
-        {
-            for (i=0; i<=6; i++)
-                Graphic_PutPixel(x+i*6, y+j*8, 1);
-        }
-
-        for (i=0; i<38; i++)
-        {
-            Graphic_Line( x+1+i, y+40-values[i], x+2+i, y+40-values[i+1] );
-        }
-
+        // tendency meter
+        x = 77;
+        y = 16;
+        uigrf_putfixpoint( x+4, y+43, uitxt_micro, 1231, 4, 2, 0x00, false );
+        uigrf_text( x+32, y+43, uitxt_micro, "U/MIN" );
+        core.measure.dirty.b.upd_pressure = 0;
     }
 
+    if ( redraw_all & RDRW_UI_CONTENT )
+    {
+    // altimetric setup
+        x = 0;
+        y = 40;
+    
+        Graphic_SetColor( 1 );
+        Graphic_FillRectangle( x, y, x + 41, y + 6, 1 );
+        uigrf_text_inv( x+3, y+1, uitxt_micro,  "REFERENCE" );
+    
+        uigrf_text( x, y+9, uitxt_micro,  "MSL:" );
+    //    uigrf_text( x+16, y+9, uitxt_micro, "1013.25" );
+        Graphic_SetColor( -1 );
+        Graphic_FillRectangle( x, y+8, x + 41, y + 14, -1 );
+        Graphic_PutPixel(x, y, 0);
+        Graphic_PutPixel(x+41, y, 1);
+        uigrf_text( x, y+16, uitxt_micro,  "ALT:" );
+//      uigrf_text( x+16, y+17, uitxt_micro,  "26495 F" );
+    
+    
+        // min/max set display
+        x = 42;
+        y = 41;
+        Graphic_SetColor( 1 );
+        Graphic_Rectangle( x, y+1, x, y+22);
+        Graphic_FillRectangle( x+1, y, x + 34, y + 6, 1 );
+        Graphic_PutPixel(x+34, y, 0);
+    //    uigrf_text_inv( x+10, y+1, uitxt_micro,  "SET1" );
+        uigrf_text( x+8, y+9, uitxt_micro, "1002.5" );
+        uigrf_text( x+8, y+16, uitxt_micro, " 996.4" );
+    
+        // tendency graph
+        {
+            if ( core.measure.dirty.b.upd_press_tendency )
+                uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_PRESS] );
 
+            uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
+                                   core.nv.op.sens_rd.tendency[CORE_MMP_PRESS].w,
+                                   grf_up_lim, grf_dn_lim, 3, grf_decpts );
+
+        }
+
+
+        core.measure.dirty.b.upd_press_tendency = 0;
+        core.measure.dirty.b.upd_press_minmax = 0;
+        uist_internal_disp_all_with_focus();
+    }
 }
 
 
@@ -582,7 +582,7 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
         uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "DAY-", mms_day_bfr );
         uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WEEK", mms_week_crt );
         uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WK-", mms_week_bfr );
-        uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], i );
+        uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_hygro, i) );
         ui.ui_elems[i+1] = &ui.p.mgHygro.minmaxset[i];
     }
 
@@ -592,7 +592,33 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
 
 static inline void uist_setview_mainwindowgauge_pressure( void )
 {
-    ui.ui_elem_nr = 0;
+    // unit selector
+    uiel_control_list_init( &ui.p.mgPress.units, 52, 16, 23, uitxt_small, 1, false );
+    uiel_control_list_add_item( &ui.p.mgPress.units, "hPa", 0 );
+    uiel_control_list_add_item( &ui.p.mgPress.units, "Hgmm", 1 );
+    uiel_control_list_set_index( &ui.p.mgPress.units, core.nv.setup.show_unit_press );
+    ui.ui_elems[0] = &ui.p.mgPress.units;
+    // reference setup
+    uiel_control_edit_init( &ui.p.mgPress.msl_press, 14, 47, uitxt_micro, uiedit_numeric, 6, 2 );
+    uiel_control_edit_set_num( &ui.p.mgPress.msl_press, core.nv.op.params.press_msl + 50000 );
+    ui.ui_elems[1] = &ui.p.mgPress.msl_press;
+
+    uiel_control_edit_init( &ui.p.mgPress.crt_altitude, 14, 55, uitxt_micro, uiedit_numeric, 5, 0 );
+    uiel_control_edit_set_num( &ui.p.mgPress.crt_altitude, core.nv.op.params.press_alt );
+    ui.ui_elems[2] = &ui.p.mgPress.crt_altitude;
+
+    // min/max set
+    uiel_control_list_init( &ui.p.mgPress.minmaxset, 52, 40, 16, uitxt_micro, 0, true );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "SET1", mms_set1 );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "SET2", mms_set2 );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "DAY", mms_day_crt );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "DAY-", mms_day_bfr );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "WEEK", mms_week_crt );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "WK-", mms_week_bfr );
+    uiel_control_list_set_index( &ui.p.mgPress.minmaxset, GET_MM_SET_SELECTOR(core.nv.setup.show_mm_press, 0) );
+    ui.ui_elems[3] = &ui.p.mgPress.minmaxset;
+
+    ui.ui_elem_nr = 4;
 }
 
 
