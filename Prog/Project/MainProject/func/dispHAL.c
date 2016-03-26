@@ -514,8 +514,10 @@ uint32 DispHAL_App_Poll(void)
     }
 
     if ( hal.status.busy )
+    {
         return SYSSTAT_DISP_BUSY;
-    return 0;
+    }
+    return PM_DOWN;
 }
 
 

@@ -575,8 +575,10 @@ extern void TimerRTCIntrHandler(void);
         // power down the system
         if ( shutdown )
         {
+            internal_setup_stop_mode( false );      // do not use standby because it wakes up
+            HW_PWR_Main_Off();
+            HW_LED_Off();
             BKP_RTCOutputConfig( BKP_RTCOutputSource_Alarm );
-            internal_setup_stop_mode( true );
             __asm("    wfi\n");     // do not spend power
             while (1);
         }
@@ -799,7 +801,9 @@ extern void TimerRTCIntrHandler(void);
         }
         // check for any others
         if ( irq_source )
+        {
             wakeup_reason |= WUR_USR;
+        }
     }
 
 

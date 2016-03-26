@@ -493,6 +493,7 @@ void local_init_pressure_sensor(void)
     if ( ss.status.initted_p )
         return;
     ss.status.sensp_ini_request = 1;
+    ss.flags.sens_pwr = PM_FULL;
 }
 
 
@@ -501,6 +502,7 @@ void local_init_rh_sensor(void)
     if ( ss.status.initted_rh )
         return;
     ss.status.sensrh_ini_request = 1;
+    ss.flags.sens_pwr = PM_FULL;
 }
 
 void local_wait_active_command_finish(void)
