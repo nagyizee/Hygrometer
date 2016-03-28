@@ -262,6 +262,12 @@ const uint8 SystemFontData[] = {0x25, 0x08, 0x05, 0x84, 0x10, 0x42, 0x00, 0x01, 
         uint8 l2;       // bitmask for vertical/fill ending
         register uint8 b;
 
+        // safety measure
+        if ( x2 > (CONF_DISP_WIDTH-1) )
+            x2 = CONF_DISP_WIDTH-1;
+        if ( y2 > (CONF_DISP_HEIGHT-1) )
+            y2 = CONF_DISP_HEIGHT-1;
+            
         // calculate byte parameters
         h1 = (y1 >> 3);     // height in 8 pack
         h2 = (y2 >> 3);
