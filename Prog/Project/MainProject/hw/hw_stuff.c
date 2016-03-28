@@ -814,6 +814,8 @@ extern void TimerRTCIntrHandler(void);
         switch ( mode )
         {
             case pm_full:                       // full cpu power - does nothing
+                HW_LED_Off();
+                HW_LED_On();
                 break;
             case pm_sleep:                      // wait for interrupt sleep (stop cpu clock, but peripherals are running)
                 HW_LED_Off();
@@ -832,6 +834,8 @@ extern void TimerRTCIntrHandler(void);
                 internal_HW_set_EXTI( mode );
                 __enable_interrupt();
                 HW_LED_Off();
+                HW_LED_On();
+                HW_LED_Off();
                 __asm("    wfi\n");       
                 // exit from low power mode
                 internal_HW_set_EXTI( pm_full );
@@ -839,6 +843,10 @@ extern void TimerRTCIntrHandler(void);
                 break;
             case pm_down:
                 __disable_interrupt();
+                HW_LED_Off();
+                HW_LED_On();
+                HW_LED_Off();
+                HW_LED_On();
                 if ( rtc_next_alarm )
                     HW_pwr_off_with_alarm( rtc_next_alarm, true );
                 HW_PWR_Main_Off();                   // powers off the system
@@ -853,3 +861,21 @@ extern void TimerRTCIntrHandler(void);
     {
         return wakeup_reason;
     }
+
+
+/*
+
+    Power check using the 2016-03-27 code:
+
+    Battery: 4.1V
+    
+    Gauge with display on           - avg: 11mA. max 12mA (pressure sensor read) (AC 4mA)
+               display dim (hold)   - avg: 6.82mA ct, 8.7mA for 300ms/1sec -sensor read. (AC 3.6mA) 
+               display off (hold)   - avg: 219uA ct - CPU in stop - waiting button/RTC event for wake-up
+
+    Standby (powered down):         - 14.5uA
+            wake up for battery / pressure read - see oscilloscope captures crt_sby_xxx.png
+                                                - Shunt resistor 1K -> 1mV / uA
+
+
+*/
