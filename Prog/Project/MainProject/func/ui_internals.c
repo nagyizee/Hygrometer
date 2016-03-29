@@ -533,6 +533,11 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 //   UI status dependent window setups
 //
 ////////////////////////////////////////////////////
+extern void ui_call_maingauge_thermo_unit_toDefault( int context, void *pval );
+extern void ui_call_maingauge_thermo_unit_vchange( int context, void *pval  );
+extern void ui_call_maingauge_thermo_minmax_toDefault( int context, void *pval );
+extern void ui_call_maingauge_thermo_minmax_vchange( int context, void *pval );
+
 
 static inline void uist_setview_mainwindowgauge_thermo( void )
 {
@@ -542,6 +547,8 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*F", tu_F );
     uiel_control_list_add_item( &ui.p.mgThermo.units, "*K", tu_K );
     uiel_control_list_set_index( &ui.p.mgThermo.units, core.nv.setup.show_unit_temp );
+    uiel_control_list_set_callback( &ui.p.mgThermo.units, UIClist_Vchange, 0, ui_call_maingauge_thermo_unit_vchange );
+    uiel_control_list_set_callback( &ui.p.mgThermo.units, UIClist_EscLong, 0, ui_call_maingauge_thermo_unit_toDefault );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 
     for (i=0; i<3; i++)
@@ -554,6 +561,8 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
         uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
         uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
         uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_temp, i) );
+        uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_thermo_minmax_vchange );
+        uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_thermo_minmax_toDefault );
         ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
     }
 
@@ -563,6 +572,11 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
 }
 
 
+extern void ui_call_maingauge_hygro_unit_toDefault( int context, void *pval );
+extern void ui_call_maingauge_hygro_unit_vchange( int context, void *pval );
+extern void ui_call_maingauge_hygro_minmax_toDefault( int context, void *pval );
+extern void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval );
+
 static inline void uist_setview_mainwindowgauge_hygro( void )
 {
     int i;
@@ -571,6 +585,8 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
     uiel_control_list_add_item( &ui.p.mgHygro.units, "dew", 1 );
     uiel_control_list_add_item( &ui.p.mgHygro.units, "g/m3", 2 );
     uiel_control_list_set_index( &ui.p.mgHygro.units, core.nv.setup.show_unit_hygro );
+    uiel_control_list_set_callback( &ui.p.mgHygro.units, UIClist_Vchange, 0, ui_call_maingauge_hygro_unit_vchange );
+    uiel_control_list_set_callback( &ui.p.mgHygro.units, UIClist_EscLong, 0, ui_call_maingauge_hygro_unit_toDefault );
     ui.ui_elems[0] = &ui.p.mgHygro.units;
 
     for (i=0; i<3; i++)
@@ -583,6 +599,8 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
         uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WEEK", mms_week_crt );
         uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WK-", mms_week_bfr );
         uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_hygro, i) );
+        uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_hygro_minmax_vchange );
+        uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_hygro_minmax_toDefault );
         ui.ui_elems[i+1] = &ui.p.mgHygro.minmaxset[i];
     }
 

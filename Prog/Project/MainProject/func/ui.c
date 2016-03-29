@@ -56,122 +56,88 @@ static void local_ui_set_shutdown_state(void)
 
 ////////////////////////////////////////////////////
 //
-//   UI status dependent apply set value routines
+//   UI callbacks
 //
 ////////////////////////////////////////////////////
 
 
-static inline bool ui_imchanges_gauge_thermo( bool to_default )
+// Thermo gauge callbacks
+
+void ui_call_maingauge_thermo_unit_toDefault( int context, void *pval )
 {
-    switch ( ui.focus )
+    ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.nv.setup.show_unit_temp;
+    uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
+    core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;          // set all-content update flag for the next display update
+}
+
+void ui_call_maingauge_thermo_unit_vchange( int context, void *pval )
+{
+    int val = *((int*)pval);         // index is the same as the value - we can use it directly
+
+    if ( val != ui.p.mgThermo.unitT )
     {
-        case 1:                 // temperature measurement unit change actions
-            if ( to_default )
-            {
-                ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.nv.setup.show_unit_temp;
-                uiel_control_list_set_index( &ui.p.mgThermo.units, ui.p.mgThermo.unitT );
-                core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
-                return true;
-            }
-            else
-            {
-                int val = uiel_control_list_get_index( &ui.p.mgThermo.units );
-                if ( val != ui.p.mgThermo.unitT )
-                {
-                    ui.p.mgThermo.unitT = (enum ETemperatureUnits)val;
-                    core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
-                    return true;
-                }
-            }
-            break;
-        case 2:
-        case 3:
-        case 4:
-            if ( to_default )
-            {
-                core_op_monitoring_reset_minmax( ss_thermo, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, ui.focus - 2 ) );
-                return true;
-            }
-            else
-            {
-                int val = uiel_control_list_get_value( ui.ui_elems[ui.focus-1] );
-                if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, ui.focus - 2 ) )
-                {
-                    SET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, val, ui.focus - 2 );
-                    return true;
-                }
-            }
-            break;
-    }
-    return false;
+        ui.p.mgThermo.unitT = (enum ETemperatureUnits)val;
+        core.measure.dirty.b.upd_th_tendency = 1;               // force tendency graph update
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;                  // set all-content update flag for the next display update
+    } 
 }
 
-static inline bool ui_imchanges_gauge_hygro( bool to_default )
+void ui_call_maingauge_thermo_minmax_toDefault( int context, void *pval )
 {
-    switch ( ui.focus )
+    core_op_monitoring_reset_minmax( ss_thermo, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, context ) );
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;                  // set all-content update flag for the next display update
+}
+
+void ui_call_maingauge_thermo_minmax_vchange( int context, void *pval )
+{
+    int val = *((int*)pval);                                // index is the same as the value - we can use it directly
+    if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, context ) )
     {
-        case 1:                 // temperature measurement unit change actions
-            if ( to_default )
-            {
-                ui.p.mgHygro.unitH = (enum EHumidityUnits)core.nv.setup.show_unit_hygro;
-                uiel_control_list_set_index( &ui.p.mgHygro.units, ui.p.mgHygro.unitH );
-                core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
-                return true;
-            }
-            else
-            {
-                int val = uiel_control_list_get_index( &ui.p.mgHygro.units );
-                if ( val != ui.p.mgHygro.unitH )
-                {
-                    ui.p.mgHygro.unitH = (enum EHumidityUnits)val;
-                    core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
-                    return true;
-                }
-            }
-            break;
-        case 2:
-        case 3:
-        case 4:
-            if ( to_default )
-            {
-                core_op_monitoring_reset_minmax( ss_rh, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, ui.focus - 2 ) );
-                return true;
-            }
-            else
-            {
-                int val = uiel_control_list_get_value( ui.ui_elems[ui.focus-1] );
-                if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, ui.focus - 2 ) )
-                {
-                    SET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, val, ui.focus - 2 );
-                    return true;
-                }
-            }
-            break;
+        SET_MM_SET_SELECTOR( core.nv.setup.show_mm_temp, val, context );
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
     }
-    return false;
 }
 
-static inline bool ui_imchanges_gauge_pressure( bool to_default )
+// Hygro gauge callbacks
+
+void ui_call_maingauge_hygro_unit_toDefault( int context, void *pval )
 {
-    
+    ui.p.mgHygro.unitH = (enum EHumidityUnits)core.nv.setup.show_unit_hygro;
+    uiel_control_list_set_index( &ui.p.mgHygro.units, ui.p.mgHygro.unitH );
+    core.measure.dirty.b.upd_th_tendency = 1;       // force tendency graph update
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;          // set all-content update flag for the next display update
 }
 
-
-static bool ui_process_intermediate_changes( bool to_default )
+void ui_call_maingauge_hygro_unit_vchange( int context, void *pval )
 {
-    switch ( ui.m_state )
+    int val = *((int*)pval);         // index is the same as the value - we can use it directly
+
+    if ( val != ui.p.mgHygro.unitH )
     {
-        case UI_STATE_MAIN_GAUGE:
-            switch ( ui.main_mode )
-            {
-                case UImm_gauge_thermo: return ui_imchanges_gauge_thermo(to_default);
-                case UImm_gauge_hygro: return ui_imchanges_gauge_hygro(to_default);
-                case UImm_gauge_pressure: return ui_imchanges_gauge_pressure(to_default);
-            }
-            break;
+        ui.p.mgHygro.unitH = (enum EHumidityUnits)val;
+        core.measure.dirty.b.upd_th_tendency = 1;   // force tendency graph update
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;                  // set all-content update flag for the next display update
     }
-    return false;
 }
+
+void ui_call_maingauge_hygro_minmax_toDefault( int context, void *pval )
+{
+    core_op_monitoring_reset_minmax( ss_rh, GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, context ) );
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;                  // set all-content update flag for the next display update
+}
+
+void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval )
+{
+    int val = *((int*)pval);                                // index is the same as the value - we can use it directly
+    if ( val != GET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, context ) )
+    {
+        SET_MM_SET_SELECTOR( core.nv.setup.show_mm_hygro, val, context );
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+    }
+}
+
+
 
 
 ////////////////////////////////////////////////////
@@ -525,12 +491,18 @@ void uist_opmodeselect_entry( void )
 
 void uist_opmodeselect( struct SEventStruct *evmask )
 {
-    int disp_update = 0;
+    ui.upd_ui_disp = 0;
     if ( evmask->key_event )
     {
         if ( evmask->key_pressed & KEY_UP )
         {
             ui.m_state = UI_STATE_MAIN_GAUGE;
+            ui.m_substate = UI_SUBST_ENTRY;
+        }
+        if ( evmask->key_pressed & KEY_LEFT )
+        {
+            ui.m_state = UI_STATE_SETWINDOW;
+            ui.m_setstate = UI_SET_QuickSwitch;
             ui.m_substate = UI_SUBST_ENTRY;
         }
         if ( evmask->key_longpressed & KEY_MODE )
@@ -540,8 +512,52 @@ void uist_opmodeselect( struct SEventStruct *evmask )
     }
 
     // update screen on timebase
-    disp_update |= uist_timebased_updates( evmask );
-    uist_update_display( disp_update );
+    ui.upd_ui_disp |= uist_timebased_updates( evmask );
+    uist_update_display( ui.upd_ui_disp );
+}
+
+
+/// UI MAIN GAUGE WINDOW
+void uist_setwindow_entry( void )
+{
+//  uist_setupview_setwindow( true );
+//  uist_drawview_setwindow( RDRW_ALL );
+    DispHAL_UpdateScreen();
+    ui.m_substate ++;
+    ui.upd_ui_disp = 0;
+}
+
+void uist_setwindow( struct SEventStruct *evmask )
+{
+    ui.upd_ui_disp = 0;
+    if ( evmask->key_event )
+    {
+        // generic UI buttons and events
+        if ( ui.focus )
+        {
+            // operations if focus on ui elements
+            if ( ui_element_poll( ui.ui_elems[ ui.focus - 1], evmask ) )
+            {
+                ui.upd_ui_disp  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
+            }
+
+            if ( evmask->key_released & KEY_ESC )
+            {
+                ui.m_state = UI_STATE_MODE_SELECT;
+                ui.m_substate = UI_SUBST_ENTRY;
+            }
+        }
+
+        // power button activated
+        if ( evmask->key_longpressed & KEY_MODE )
+        {
+            uist_goto_shutdown();
+        }
+    }
+
+    // update screen on timebase
+    ui.upd_ui_disp |= uist_timebased_updates( evmask );
+    uist_update_display( ui.upd_ui_disp );
 }
 
 
@@ -560,7 +576,7 @@ void uist_mainwindowgauge_entry( void )
 
 void uist_mainwindowgauge( struct SEventStruct *evmask )
 {
-    int disp_update = 0;
+    ui.upd_ui_disp = 0;
 
     if ( evmask->key_event )
     {
@@ -570,9 +586,9 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
             // operations if focus on ui elements
             if ( ui_element_poll( ui.ui_elems[ ui.focus - 1], evmask ) )
             {
-                disp_update  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
-                if ( ui_process_intermediate_changes( false ) )
-                    disp_update |= RDRW_UI_CONTENT_ALL;
+                ui.upd_ui_disp |= RDRW_DISP_UPDATE;
+//                if ( ui_process_intermediate_changes( false ) )
+//                    disp_update |= RDRW_UI_CONTENT_ALL;
             }
 
             // move focus to the next element
@@ -582,7 +598,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                     ui.focus++;
                 else
                     ui.focus = 1;
-                disp_update |= RDRW_UI_CONTENT;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT;
             }
             // move focus to the previous element
             if ( evmask->key_pressed & KEY_LEFT )
@@ -591,21 +607,14 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
                     ui.focus--;
                 else
                     ui.focus = ui.ui_elem_nr - 1;
-                disp_update |= RDRW_UI_CONTENT;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT;
             }
             // short press on esc will exit focus
             if ( evmask->key_released & KEY_ESC )
             {
                 ui.focus = 0;
-                disp_update |= RDRW_UI_CONTENT;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT;
             }
-            // long press on escape
-            if ( evmask->key_longpressed & KEY_ESC )
-            {
-                ui_process_intermediate_changes( true );
-                disp_update |= RDRW_UI_CONTENT_ALL;
-            }
-
         }
         else
         {
@@ -614,7 +623,7 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
             {
                 ui.main_mode--;
                 uist_setupview_mainwindow( true );
-                disp_update = RDRW_ALL;
+                ui.upd_ui_disp = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
                 core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
             }
@@ -622,14 +631,14 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
             {
                 ui.main_mode++;
                 uist_setupview_mainwindow( true );
-                disp_update = RDRW_ALL;
+                ui.upd_ui_disp = RDRW_ALL;
                 core.measure.dirty.b.upd_th_tendency = 1;       // force an update on the tendency graph values
                 core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
             }
             if ( evmask->key_pressed & KEY_OK )    // enter in edit mode
             {
                 ui.focus = 1;
-                disp_update |= RDRW_UI_CONTENT;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT;
 
                 if ( ui.ui_elem_nr == 1 )
                 {
@@ -647,7 +656,6 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         }
         if ( evmask->key_released & KEY_MODE )
         {
-            ui_process_intermediate_changes( false );
             core_op_realtime_sensor_select( ss_none );
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
@@ -655,8 +663,8 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
     }
 
     // update screen on timebase
-    disp_update |= uist_timebased_updates( evmask );
-    uist_update_display( disp_update );
+    ui.upd_ui_disp |= uist_timebased_updates( evmask );
+    uist_update_display( ui.upd_ui_disp );
 }
 
 
@@ -706,6 +714,9 @@ uint32 ui_poll( struct SEventStruct *evmask )
                 case UI_STATE_MAIN_GAUGE:
                     uist_mainwindowgauge_entry();
                     break;
+                case UI_STATE_SETWINDOW:
+                    uist_setwindow_entry();
+                    break;
                 case UI_STATE_MODE_SELECT:
                     uist_opmodeselect_entry();
                     break;
@@ -726,6 +737,9 @@ uint32 ui_poll( struct SEventStruct *evmask )
             {
                 case UI_STATE_MAIN_GAUGE:
                     uist_mainwindowgauge( evmask );
+                    break;
+                case UI_STATE_SETWINDOW:
+                    uist_setwindow( evmask );
                     break;
                 case UI_STATE_MODE_SELECT:
                     uist_opmodeselect( evmask );

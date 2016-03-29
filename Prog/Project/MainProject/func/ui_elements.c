@@ -7,10 +7,153 @@
 #include "ui_elements.h"
 
 
+/********************************************************
+
+    UI elements:
+        - drop down menu
+        - list
+        - checkbox
+        - numeric
+        - edit box ( text/numeric + fp)
+        - time 
+
+    main routines:
+        ui_element_display()    - renders an ui element to display
+        ui_element_poll()       - poll routine with event input
+
+        The poll routine processes the keypress and timing events and 
+        refreshes the ui element in focus
+        The following callbacks are valid:
+                
+                    val.ch  Ok.press  esc.long  edit.done
+        - list:       x        x         x         -
+        - checkbox:   -        x         -         -
+        - numeric:    x        x         x         -
+        - edit box:   x        -         x         x
+        - time:       x        -         x         x
+        - menu        x        x         -         -
+
+
+        the poll routine filters the key events - removing the internally
+        captured key event.
+        Keys which trigger a callback are removed also.
+       
+
+
+
+
+**********************************************************/
+
+
+
+
+
 #define ELEM_EDIT_BLINK_TIME        25      // 250ms
 #define ELEM_EDIT_LONGPRESS_TIME    50      // 500ms
 
 uint32 int_focus = 0;       // internal focus selection
+
+static inline void uiel_control_checkbox_toggle( struct Suiel_control_checkbox *handle );
+
+
+
+
+bool internal_control_numeric_OK( struct Suiel_control_numeric *handle )
+{
+    if ( handle->call_OK )
+    {
+        int val = handle->val;
+        handle->call_OK( handle->ccont_OK, (void*)&val );
+    }
+    return false;
+}
+
+bool internal_control_edit_OK( struct Suiel_control_edit *handle )
+{
+    int_focus ^= 0x80;
+    return true;
+}
+
+bool internal_control_time_OK( struct Suiel_control_time *handle )
+{
+    int_focus ^= 0x80;
+    return true;
+}
+
+bool internal_control_checkbox_OK( struct Suiel_control_checkbox *handle )
+{
+    uiel_control_checkbox_toggle( handle );
+    if ( handle->call_OK )
+    {
+        bool val = (handle->set == 1);
+        handle->call_OK( handle->ccont_OK, (void*)&val );
+    }
+    return true;
+}
+
+bool internal_control_list_OK( struct Suiel_control_list *handle )
+{
+    if ( handle->call_OK )
+    {
+        int val = handle->elem_crt;
+        handle->call_OK( handle->ccont_OK, (void*)&val );
+    }
+    return false;
+}
+
+bool internal_control_menu_OK( struct Suiel_dropdown_menu *handle )
+{
+    if ( handle->call_OK )
+    {
+        int val = handle->elem_crt;
+        handle->call_OK( handle->ccont_OK, (void*)&val );
+    }
+    return false;
+}
+
+
+
+
+
+void internal_control_list_longEsc( struct Suiel_control_list *handle )
+{
+    if ( handle->call_EscLong )
+    {
+        int val = handle->elem_crt;
+        handle->call_EscLong( handle->ccont_EscLong, (void*)&val );
+    }
+}
+
+void internal_control_edit_longEsc( struct Suiel_control_edit *handle )
+{
+    if ( handle->call_EscLong )
+    {
+        if ( handle->type == uiedit_numeric )
+        {
+            int val;
+            val = uiel_control_edit_get_num(handle);
+            handle->call_EscLong( handle->ccont_EscLong, (void*)&val );
+        }
+        else
+            handle->call_EscLong( handle->ccont_EscLong, (void*)handle->content );
+    }
+}
+
+void internal_control_time_longEsc( struct Suiel_control_time *handle )
+{
+    if ( handle->call_EscLong )
+    {
+        handle->call_EscLong( handle->ccont_EscLong, (void*)&handle->time );
+    }
+}
+
+void internal_control_numeric_longEsc( struct Suiel_control_numeric *handle )
+{
+    if ( handle->call_EscLong )
+        handle->call_EscLong( handle->ccont_EscLong, (void*)&handle->val );
+}
+
+
 
 // helper for sliding menu
 
@@ -74,6 +217,21 @@ void uiel_dropdown_menu_init( struct Suiel_dropdown_menu *handle, int xmin, int 
     handle->melem = ( ymax - ymin ) / handle->ytext;     // how many elements can be displayed in this menu window
 
     int_focus = 1;  // menu is always in selected focus
+}
+
+void uiel_dropdown_menu_set_callback( struct Suiel_dropdown_menu *handle, enum EUIelCallMenu select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UICmenu_OK:
+            handle->call_OK = func;
+            handle->ccont_OK = (uint8)context;
+            break;
+        case UICmenu_Vchange:
+            handle->call_Vchange = func;
+            handle->ccont_Vchange = (uint8)context;
+            break;
+    }
 }
 
 // add element to a dropdown menu
@@ -158,6 +316,9 @@ void uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle )
         {
             handle->moffs--;
         }
+
+        if ( handle->call_Vchange )
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->elem_crt );
     }
 }
 
@@ -171,6 +332,9 @@ void uiel_dropdown_menu_set_index( struct Suiel_dropdown_menu *handle, unsigned 
             handle->moffs   = 0;
         else
             handle->moffs   = index - handle->melem + 1;
+
+        if ( handle->call_Vchange )
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->elem_crt );
     }
 
 }
@@ -206,6 +370,25 @@ void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int yp
         handle->height = 1;
 }
 
+void uiel_control_list_set_callback( struct Suiel_control_list *handle, enum EUIelCallList select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UIClist_OK:
+            handle->call_OK = func;
+            handle->ccont_OK = (uint8)context;
+            break;
+        case UIClist_EscLong:
+            handle->call_EscLong = func;
+            handle->ccont_EscLong = (uint8)context;
+            break;
+        case UIClist_Vchange:
+            handle->call_Vchange = func;
+            handle->ccont_Vchange = (uint8)context;
+            break;
+    }
+}
+
 int uiel_control_list_add_item( struct Suiel_control_list *handle, char *element, int value )
 {
     int entry_poz;
@@ -231,6 +414,12 @@ void uiel_control_list_set_next( struct Suiel_control_list *handle )
 {
     if (handle->elem_crt < (handle->elem_total - 1))
         handle->elem_crt++;
+
+    if ( handle->call_Vchange )
+    {
+        int val = handle->elem_crt;
+        handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
+    }
 }
 
 
@@ -238,6 +427,12 @@ void uiel_control_list_set_prew( struct Suiel_control_list *handle )
 {
     if (handle->elem_crt > 0 )
         handle->elem_crt--;
+
+    if ( handle->call_Vchange )
+    {
+        int val = handle->elem_crt;
+        handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
+    }
 }
 
 void uiel_control_list_set_index( struct Suiel_control_list *handle, unsigned int index )
@@ -326,25 +521,38 @@ void uiel_control_checkbox_init( struct Suiel_control_checkbox *handle, int xpoz
     handle->ID = ELEM_ID_CHECKBOX;
     handle->xpoz = xpoz;
     handle->ypoz = ypoz;
-    handle->set = false;
+    handle->set = 0;
 }
+
+
+void uiel_control_checkbox_set_callback( struct Suiel_control_checkbox *handle, enum EUIelCallCheckBox select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UICcb_OK:
+            handle->call_OK = func;
+            handle->ccont_OK = (uint8)context;
+            break;
+    }
+}
+
 
 void uiel_control_checkbox_set( struct Suiel_control_checkbox *handle, bool set )
 {
     if ( set )
-        handle->set = true;
+        handle->set = 1;
     else
-        handle->set = false;
+        handle->set = 0;
 }
 
 bool uiel_control_checkbox_get( struct Suiel_control_checkbox *handle )
 {
-    return handle->set;
+    return (handle->set == 1);
 }
 
 static inline void uiel_control_checkbox_toggle( struct Suiel_control_checkbox *handle )
 {
-    handle->set ^= true;
+    handle->set ^= (uint8)0x01;
 }
 
 
@@ -402,6 +610,25 @@ void uiel_control_numeric_init( struct Suiel_control_numeric *handle, int min, i
     handle->height = Gtext_GetCharacterHeight();
 }
 
+void uiel_control_numeric_set_callback( struct Suiel_control_numeric *handle, enum EUIelCallNum select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UICnum_OK:
+            handle->call_OK = func;
+            handle->ccont_OK = (uint8)context;
+            break;
+        case UICnum_EscLong:
+            handle->call_EscLong = func;
+            handle->ccont_EscLong = (uint8)context;
+            break;
+        case UICnum_Vchange:
+            handle->call_Vchange = func;
+            handle->ccont_Vchange = (uint8)context;
+            break;
+    }
+}
+
 void uiel_control_numeric_set( struct Suiel_control_numeric *handle, int val )
 {
     if ( val < handle->min )
@@ -423,6 +650,9 @@ void uiel_control_numeric_inc( struct Suiel_control_numeric *handle )
         handle->val = handle->max;
     else
         handle->val += handle->inc;
+
+    if ( handle->call_Vchange )
+        handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->val );
 }
 
 void uiel_control_numeric_dec( struct Suiel_control_numeric *handle )
@@ -431,6 +661,9 @@ void uiel_control_numeric_dec( struct Suiel_control_numeric *handle )
         handle->val = handle->min;
     else
         handle->val -= handle->inc;
+
+    if ( handle->call_Vchange )
+        handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->val );
 }
 
 static inline void uiel_control_numeric_display( struct Suiel_control_numeric *handle, bool focus )
@@ -518,6 +751,24 @@ void uiel_control_edit_init( struct Suiel_control_edit *handle, int xpoz, int yp
     }
 }
 
+void uiel_control_edit_set_callback( struct Suiel_control_edit *handle, enum EUIelCallEdit select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UICedit_EditDone:
+            handle->call_EditDone = func;
+            handle->ccont_EditDone = (uint8)context;
+            break;
+        case UICedit_EscLong:
+            handle->call_EscLong = func;
+            handle->ccont_EscLong = (uint8)context;
+            break;
+        case UICedit_Vchange:
+            handle->call_Vchange = func;
+            handle->ccont_Vchange = (uint8)context;
+            break;
+    }
+}
 
 void uiel_control_edit_set_text( struct Suiel_control_edit *handle, const char *string )
 {
@@ -607,6 +858,21 @@ int uiel_control_edit_get_num( struct Suiel_control_edit *handle )
 }
 
 
+static void uiel_control_edit_incdec_internal_send_valch_callback( struct Suiel_control_edit *handle )
+{
+    if ( handle->call_Vchange )
+    {
+        if ( handle->type == uiedit_numeric )
+        {
+            int val;
+            val = uiel_control_edit_get_num(handle);
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
+        }
+        else
+            handle->call_Vchange( handle->ccont_Vchange, (void*)handle->content );
+    }
+}
+
 static void uiel_control_edit_inc( struct Suiel_control_edit *handle )
 {
     if ( (int_focus & 0x80) == 0 )
@@ -645,6 +911,8 @@ static void uiel_control_edit_inc( struct Suiel_control_edit *handle )
                     (*chr)++;
                 break;
         }
+
+        uiel_control_edit_incdec_internal_send_valch_callback( handle );
     }
 }
 
@@ -687,6 +955,8 @@ static void uiel_control_edit_dec( struct Suiel_control_edit *handle )
                     (*chr)--;
                 break;
         }
+
+        uiel_control_edit_incdec_internal_send_valch_callback(handle);
     }
 }
 
@@ -821,6 +1091,10 @@ static void internal_time_incdec( struct Suiel_control_time *handle, bool increm
             }
             break;
         }
+
+        if ( handle->call_Vchange )
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->time );
+
     }
     else                    // select digit
     {
@@ -876,6 +1150,24 @@ void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int yp
         handle->xend = xpoz + 6 * w_d + 2 * w_s + 2;
 }
 
+void uiel_control_time_set_callback( struct Suiel_control_time *handle, enum EUIelCallTime select, int context, uiel_callback func )
+{
+    switch (select)
+    {
+        case UICtime_EditDone:
+            handle->call_EditDone = func;
+            handle->ccont_EditDone = (uint8)context;
+            break;
+        case UICtime_EscLong:
+            handle->call_EscLong = func;
+            handle->ccont_EscLong = (uint8)context;
+            break;
+        case UICtime_Vchange:
+            handle->call_Vchange = func;
+            handle->ccont_Vchange = (uint8)context;
+            break;
+    }
+}
 
 void uiel_control_time_set_time( struct Suiel_control_time *handle, timestruct time )
 {
@@ -969,29 +1261,25 @@ void ui_element_display( void *handle, bool focus )
 // UI Polling routine
 bool ui_element_poll( void *handle, struct SEventStruct *evmask )
 {
-    bool changed = false;
+    bool changed = false;           // display change
     uint32 handle_ID;
 
     handle_ID = ( (*( (uint32*)handle )) & ~ELEM_IN_FOCUS );
 
-    if ( evmask->key_pressed )
+    if ( evmask->key_event )
     {
         if ( evmask->key_pressed & KEY_OK )
         {
-            if ( handle_ID == ELEM_ID_DROPDOWN_MENU )
+            switch ( handle_ID )
             {
-                return false;                                // do not intercept key OK for menu - upper layer state machine should handle that
+                case ELEM_ID_NUMERIC:       changed = internal_control_numeric_OK( (struct Suiel_control_numeric *)handle ); break;
+                case ELEM_ID_EDIT:          changed = internal_control_edit_OK( (struct Suiel_control_edit *)handle ); break;
+                case ELEM_ID_TIME:          changed = internal_control_time_OK( (struct Suiel_control_time *)handle ); break;
+                case ELEM_ID_LIST:          changed = internal_control_list_OK( (struct Suiel_control_list *)handle ); break;
+                case ELEM_ID_CHECKBOX:      changed = internal_control_checkbox_OK( (struct Suiel_control_checkbox *)handle ); break; 
+                case ELEM_ID_DROPDOWN_MENU: changed = internal_control_menu_OK( (struct Suiel_dropdown_menu *)handle ); break;
             }
-            else if ( handle_ID == ELEM_ID_CHECKBOX )        // these type of controls don't need internal focus since only one action is possible on them
-            {
-                uiel_control_checkbox_toggle( (struct Suiel_control_checkbox *)handle );
-                changed = true;
-            }
-            else if ( (handle_ID == ELEM_ID_TIME) || (handle_ID == ELEM_ID_EDIT ) )
-            {
-                int_focus ^= 0x80;
-                changed = true;
-            }
+
             evmask->key_pressed &= ~KEY_OK;     // delete the keypress event for the upper layer as it is captured by this layer
         }
 
@@ -1024,6 +1312,20 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                 evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
             }
         }
+
+        if ( evmask->key_longpressed & KEY_ESC )
+        {
+            switch ( handle_ID )
+            {
+                case ELEM_ID_LIST:          internal_control_list_longEsc((struct Suiel_control_list *)handle); break;
+                case ELEM_ID_EDIT:          internal_control_edit_longEsc((struct Suiel_control_edit *)handle); break;
+                case ELEM_ID_TIME:          internal_control_time_longEsc((struct Suiel_control_time *)handle); break;
+                case ELEM_ID_NUMERIC:       internal_control_numeric_longEsc((struct Suiel_control_numeric *)handle); break;
+            }
+            changed = true;
+            evmask->key_longpressed &= ~KEY_ESC;
+        }
+
 
         /*    else if ( evmask->key_pressed & KEY_ESC )
             {

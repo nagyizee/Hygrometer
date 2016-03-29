@@ -19,10 +19,19 @@
         UI_STATE_MAIN_GAUGE,                    // main window with value gauges (temperature, humidity, pressure)
         UI_STATE_MAIN_GRAPH,                    // graph display for the abowe stuff
         UI_STATE_MAIN_ALTIMETER,                // altimeter mode - this include variometer function
+        UI_STATE_SETWINDOW,                     // setup window
         UI_STATE_MODE_SELECT,                   // mode selector window - navigate bw. gauge - graph - altimeter - recording - setup
         UI_STATE_SHUTDOWN,                      // shut-down window
+        UI_STATE_POPUP,                         // message pop-up window
         UI_STATE_DBG_INPUTS                     // debug button press, sensor readings, etc
     };
+
+    enum EUISetupSelect
+    {
+        UI_SET_QuickSwitch = 0,                 // set up quick switches
+
+    };
+
 
     enum UIMainMode
     {
@@ -87,11 +96,10 @@
     {
         uint32 m_state;             // main ui state - see enum EUIStates
         uint32 m_substate;          // 0 means state entry
-        uint32 m_setstate;          // internal state for windows with settings
+        uint32 m_setstate;          // internal state for windows with settings - see enum EUISetupSelect
         uint32 m_return;            // return value set by inner state for an outer state
         enum UIMainMode main_mode;  // mode for gauge/graph display - selects bw. temperature - humidity - pressure
 
-        bool setup_mod;         // true if setup parameter is modified - setup will be saved in eeprom in case of shutdown
         void *ui_elems[ UI_MAX_ELEMS ]; // active elements on the current screen
         uint32 ui_elem_nr;              // number of active elements
 
@@ -110,6 +118,8 @@
         uint16 upd_batt;        // battery update counter
         uint16 upd_dynamics;    // update dynamic stuff
         uint32 upd_time;        // old saved clock- used to compare with current one and update display if needed
+
+        uint32 upd_ui_disp;     // display update type to be used at polling. It will set in ui callbacks also
     };
 
 

@@ -25,11 +25,52 @@
 
     #define ELEM_IN_FOCUS           0x8000
 
+    typedef void (*uiel_callback)(int context, void *val);
+
     enum Eui_edit_type
     {
         uiedit_numeric  = 0,
         uiedit_alpha_upcase,
         uiedit_alpha_all
+    };
+
+    enum EUIelCallList
+    {
+        UIClist_OK = 0,
+        UIClist_Vchange,
+        UIClist_EscLong,
+    };
+
+    enum EUIelCallMenu
+    {
+        UICmenu_OK = 0,
+        UICmenu_Vchange
+    };
+
+    enum EUIelCallCheckBox
+    {
+        UICcb_OK = 0,
+    };
+
+    enum EUIelCallNum
+    {
+        UICnum_OK = 0,
+        UICnum_Vchange,
+        UICnum_EscLong,
+    };
+
+    enum EUIelCallEdit
+    {
+        UICedit_Vchange = 0,
+        UICedit_EscLong,
+        UICedit_EditDone,
+    };
+
+    enum EUIelCallTime
+    {
+        UICtime_Vchange = 0,
+        UICtime_EscLong,
+        UICtime_EditDone,
     };
 
 
@@ -45,6 +86,12 @@
         uint8 ytext;            // text element height in pixels
         uint8 melem;            // elements scrollable in a menu window
         uint8 moffs;            // position offset inside of menu window (0 - melem-1)
+
+        uint8           ccont_OK;       // callback context for OK
+        uint8           ccont_Vchange;  // callback context for OK
+
+        uiel_callback   call_OK;        // OK pressed
+        uiel_callback   call_Vchange;   // callback context for OK
 
         char labels[ UIEL_MENU_TOTAL_MAX ];
     };
@@ -62,8 +109,16 @@
         uint8 color;            // color of the displayed text
         uint8 thin_border;      // use thin border - this works with negativating the selected item
 
+        uint8           ccont_OK;
+        uint8           ccont_Vchange;
+        uint8           ccont_EscLong;
+
         char labels[ UIEL_LIST_LABEL_MAX ];
         uint16 value[ UIEL_LIST_MAX ];
+
+        uiel_callback   call_OK;        // OK pressed
+        uiel_callback   call_Vchange;   // value changed callback
+        uiel_callback   call_EscLong;   // long press on Esc button
     };
 
     struct Suiel_control_checkbox
@@ -71,7 +126,10 @@
         uint32 ID;              // element ID
         uint16 xpoz;            // start coordinate (includes braces)
         uint16 ypoz;            // start coordinate
-        bool set;
+        uint8 set;
+        uint8           ccont_OK;       // callback context for OK
+
+        uiel_callback   call_OK;        // OK pressed
     };
 
     struct Suiel_control_numeric
@@ -88,6 +146,13 @@
         uint8 height;       // height in pixels
         uint8 style;        // character style
         char padding;       // padding character
+
+        uiel_callback   call_OK;        // OK pressed
+        uiel_callback   call_Vchange;   // value changed callback
+        uiel_callback   call_EscLong;   // long press on Esc button
+        uint8           ccont_OK;        // OK pressed
+        uint8           ccont_Vchange;   // value changed callback
+        uint8           ccont_EscLong;   // long press on Esc button
     };
 
 
@@ -107,6 +172,13 @@
         uint8 length;               // length of text (no braces)
         uint8 poz;                  // pozition in the text buffer
         char content[UIEL_TEXT_MAX];
+
+        uiel_callback   call_Vchange;   // value changed callback
+        uiel_callback   call_EscLong;   // long press on Esc button
+        uiel_callback   call_EditDone;  // Edit finished
+        uint8           ccont_Vchange;  // OK pressed
+        uint8           ccont_EscLong;  // value changed callback
+        uint8           ccont_EditDone; // long press on Esc button
     };
 
     struct Suiel_control_time
@@ -122,6 +194,12 @@
         uint8 minute_only;          // if 1 then 99:59 format (mm:ss)  and if 0 then 99:59:59 format
         uint8 textstyle;            // font used for display
 
+        uiel_callback   call_Vchange;   // value changed callback
+        uiel_callback   call_EscLong;   // long press on Esc button
+        uiel_callback   call_EditDone;  // Edit finished
+        uint8           ccont_Vchange;  // OK pressed
+        uint8           ccont_EscLong;  // value changed callback
+        uint8           ccont_EditDone; // long press on Esc button
     };
 
 
@@ -129,6 +207,9 @@
 
     // inits or resets a dropdown menu
     void uiel_dropdown_menu_init( struct Suiel_dropdown_menu *handle, int xmin, int xmax, int ymin, int ymax );
+
+    // set up callbacks for different actions
+    void uiel_dropdown_menu_set_callback( struct Suiel_dropdown_menu *handle, enum EUIelCallMenu select, int context, uiel_callback func );
 
     // add element to a dropdown menu
     // returns the menu element index
@@ -152,6 +233,9 @@
 
     // inits or resets a list
     void uiel_control_list_init( struct Suiel_control_list *handle, int xpoz, int ypoz, int width, enum Etextstyle style, int color, bool thin_border );
+
+    // set up callback functions. Use NULL is callback not used, context is a value from 0->255
+    void uiel_control_list_set_callback( struct Suiel_control_list *handle, enum EUIelCallList select, int context, uiel_callback func );
 
     // add element to a list
     // value can be 0 - 255
@@ -178,6 +262,8 @@
 
     void uiel_control_checkbox_init( struct Suiel_control_checkbox *handle, int xpoz, int ypoz );
 
+    void uiel_control_checkbox_set_callback( struct Suiel_control_checkbox *handle, enum EUIelCallCheckBox select, int context, uiel_callback func );
+
     void uiel_control_checkbox_set( struct Suiel_control_checkbox *handle, bool set );
 
     bool uiel_control_checkbox_get( struct Suiel_control_checkbox *handle );
@@ -186,6 +272,8 @@
     /// NUMERIC CONTROL
 
     void uiel_control_numeric_init( struct Suiel_control_numeric *handle, int min, int max, int inc, int xpoz, int ypoz, int length, char padding, enum Etextstyle style );
+
+    void uiel_control_numeric_set_callback( struct Suiel_control_numeric *handle, enum EUIelCallNum select, int context, uiel_callback func );
 
     void uiel_control_numeric_set( struct Suiel_control_numeric *handle, int val );
 
@@ -200,6 +288,8 @@
 
     void uiel_control_edit_init( struct Suiel_control_edit *handle, int xpoz, int ypoz, enum Etextstyle style, enum Eui_edit_type type, int nr_chars, int decpoint );
 
+    void uiel_control_edit_set_callback( struct Suiel_control_edit *handle, enum EUIelCallEdit select, int context, uiel_callback func );
+
     void uiel_control_edit_set_text( struct Suiel_control_edit *handle, const char *string );
 
     void uiel_control_edit_set_num( struct Suiel_control_edit *handle, int val );
@@ -212,6 +302,8 @@
     /// TIME DISPLAY
 
     void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int ypoz, bool minute_only, enum Etextstyle style );
+
+    void uiel_control_time_set_callback( struct Suiel_control_time *handle, enum EUIelCallTime select, int context, uiel_callback func );
 
     void uiel_control_time_set_time( struct Suiel_control_time *handle, timestruct time );
 
