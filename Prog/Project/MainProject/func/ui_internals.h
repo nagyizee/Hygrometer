@@ -115,15 +115,17 @@
     {
         uint32 line1;   // pointer to the text line1
         uint32 line2;   // pointer to the text line2 
+        uint32 line3;   // pointer to the text line2 
         uint8 x1;       // coordinates of line 1
         uint8 y1;
-        uint8 x2;       // coordinates of line 2
-        uint8 y2; 
+        uint8 y2;
+        uint8 x3;       // coordinates of line 2
+        uint8 y3; 
 
         uint8 popup_action;
 
         uint8 style1;   // style of line 1
-        uint8 style2;   // style of line 2
+        uint8 style3;   // style of line 2
     };
 
     struct SPopUpWindow
@@ -182,6 +184,10 @@
     void ui_call_maingauge_hygro_minmax_toDefault( int context, void *pval );
     void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval );
 
+    void ui_call_setwindow_quickswitch_op_switch( int context, void *pval );
+    void ui_call_setwindow_quickswitch_op_switch_ok( int context, void *pval );
+    void ui_call_setwindow_quickswitch_op_switch_cancel( int context, void *pval );
+    void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval );
     void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval );

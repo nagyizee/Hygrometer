@@ -667,12 +667,14 @@ static inline void uist_setview_setwindow_quickswitch( void )
     uiel_control_checkbox_init( &ui.p.swQuickSw.monitor, 40, 2 );
     uiel_control_checkbox_set( &ui.p.swQuickSw.monitor, core.nv.op.op_flags.b.op_monitoring );
     uiel_control_checkbox_set_callback( &ui.p.swQuickSw.monitor, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.monitor, UICcb_OK, 0, ui_call_setwindow_quickswitch_op_switch );
     ui.ui_elems[0] = &ui.p.swQuickSw.monitor;
 
     // registering on/off switch
     uiel_control_checkbox_init( &ui.p.swQuickSw.reg, 104, 2 );
     uiel_control_checkbox_set( &ui.p.swQuickSw.reg, core.nv.op.op_flags.b.op_registering );
     uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_OK, 1, ui_call_setwindow_quickswitch_op_switch );
     ui.ui_elems[1] = &ui.p.swQuickSw.reg;
 
     // monitoring rate setup
@@ -687,7 +689,8 @@ static inline void uist_setview_setwindow_quickswitch( void )
             case 1: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_hygro ); break;
             case 2: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_press ); break;
         }
-        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+1, ui_call_setwindow_quickswitch_esc_pressed );
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+2, ui_call_setwindow_quickswitch_esc_pressed );
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_OK, i+2, ui_call_setwindow_quickswitch_monitor_rate );     // context points UI element
         ui.ui_elems[2+i] = &ui.p.swQuickSw.m_rates[i];
     }
 
@@ -831,16 +834,20 @@ void uist_drawview_popup(int redraw_type)
     {
         char *l1;
         char *l2;
+        char *l3;
 
         l1 = (char*)ui.popup.params.line1;
         l2 = (char*)ui.popup.params.line2;
+        l3 = (char*)ui.popup.params.line3;
 
         uigrf_rounded_rect(10, 16, 117, 60, 1, true, 0);
 
-        if ( l1[0] != 0x00 )
+        if ( l1 && l1[0] != 0x00 )
             uigrf_text( ui.popup.params.x1 + 10, ui.popup.params.y1 + 16, (enum Etextstyle)ui.popup.params.style1, l1 );
-        if ( l2[0] != 0x00 )
-            uigrf_text( ui.popup.params.x2 + 10, ui.popup.params.y2 + 16, (enum Etextstyle)ui.popup.params.style2, l2 );
+        if ( l2 && l2[0] != 0x00 )
+            uigrf_text( ui.popup.params.x1 + 10, ui.popup.params.y2 + 16, (enum Etextstyle)ui.popup.params.style1, l2 );
+        if ( l3 && l3[0] != 0x00 )
+            uigrf_text( ui.popup.params.x3 + 10, ui.popup.params.y3 + 16, (enum Etextstyle)ui.popup.params.style3, l3 );
 
 
         ui_element_display( &ui.popup.pb1, (ui.popup.focus == 0) );

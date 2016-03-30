@@ -151,6 +151,73 @@ void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval )
 
 // --- Setup quick switches 
 
+const char popup_msg_op_monitoring[] =  "TENDENCY GRAPH WILL BE";
+const char popup_msg_op_registering[] = "REGISTERED DATA WILL BE";
+const char popup_msg_op_monitoring2[] = "DISCARDED AT RESTART!";
+const char popup_msg_op_2[] =          "Proceed?";
+
+void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
+{
+    bool val = *((bool*)pval);
+
+    if ( val == true )
+    {
+        // start monitoring / registering
+        if ( context == 0 )
+            core_op_monitoring_switch(true);
+    }
+    else
+    {
+        // stop monitoring / registering
+        // context 0 - monitoring,   context 1 - registering
+        if ( context == 0 )
+            ui.popup.params.line1 = (uint32)popup_msg_op_monitoring;       // need to trick the compiler to not to complain about const type
+        else
+            ui.popup.params.line1 = (uint32)popup_msg_op_registering;       // need to trick the compiler to not to complain about const type
+
+        ui.popup.params.line2 = (uint32)popup_msg_op_monitoring2;
+        ui.popup.params.line3 = (uint32)popup_msg_op_2;
+        ui.popup.params.style1 = uitxt_micro;
+        ui.popup.params.style3 = uitxt_small;
+        ui.popup.params.x1 = 15;
+        ui.popup.params.y1 = 2;
+        ui.popup.params.y2 = 10;
+        ui.popup.params.x3 = 40;
+        ui.popup.params.y3 = 18;
+        ui.popup.params.popup_action = uipa_ok_cancel;
+        uist_enter_popup( context, ui_call_setwindow_quickswitch_op_switch_ok, 
+                          context, ui_call_setwindow_quickswitch_op_switch_cancel );
+    }
+}
+
+void ui_call_setwindow_quickswitch_op_switch_ok( int context, void *pval )
+{
+    if ( context == 0 )
+        core_op_monitoring_switch(false);
+
+    uist_close_popup();
+}
+
+void ui_call_setwindow_quickswitch_op_switch_cancel( int context, void *pval )
+{
+    if (context == 0)
+        uiel_control_checkbox_set( (struct Suiel_control_checkbox*)(&ui.p.swQuickSw.monitor), true );
+    else
+        uiel_control_checkbox_set( (struct Suiel_control_checkbox*)(&ui.p.swQuickSw.reg), true );
+
+    uist_close_popup();
+}
+
+
+void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval )
+{
+    // context points to the ui element, to obtain the sensor use context-2
+    int val;
+    val = uiel_control_list_get_value( (struct Suiel_control_list*)(ui.ui_elems[context]) );
+    core_op_monitoring_rate( context + ss_thermo - 2, val );
+}
+
+
 void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
 {
     // esc pressed - return to the mode selector window
@@ -162,17 +229,17 @@ void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
 const char popup_msg_reset_minmax_1[] = "Really want to reset all";
 const char popup_msg_reset_minmax_2[] = "min/max values ?";
 
-
 void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval )
 {
     ui.popup.params.line1 = (uint32)popup_msg_reset_minmax_1;       // need to trick the compiler to not to complain about const type
-    ui.popup.params.line2 = (uint32)popup_msg_reset_minmax_2;
+    ui.popup.params.line2 = 0;
+    ui.popup.params.line3 = (uint32)popup_msg_reset_minmax_2;
     ui.popup.params.style1 = uitxt_small;
-    ui.popup.params.style2 = uitxt_small;
+    ui.popup.params.style3 = uitxt_small;
     ui.popup.params.x1 = 10;
     ui.popup.params.y1 = 2;
-    ui.popup.params.x2 = 20;
-    ui.popup.params.y2 = 14;
+    ui.popup.params.x3 = 10;
+    ui.popup.params.y3 = 14;
     ui.popup.params.popup_action = uipa_ok_cancel;
     uist_enter_popup( 0, ui_call_setwindow_quickswitch_reset_minmax_ok, 0, NULL );
 }
@@ -295,6 +362,8 @@ static void uist_goto_shutdown(void)
 
 static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
 {
+    bool focus_moved = false;
+
     // move focus to the next element
     if ( evmask->key_pressed & KEY_RIGHT )
     {
@@ -303,6 +372,7 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
         else
             ui.focus = 1;
         ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        focus_moved = true;
     }
     // move focus to the previous element
     if ( evmask->key_pressed & KEY_LEFT )
@@ -312,6 +382,24 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
         else
             ui.focus = ui.ui_elem_nr - 1;
         ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        focus_moved = true;
+    }
+
+    // treate couple of special cases
+    if ( focus_moved )
+    {
+        if ( ui.m_state == UI_STATE_SETWINDOW )
+        {
+            switch (ui.m_setstate)
+            {
+                case UI_SET_QuickSwitch:
+                    // revert all monitoring rates to their setup values
+                    uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[0], core.nv.setup.tim_tend_temp );
+                    uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[1], core.nv.setup.tim_tend_hygro );
+                    uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[2], core.nv.setup.tim_tend_press );
+                    break;
+            }
+        }
     }
 }
 
@@ -469,7 +557,7 @@ void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, 
             ui.popup.elems = 2;
             uiel_control_pushbutton_init( &ui.popup.pb1, 12, 45, 48, 12 );
             uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "OK", uitxt_smallbold ); 
-            uiel_control_pushbutton_init( &ui.popup.pb2, 68, 45, 48, 12 );
+            uiel_control_pushbutton_init( &ui.popup.pb2, 67, 45, 48, 12 );
             uiel_control_pushbutton_set_content( &ui.popup.pb2, uicnt_text, 0, "Cancel", uitxt_smallbold ); 
             break;
     }

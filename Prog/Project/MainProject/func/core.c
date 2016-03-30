@@ -843,7 +843,6 @@ void core_op_monitoring_switch( bool enable )
     {
         // disabling monitoring - clean up the 
         core.nv.op.op_flags.b.op_monitoring = 0;
-        internal_clear_monitoring();
     }
     else if ( core.nv.op.op_flags.b.op_monitoring == 0 )
     {
