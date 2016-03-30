@@ -359,6 +359,36 @@ void uigrf_draw_battery( int x, int y, int fullness )
 }
 
 
+void uigrf_rounded_rect( int x1, int y1, int x2, int y2, int color, bool fill, int bgnd )
+{
+    Graphic_SetColor( color );
+    if (fill)
+        Graphic_FillRectangle( x1, y1, x2, y2, bgnd );
+    else
+        Graphic_Rectangle( x1, y1, x2, y2 );
+
+    Graphic_PutPixel(  x1, y1, bgnd );
+    Graphic_PutPixel(  x1, y1+1, bgnd );
+    Graphic_PutPixel(  x1+1, y1, bgnd );
+    Graphic_PutPixel(  x1+1, y1+1, color);
+
+    Graphic_PutPixel(  x2, y1, bgnd );
+    Graphic_PutPixel(  x2, y1+1, bgnd );
+    Graphic_PutPixel(  x2-1, y1, bgnd );
+    Graphic_PutPixel(  x2-1, y1+1, color );
+
+    Graphic_PutPixel(  x1,   y2, bgnd );
+    Graphic_PutPixel(  x1,   y2-1, bgnd );
+    Graphic_PutPixel(  x1+1, y2, bgnd );
+    Graphic_PutPixel(  x1+1, y2-1, color );
+
+    Graphic_PutPixel(  x2,   y2, bgnd );
+    Graphic_PutPixel(  x2,   y2-1, bgnd );
+    Graphic_PutPixel(  x2-1, y2, bgnd );
+    Graphic_PutPixel(  x2-1, y2-1, color );
+}
+
+
 void grf_setup_font( enum Etextstyle style, int color, int backgnd )
 {
     bool mono;

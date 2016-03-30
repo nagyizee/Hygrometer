@@ -103,6 +103,39 @@
     };
 
 
+    enum EPopupAction
+    {
+        uipa_close = 0,     // One "Close" button
+        uipa_ok,            // One "OK" button
+        uipa_ok_cancel,     // "OK" and "Cancel" buttons, Cancel is the default
+    };
+
+
+    struct SPopupSetup
+    {
+        char *line1;
+        char *line2;
+        uint8 x1;       // coordinates of line 1
+        uint8 y1;
+        uint8 x2;       // coordinates of line 2
+        uint8 y2; 
+
+        uint8 popup_action;
+
+        uint8 style1;   // style of line 1
+        uint8 style2;   // style of line 2
+    };
+
+    struct SPopUpWindow
+    {
+        struct SPopupSetup  params;
+        uint8 focus;
+        uint8 elems;
+        uint32 ret_state;
+        struct Suiel_control_pushbutton pb1;
+        struct Suiel_control_pushbutton pb2;
+    };
+    
 
     struct SUIstatus
     {
@@ -118,6 +151,7 @@
         int focus;                      // element in focus - it is 1-based, if 0 then nothing is selected on the screen
 
         union UUIstatusParams   p;      // parameters for the curent ui state
+        struct SPopUpWindow     popup;
 
         uint32 pwr_sched_dim;       // inactivity time scheduler for display dimming
         uint32 pwr_sched_dispoff;   // inactivity time scheduler for display off
@@ -149,12 +183,15 @@
     void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval );
 
     void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval );
+    void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval );
+    void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );
     void uist_drawview_mainwindow( int redraw_type );
     void uist_drawview_setwindow( int redraw_type );
     void uist_drawview_debuginputs( int redraw_type, uint32 key_bits );
+    void uist_drawview_popup(int redraw_type);
 
     void uist_setupview_modeselect( bool reset );
     void uist_setupview_mainwindow( bool reset );

@@ -27,6 +27,8 @@
 struct SUIstatus ui;
 extern struct SCore core;
 
+void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, uiel_callback call_cancel );
+void uist_close_popup(void);
 
 static void local_uist_display_init(void)
 {
@@ -157,6 +159,47 @@ void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
 }
 
 
+const char popup_msg_reset_minmax_1[] = "Really want to reset all";
+const char popup_msg_reset_minmax_2[] = "min/max values ?";
+
+
+void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval )
+{
+    ui.popup.params.line1 = popup_msg_reset_minmax_1;
+    ui.popup.params.line2 = popup_msg_reset_minmax_2;
+    ui.popup.params.style1 = uitxt_small;
+    ui.popup.params.style2 = uitxt_small;
+    ui.popup.params.x1 = 10;
+    ui.popup.params.y1 = 2;
+    ui.popup.params.x2 = 20;
+    ui.popup.params.y2 = 14;
+    ui.popup.params.popup_action = uipa_ok_cancel;
+    uist_enter_popup( 0, ui_call_setwindow_quickswitch_reset_minmax_ok, 0, NULL );
+}
+
+void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval )
+{
+    // callback from the popup if OK is selected
+    int i;
+    for ( i=0; i<STORAGE_MINMAX; i++ )
+    {
+        core_op_monitoring_reset_minmax( ss_thermo, i );
+        core_op_monitoring_reset_minmax( ss_rh, i );
+        core_op_monitoring_reset_minmax( ss_pressure, i );
+    }
+    
+    uist_close_popup();
+}
+
+
+
+// Popup window default callback
+
+void ui_call_popup_default( int context, void *pval )
+{
+    uist_close_popup();
+}
+
 
 
 ////////////////////////////////////////////////////
@@ -175,6 +218,8 @@ static void uist_update_display( int disp_update )
             {
                 case UI_STATE_MAIN_GAUGE: uist_drawview_mainwindow( disp_update & RDRW_ALL ); break;
                 case UI_STATE_SETWINDOW:  uist_drawview_setwindow( disp_update & RDRW_ALL ); break;
+                case UI_STATE_POPUP:      uist_drawview_popup( disp_update & RDRW_ALL ); break;
+
             }
         }
         DispHAL_UpdateScreen();
@@ -397,6 +442,95 @@ void uist_startup( struct SEventStruct *evmask )
 }
 
 
+/// POPUP WINDOW
+
+// no input parameters for this routine (no reason to ocupy memory in plus)
+// --> when calling this entering routine - first fill the ui.popup.params structure
+void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, uiel_callback call_cancel )
+{
+    ui.popup.ret_state = ui.m_state;
+    ui.m_state = UI_STATE_POPUP;
+
+    ui.popup.focus = 0;
+    ui.popup.elems = 1;
+
+    switch ( ui.popup.params.popup_action )
+    {
+        case uipa_close:
+            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 50, 48, 14 );
+            uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "Close", uitxt_smallbold ); 
+            break;
+        case uipa_ok:
+            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 50, 48, 14 );
+            uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "OK", uitxt_smallbold ); 
+            break;
+        case uipa_ok_cancel:
+            ui.popup.focus = 1;
+            ui.popup.elems = 2;
+            uiel_control_pushbutton_init( &ui.popup.pb1, 12, 45, 48, 12 );
+            uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "OK", uitxt_smallbold ); 
+            uiel_control_pushbutton_init( &ui.popup.pb2, 68, 45, 48, 12 );
+            uiel_control_pushbutton_set_content( &ui.popup.pb2, uicnt_text, 0, "Cancel", uitxt_smallbold ); 
+            break;
+    }
+
+    uiel_control_pushbutton_set_callback( &ui.popup.pb1, UICpb_OK, cont_ok, call_ok ? call_ok : ui_call_popup_default );
+    uiel_control_pushbutton_set_callback( &ui.popup.pb2, UICpb_OK, cont_cancel, call_cancel ? call_cancel : ui_call_popup_default );
+
+    uist_drawview_popup( RDRW_ALL );
+    DispHAL_UpdateScreen();
+    ui.upd_ui_disp = RDRW_ALL;
+}
+
+
+// to be called at OK/Cancel callbacks
+void uist_close_popup(void)
+{
+    // revert original state
+    ui.m_state = ui.popup.ret_state;
+    
+    // redraw the original display
+    uist_update_display( RDRW_ALL );
+    ui.upd_ui_disp = RDRW_ALL;
+}
+
+
+void uist_popupwindow( struct SEventStruct *evmask )
+{
+    if ( evmask->key_event )
+    {
+        // operations if focus on ui elements
+        if ( ui_element_poll( ui.popup.focus ? &ui.popup.pb2 : &ui.popup.pb1, evmask ) )
+        {
+            ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
+        }
+
+        if ( evmask->key_pressed & KEY_RIGHT )
+        {
+            if ( ui.popup.elems == 2 )
+                ui.popup.focus = 1;
+            ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        }
+        // move focus to the previous element
+        if ( evmask->key_pressed & KEY_LEFT )
+        {
+            if ( ui.popup.elems == 2 )
+                ui.popup.focus = 0;
+            ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        }
+
+        // power button activated
+        if ( evmask->key_longpressed & KEY_MODE )
+        {
+            uist_goto_shutdown();
+        }
+    }
+
+    uist_update_display( ui.upd_ui_disp );
+    ui.upd_ui_disp = 0;                     // do this after refresh to force a display update at first entry
+}
+
+
 /// UI DEBUG INPUTS
 
 void uist_debuginputs_entry( void )
@@ -536,7 +670,6 @@ void uist_opmodeselect_entry( void )
 
 void uist_opmodeselect( struct SEventStruct *evmask )
 {
-    ui.upd_ui_disp = 0;
     if ( evmask->key_event )
     {
         if ( evmask->key_pressed & KEY_UP )
@@ -559,6 +692,7 @@ void uist_opmodeselect( struct SEventStruct *evmask )
     // update screen on timebase
     ui.upd_ui_disp |= uist_timebased_updates( evmask );
     uist_update_display( ui.upd_ui_disp );
+    ui.upd_ui_disp = 0;
 }
 
 
@@ -574,7 +708,6 @@ void uist_setwindow_entry( void )
 
 void uist_setwindow( struct SEventStruct *evmask )
 {
-    ui.upd_ui_disp = 0;
     if ( evmask->key_event )
     {
         // generic UI buttons and events
@@ -583,7 +716,7 @@ void uist_setwindow( struct SEventStruct *evmask )
             // operations if focus on ui elements
             if ( ui_element_poll( ui.ui_elems[ ui.focus - 1], evmask ) )
             {
-                ui.upd_ui_disp  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
+                ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
             }
             uist_infocus_generic_key_processing( evmask );
         }
@@ -598,6 +731,7 @@ void uist_setwindow( struct SEventStruct *evmask )
     // update screen on timebase
     ui.upd_ui_disp |= uist_timebased_updates( evmask );
     uist_update_display( ui.upd_ui_disp );
+    ui.upd_ui_disp = 0;
 }
 
 
@@ -611,13 +745,12 @@ void uist_mainwindowgauge_entry( void )
     DispHAL_UpdateScreen();
     core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
     ui.m_substate ++;
+    ui.upd_ui_disp = 0;
 }
 
 
 void uist_mainwindowgauge( struct SEventStruct *evmask )
 {
-    ui.upd_ui_disp = 0;
-
     if ( evmask->key_event )
     {
         // generic UI buttons and events
@@ -679,6 +812,8 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
     // update screen on timebase
     ui.upd_ui_disp |= uist_timebased_updates( evmask );
     uist_update_display( ui.upd_ui_disp );
+    ui.upd_ui_disp = 0;
+
 }
 
 
@@ -760,6 +895,9 @@ uint32 ui_poll( struct SEventStruct *evmask )
                     break;
                 case UI_STATE_STARTUP:
                     uist_startup( evmask );
+                    break;
+                case UI_STATE_POPUP:
+                    uist_popupwindow( evmask );
                     break;
                 case UI_STATE_SHUTDOWN:
                     uist_shutdown( evmask );

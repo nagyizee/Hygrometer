@@ -697,6 +697,7 @@ static inline void uist_setview_setwindow_quickswitch( void )
     uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 37, 12 );
     uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "RESET MM", uitxt_micro );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_OK, 0, ui_call_setwindow_quickswitch_reset_minmax );
     ui.ui_elems[5] = &ui.p.swQuickSw.resetMM;
 
     ui.ui_elem_nr = 6;
@@ -824,6 +825,27 @@ void uist_drawview_debuginputs( int redraw_type, uint32 key_bits )
         }
     }
 
+}
+
+
+void uist_drawview_popup(int redraw_type)
+{
+    if ( redraw_type & RDRW_UI_CONTENT )
+    {
+        int i;
+
+        uigrf_rounded_rect(10, 16, 117, 60, 1, true, 0);
+
+        if ( ui.popup.params.line1[0] != 0x00 )
+            uigrf_text( ui.popup.params.x1 + 10, ui.popup.params.y1 + 16, (enum Etextstyle)ui.popup.params.style1, ui.popup.params.line1 );
+        if ( ui.popup.params.line2[0] != 0x00 )
+            uigrf_text( ui.popup.params.x2 + 10, ui.popup.params.y2 + 16, (enum Etextstyle)ui.popup.params.style2, ui.popup.params.line2 );
+
+
+        ui_element_display( &ui.popup.pb1, (ui.popup.focus == 0) );
+        if ( ui.popup.elems == 2 )
+            ui_element_display( &ui.popup.pb2, (ui.popup.focus == 1) );
+    }
 }
 
 

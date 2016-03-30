@@ -754,28 +754,7 @@ static inline void uiel_control_pushbutton_display( struct Suiel_control_pushbut
     xe = handle->xpoz+handle->w;
     ye = handle->ypoz+handle->h;
 
-    Graphic_SetColor( 1 );
-    Graphic_FillRectangle( handle->xpoz, handle->ypoz, xe, ye, 0 );
-
-    Graphic_PutPixel(  handle->xpoz, handle->ypoz, 0 );
-    Graphic_PutPixel(  handle->xpoz, handle->ypoz+1, 0 );
-    Graphic_PutPixel(  handle->xpoz+1, handle->ypoz, 0 );
-    Graphic_PutPixel(  handle->xpoz+1, handle->ypoz+1, 1 );
-
-    Graphic_PutPixel(  xe, handle->ypoz, 0 );
-    Graphic_PutPixel(  xe, handle->ypoz+1, 0 );
-    Graphic_PutPixel(  xe-1, handle->ypoz, 0 );
-    Graphic_PutPixel(  xe-1, handle->ypoz+1, 1 );
-
-    Graphic_PutPixel(  handle->xpoz,   ye, 0 );
-    Graphic_PutPixel(  handle->xpoz,   ye-1, 0 );
-    Graphic_PutPixel(  handle->xpoz+1, ye, 0 );
-    Graphic_PutPixel(  handle->xpoz+1, ye-1, 1 );
-
-    Graphic_PutPixel(  xe,   ye, 0 );
-    Graphic_PutPixel(  xe,   ye-1, 0 );
-    Graphic_PutPixel(  xe-1, ye, 0 );
-    Graphic_PutPixel(  xe-1, ye-1, 1 );
+    uigrf_rounded_rect(handle->xpoz, handle->ypoz, xe, ye, 1, true, 0);
 
     if ( handle->type == uicnt_text )
     {
