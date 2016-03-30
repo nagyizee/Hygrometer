@@ -464,9 +464,6 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
 static inline void uist_draw_gauge_pressure( int redraw_all )
 {
     int press = ( 1013.25 * 100 );       // testing purpose
-    int press_int = press / 100;
-    int press_fract = press % 100;
-
     int x,y;
 
     if ( redraw_all & RDRW_UI_DYNAMIC )
@@ -832,14 +829,18 @@ void uist_drawview_popup(int redraw_type)
 {
     if ( redraw_type & RDRW_UI_CONTENT )
     {
-        int i;
+        char *l1;
+        char *l2;
+
+        l1 = (char*)ui.popup.params.line1;
+        l2 = (char*)ui.popup.params.line2;
 
         uigrf_rounded_rect(10, 16, 117, 60, 1, true, 0);
 
-        if ( ui.popup.params.line1[0] != 0x00 )
-            uigrf_text( ui.popup.params.x1 + 10, ui.popup.params.y1 + 16, (enum Etextstyle)ui.popup.params.style1, ui.popup.params.line1 );
-        if ( ui.popup.params.line2[0] != 0x00 )
-            uigrf_text( ui.popup.params.x2 + 10, ui.popup.params.y2 + 16, (enum Etextstyle)ui.popup.params.style2, ui.popup.params.line2 );
+        if ( l1[0] != 0x00 )
+            uigrf_text( ui.popup.params.x1 + 10, ui.popup.params.y1 + 16, (enum Etextstyle)ui.popup.params.style1, l1 );
+        if ( l2[0] != 0x00 )
+            uigrf_text( ui.popup.params.x2 + 10, ui.popup.params.y2 + 16, (enum Etextstyle)ui.popup.params.style2, l2 );
 
 
         ui_element_display( &ui.popup.pb1, (ui.popup.focus == 0) );

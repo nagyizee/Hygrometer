@@ -165,8 +165,8 @@ const char popup_msg_reset_minmax_2[] = "min/max values ?";
 
 void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval )
 {
-    ui.popup.params.line1 = popup_msg_reset_minmax_1;
-    ui.popup.params.line2 = popup_msg_reset_minmax_2;
+    ui.popup.params.line1 = (uint32)popup_msg_reset_minmax_1;       // need to trick the compiler to not to complain about const type
+    ui.popup.params.line2 = (uint32)popup_msg_reset_minmax_2;
     ui.popup.params.style1 = uitxt_small;
     ui.popup.params.style2 = uitxt_small;
     ui.popup.params.x1 = 10;
@@ -813,7 +813,6 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
     ui.upd_ui_disp |= uist_timebased_updates( evmask );
     uist_update_display( ui.upd_ui_disp );
     ui.upd_ui_disp = 0;
-
 }
 
 

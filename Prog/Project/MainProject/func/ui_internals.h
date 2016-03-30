@@ -113,8 +113,8 @@
 
     struct SPopupSetup
     {
-        char *line1;
-        char *line2;
+        uint32 line1;   // pointer to the text line1
+        uint32 line2;   // pointer to the text line2 
         uint8 x1;       // coordinates of line 1
         uint8 y1;
         uint8 x2;       // coordinates of line 2

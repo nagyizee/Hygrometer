@@ -297,7 +297,7 @@
     // add element to a list
     // value can be 0 - 255
     // returns 0 on success
-    int uiel_control_list_add_item( struct Suiel_control_list *handle, char *element, int value );
+    int uiel_control_list_add_item( struct Suiel_control_list *handle, const char *element, int value );
 
     // move up in list
     void uiel_control_list_set_next( struct Suiel_control_list *handle );

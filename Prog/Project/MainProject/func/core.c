@@ -318,8 +318,6 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
 
         if ( core.nv.op.op_flags.b.op_monitoring )     // check for min/max
         {
-            int i;
-
             if ( rh == 0 )       // rh 0 % marks also uninitted temperature min/max - omit this value
                 rh = 1;
             if ( abs == 0 )
@@ -616,6 +614,7 @@ uint32 core_restart_rtc_tick(void)
     RTCctr = RTC_GetCounter();
     RTC_SetAlarm( RTCctr + 1 );
     __enable_interrupt();
+    return 0;
 }
 
 void core_set_clock_counter( uint32 counter )

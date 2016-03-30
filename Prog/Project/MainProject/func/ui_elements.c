@@ -471,7 +471,7 @@ void uiel_control_list_set_callback( struct Suiel_control_list *handle, enum EUI
     }
 }
 
-int uiel_control_list_add_item( struct Suiel_control_list *handle, char *element, int value )
+int uiel_control_list_add_item( struct Suiel_control_list *handle, const char *element, int value )
 {
     int entry_poz;
 
@@ -758,8 +758,6 @@ static inline void uiel_control_pushbutton_display( struct Suiel_control_pushbut
 
     if ( handle->type == uicnt_text )
     {
-        int txt_w;
-        int txt_h;
         Graphic_SetColor(1);
         grf_setup_font( (enum Etextstyle)handle->txt_style, 1, 0 );
         uigrf_text( handle->xpoz + handle->offsx, handle->ypoz + handle->offsy, (enum Etextstyle)handle->txt_style, handle->content.text );
