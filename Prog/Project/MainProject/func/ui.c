@@ -60,6 +60,13 @@ static void local_ui_set_shutdown_state(void)
 //
 ////////////////////////////////////////////////////
 
+// Generic gauge callbacks
+void ui_call_maingauge_esc_pressed( int context, void *pval )
+{
+    // ESC pressed on an object in focus in non-editting mode - clear the focus
+    ui.focus = 0;
+    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+}
 
 // Thermo gauge callbacks
 
@@ -138,6 +145,18 @@ void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval )
 }
 
 
+// --- Setup window callbacks
+
+// --- Setup quick switches 
+
+void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
+{
+    // esc pressed - return to the mode selector window
+    ui.m_state = UI_STATE_MODE_SELECT;
+    ui.m_substate = UI_SUBST_ENTRY;
+}
+
+
 
 
 ////////////////////////////////////////////////////
@@ -151,8 +170,13 @@ static void uist_update_display( int disp_update )
     if ( disp_update )
     {
         if ( disp_update & RDRW_ALL )   // if anything to be redrawn
-            uist_drawview_mainwindow( disp_update & RDRW_ALL  );
-
+        {
+            switch ( ui.m_state )
+            {
+                case UI_STATE_MAIN_GAUGE: uist_drawview_mainwindow( disp_update & RDRW_ALL ); break;
+                case UI_STATE_SETWINDOW:  uist_drawview_setwindow( disp_update & RDRW_ALL ); break;
+            }
+        }
         DispHAL_UpdateScreen();
     }
 }
@@ -224,6 +248,27 @@ static void uist_goto_shutdown(void)
     ui.m_substate = 0;
 }
 
+static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
+{
+    // move focus to the next element
+    if ( evmask->key_pressed & KEY_RIGHT )
+    {
+        if ( ui.focus < ui.ui_elem_nr )
+            ui.focus++;
+        else
+            ui.focus = 1;
+        ui.upd_ui_disp |= RDRW_UI_CONTENT;
+    }
+    // move focus to the previous element
+    if ( evmask->key_pressed & KEY_LEFT )
+    {
+        if ( ui.focus > 1 )
+            ui.focus--;
+        else
+            ui.focus = ui.ui_elem_nr - 1;
+        ui.upd_ui_disp |= RDRW_UI_CONTENT;
+    }
+}
 
 
 static inline void ui_power_management( struct SEventStruct *evmask )
@@ -520,8 +565,8 @@ void uist_opmodeselect( struct SEventStruct *evmask )
 /// UI MAIN GAUGE WINDOW
 void uist_setwindow_entry( void )
 {
-//  uist_setupview_setwindow( true );
-//  uist_drawview_setwindow( RDRW_ALL );
+    uist_setupview_setwindow( true );
+    uist_drawview_setwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
     ui.m_substate ++;
     ui.upd_ui_disp = 0;
@@ -540,12 +585,7 @@ void uist_setwindow( struct SEventStruct *evmask )
             {
                 ui.upd_ui_disp  = RDRW_DISP_UPDATE;          // mark only for dispHAL update
             }
-
-            if ( evmask->key_released & KEY_ESC )
-            {
-                ui.m_state = UI_STATE_MODE_SELECT;
-                ui.m_substate = UI_SUBST_ENTRY;
-            }
+            uist_infocus_generic_key_processing( evmask );
         }
 
         // power button activated
@@ -587,34 +627,8 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
             if ( ui_element_poll( ui.ui_elems[ ui.focus - 1], evmask ) )
             {
                 ui.upd_ui_disp |= RDRW_DISP_UPDATE;
-//                if ( ui_process_intermediate_changes( false ) )
-//                    disp_update |= RDRW_UI_CONTENT_ALL;
             }
-
-            // move focus to the next element
-            if ( evmask->key_pressed & KEY_RIGHT )
-            {
-                if ( ui.focus < ui.ui_elem_nr )
-                    ui.focus++;
-                else
-                    ui.focus = 1;
-                ui.upd_ui_disp |= RDRW_UI_CONTENT;
-            }
-            // move focus to the previous element
-            if ( evmask->key_pressed & KEY_LEFT )
-            {
-                if ( ui.focus > 1 )
-                    ui.focus--;
-                else
-                    ui.focus = ui.ui_elem_nr - 1;
-                ui.upd_ui_disp |= RDRW_UI_CONTENT;
-            }
-            // short press on esc will exit focus
-            if ( evmask->key_released & KEY_ESC )
-            {
-                ui.focus = 0;
-                ui.upd_ui_disp |= RDRW_UI_CONTENT;
-            }
+            uist_infocus_generic_key_processing( evmask );
         }
         else
         {

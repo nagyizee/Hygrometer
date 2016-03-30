@@ -10,6 +10,7 @@
     #define BMP_GRF_SELECTED    1
     #define BMP_GAUGE_HI        2
     #define BMP_GAUGE_LO        3
+    #define BMP_QSW_THP_RATE    4
 
     enum Etextstyle
     {

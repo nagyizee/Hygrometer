@@ -174,10 +174,13 @@ void uist_internal_tendencyval2pixels( struct STendencyBuffer *tend )
 
 
 
-static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
+static void uist_mainwindow_statusbar( int rdrw )
 {
     uint32 clock;
     int x;
+
+    if ( (ui.m_state == UI_STATE_SETWINDOW) && (ui.m_setstate == UI_SET_QuickSwitch) )  // skip status bar drawing for quick switch panel
+        return;
 
     clock = core_get_clock_counter();
 
@@ -202,11 +205,16 @@ static void uist_mainwindow_statusbar( uint32 opmode, int rdrw )
                 Graphic_PutPixel( 2+x*4, 15, 1 );
         }
 
-        switch ( opmode )
+        switch ( ui.m_state )
         {
-            case UImm_gauge_thermo:     uigrf_text( 2, 4, uitxt_smallbold, "Thermo:" ); break;
-            case UImm_gauge_hygro:      uigrf_text( 2, 4, uitxt_smallbold, "Hygro:" );  break;
-            case UImm_gauge_pressure:   uigrf_text( 2, 4, uitxt_smallbold, "Baro:" );   break;
+            case UI_STATE_MAIN_GAUGE:
+                switch ( ui.main_mode )
+                {
+                    case UImm_gauge_thermo:     uigrf_text( 2, 4, uitxt_smallbold, "Thermo:" ); break;
+                    case UImm_gauge_hygro:      uigrf_text( 2, 4, uitxt_smallbold, "Hygro:" );  break;
+                    case UImm_gauge_pressure:   uigrf_text( 2, 4, uitxt_smallbold, "Baro:" );   break;
+                }
+                break;
         }
 
         // draw time
@@ -526,6 +534,25 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 }
 
 
+static inline void uist_draw_setwindow_quickswitch( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uigrf_text( 0, 3, uitxt_smallbold,  "Monitor" );
+        uigrf_text( 61, 3, uitxt_smallbold,  "Register" );
+        Graphic_SetColor(1);
+        Graphic_Line(0,15,127,15);
+        uibm_put_bitmap( 0, 16, BMP_QSW_THP_RATE );
+
+    }
+
+    if ( redraw_type & RDRW_UI_CONTENT )
+    {
+
+
+        uist_internal_disp_all_with_focus();
+    }
+}
 
 
 ////////////////////////////////////////////////////
@@ -533,11 +560,6 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 //   UI status dependent window setups
 //
 ////////////////////////////////////////////////////
-extern void ui_call_maingauge_thermo_unit_toDefault( int context, void *pval );
-extern void ui_call_maingauge_thermo_unit_vchange( int context, void *pval  );
-extern void ui_call_maingauge_thermo_minmax_toDefault( int context, void *pval );
-extern void ui_call_maingauge_thermo_minmax_vchange( int context, void *pval );
-
 
 static inline void uist_setview_mainwindowgauge_thermo( void )
 {
@@ -549,6 +571,7 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     uiel_control_list_set_index( &ui.p.mgThermo.units, core.nv.setup.show_unit_temp );
     uiel_control_list_set_callback( &ui.p.mgThermo.units, UIClist_Vchange, 0, ui_call_maingauge_thermo_unit_vchange );
     uiel_control_list_set_callback( &ui.p.mgThermo.units, UIClist_EscLong, 0, ui_call_maingauge_thermo_unit_toDefault );
+    uiel_control_list_set_callback( &ui.p.mgThermo.units, UIClist_Esc, 0, ui_call_maingauge_esc_pressed );
     ui.ui_elems[0] = &ui.p.mgThermo.units;
 
     for (i=0; i<3; i++)
@@ -563,6 +586,7 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
         uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_temp, i) );
         uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_thermo_minmax_vchange );
         uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_thermo_minmax_toDefault );
+        uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_Esc, i, ui_call_maingauge_esc_pressed );
         ui.ui_elems[i+1] = &ui.p.mgThermo.minmaxset[i];
     }
 
@@ -570,12 +594,6 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
 
     ui.p.mgThermo.unitT = (enum ETemperatureUnits)core.nv.setup.show_unit_temp;
 }
-
-
-extern void ui_call_maingauge_hygro_unit_toDefault( int context, void *pval );
-extern void ui_call_maingauge_hygro_unit_vchange( int context, void *pval );
-extern void ui_call_maingauge_hygro_minmax_toDefault( int context, void *pval );
-extern void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval );
 
 static inline void uist_setview_mainwindowgauge_hygro( void )
 {
@@ -587,6 +605,7 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
     uiel_control_list_set_index( &ui.p.mgHygro.units, core.nv.setup.show_unit_hygro );
     uiel_control_list_set_callback( &ui.p.mgHygro.units, UIClist_Vchange, 0, ui_call_maingauge_hygro_unit_vchange );
     uiel_control_list_set_callback( &ui.p.mgHygro.units, UIClist_EscLong, 0, ui_call_maingauge_hygro_unit_toDefault );
+    uiel_control_list_set_callback( &ui.p.mgHygro.units, UIClist_Esc, 0, ui_call_maingauge_esc_pressed );
     ui.ui_elems[0] = &ui.p.mgHygro.units;
 
     for (i=0; i<3; i++)
@@ -601,6 +620,7 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
         uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_hygro, i) );
         uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_hygro_minmax_vchange );
         uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_hygro_minmax_toDefault );
+        uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_Esc, i, ui_call_maingauge_esc_pressed );
         ui.ui_elems[i+1] = &ui.p.mgHygro.minmaxset[i];
     }
 
@@ -640,6 +660,66 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 }
 
 
+const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
+const enum EUpdateTimings upd_timings[] = { ut_5sec,  ut_10sec, ut_30sec, ut_1min,  ut_2min,  ut_5min,  ut_10min, ut_30min, ut_60min };
+
+static inline void uist_setview_setwindow_quickswitch( void )
+{   
+    int i, j;
+    // monitoring on/off switch
+    uiel_control_checkbox_init( &ui.p.swQuickSw.monitor, 40, 2 );
+    uiel_control_checkbox_set( &ui.p.swQuickSw.monitor, core.nv.op.op_flags.b.op_monitoring );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.monitor, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    ui.ui_elems[0] = &ui.p.swQuickSw.monitor;
+
+    // registering on/off switch
+    uiel_control_checkbox_init( &ui.p.swQuickSw.reg, 104, 2 );
+    uiel_control_checkbox_set( &ui.p.swQuickSw.reg, core.nv.op.op_flags.b.op_registering );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    ui.ui_elems[1] = &ui.p.swQuickSw.reg;
+
+    // monitoring rate setup
+    for ( i=0; i<3; i++ )
+    {
+        uiel_control_list_init( &ui.p.swQuickSw.m_rates[i], 12, 16 + i*11, 25, uitxt_small, 1, false );
+        for (j=0; j< (sizeof(upd_timings) / sizeof(enum EUpdateTimings)); j++ )
+            uiel_control_list_add_item( &ui.p.swQuickSw.m_rates[i], upd_rates[j], upd_timings[j] );
+        switch (i)
+        {
+            case 0: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_temp ); break;
+            case 1: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_hygro ); break;
+            case 2: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_press ); break;
+        }
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+1, ui_call_setwindow_quickswitch_esc_pressed );
+        ui.ui_elems[2+i] = &ui.p.swQuickSw.m_rates[i];
+    }
+
+    uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 37, 12 );
+    uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "RESET MM", uitxt_micro );
+    uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    ui.ui_elems[5] = &ui.p.swQuickSw.resetMM;
+
+    ui.ui_elem_nr = 6;
+}
+
+
+
+
+static void local_drawwindow_common_op( int redraw_type )
+{
+    // if all the content should be redrawn
+    if ( redraw_type == RDRW_ALL )
+        Graphics_ClearScreen(0);
+
+    // if status bar should be redrawn
+    if ( redraw_type & RDRW_STATUSBAR )
+    {
+        uist_mainwindow_statusbar( redraw_type );
+    }
+
+}
+
+
 ////////////////////////////////////////////////////
 //
 //   UI Setups and redraw selectors
@@ -648,11 +728,8 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 
 void uist_drawview_modeselect( int redraw_type )
 {
-    if ( redraw_type == RDRW_ALL )
-        Graphics_ClearScreen(0);
-    if ( redraw_type & RDRW_STATUSBAR )
-        uist_mainwindow_statusbar( ui.main_mode, redraw_type );
-
+    local_drawwindow_common_op( redraw_type );
+    
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
     {
         uibm_put_bitmap( 0, 16, BMP_MAIN_SELECTOR );
@@ -662,15 +739,7 @@ void uist_drawview_modeselect( int redraw_type )
 
 void uist_drawview_mainwindow( int redraw_type )
 {
-    // if all the content should be redrawn
-    if ( redraw_type == RDRW_ALL )
-        Graphics_ClearScreen(0);
-
-    // if status bar should be redrawn
-    if ( redraw_type & RDRW_STATUSBAR )
-    {
-        uist_mainwindow_statusbar( ui.main_mode, redraw_type );
-    }
+    local_drawwindow_common_op( redraw_type );
 
     // if UI content should be redrawn
     if ( redraw_type & (~RDRW_STATUSBAR) )                          // if there are other things to be redrawn from the UI
@@ -683,6 +752,23 @@ void uist_drawview_mainwindow( int redraw_type )
             break;
         }
     }
+}
+
+
+void uist_drawview_setwindow( int redraw_type )
+{
+    local_drawwindow_common_op( redraw_type );
+
+    // if UI content should be redrawn
+    if ( redraw_type & (~RDRW_STATUSBAR) )                          // if there are other things to be redrawn from the UI
+    {
+        switch ( ui.m_setstate )
+        {
+            case UI_SET_QuickSwitch:    uist_draw_setwindow_quickswitch(redraw_type); break;
+        }
+
+    }
+
 }
 
                       // up  dn  l   r   ok  esc  mo
@@ -760,6 +846,17 @@ void uist_setupview_mainwindow( bool reset )
         case UImm_gauge_pressure:    uist_setview_mainwindowgauge_pressure(); break;
     }
 }
+
+void uist_setupview_setwindow( bool reset )
+{
+    ui.focus = 1;   // default focus on first element
+
+    switch ( ui.m_setstate )
+    {
+        case UI_SET_QuickSwitch:    uist_setview_setwindow_quickswitch(); break;
+    }
+}
+
 
 void uist_setupview_debuginputs( void )
 {

@@ -82,12 +82,24 @@
         bool                         msl_ref;       // if true - mean see level pressure is the reference -> calculate altitude
     };                                              // if false - altitude is the reference -> calculate the msl pressure
 
+    struct SUISetQuickSwitch
+    {
+        struct Suiel_control_checkbox   monitor;
+        struct Suiel_control_pushbutton resetMM;
+        struct Suiel_control_checkbox   reg;
+        struct Suiel_control_list       m_rates[3]; // set up monitoring rates for Temp / Hygro / Pressure ( indexes 0, 1, 2 )
+    };
+
+
     union UUIstatusParams
     {
         // main window stuff
         struct SUIMainGaugeThermo  mgThermo;
         struct SUIMainGaugeHygro   mgHygro;
         struct SUIMainGaugePress   mgPress;
+
+        struct SUISetQuickSwitch    swQuickSw;      // params for quick switch
+
     };
 
 
@@ -123,12 +135,30 @@
     };
 
 
+    // callbacks
+    void ui_call_maingauge_esc_pressed( int context, void *pval );
+    
+    void ui_call_maingauge_thermo_unit_toDefault( int context, void *pval );
+    void ui_call_maingauge_thermo_unit_vchange( int context, void *pval  );
+    void ui_call_maingauge_thermo_minmax_toDefault( int context, void *pval );
+    void ui_call_maingauge_thermo_minmax_vchange( int context, void *pval );
+    
+    void ui_call_maingauge_hygro_unit_toDefault( int context, void *pval );
+    void ui_call_maingauge_hygro_unit_vchange( int context, void *pval );
+    void ui_call_maingauge_hygro_minmax_toDefault( int context, void *pval );
+    void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval );
+
+    void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval );
+
+    // routines
     void uist_drawview_modeselect( int redraw_type );
     void uist_drawview_mainwindow( int redraw_type );
+    void uist_drawview_setwindow( int redraw_type );
     void uist_drawview_debuginputs( int redraw_type, uint32 key_bits );
 
     void uist_setupview_modeselect( bool reset );
     void uist_setupview_mainwindow( bool reset );
+    void uist_setupview_setwindow( bool reset );
     void uist_setupview_debuginputs( void );
 
 
