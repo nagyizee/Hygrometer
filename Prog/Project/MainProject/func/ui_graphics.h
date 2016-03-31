@@ -11,6 +11,11 @@
     #define BMP_GAUGE_HI        2
     #define BMP_GAUGE_LO        3
     #define BMP_QSW_THP_RATE    4
+    #define BMP_ICO_OP_NONE     5
+    #define BMP_ICO_OP_MONI     6
+    #define BMP_ICO_OP_REG      7
+    #define BMP_ICO_OP_REGMONI  8
+
 
     enum Etextstyle
     {

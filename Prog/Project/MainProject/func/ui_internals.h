@@ -188,6 +188,7 @@
     void ui_call_setwindow_quickswitch_op_switch_ok( int context, void *pval );
     void ui_call_setwindow_quickswitch_op_switch_cancel( int context, void *pval );
     void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval );
+    void ui_call_setwindow_quickswitch_monitor_rate_val( int context, void *pval );
     void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval );

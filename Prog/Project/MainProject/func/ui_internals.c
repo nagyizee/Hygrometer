@@ -210,9 +210,9 @@ static void uist_mainwindow_statusbar( int rdrw )
             case UI_STATE_MAIN_GAUGE:
                 switch ( ui.main_mode )
                 {
-                    case UImm_gauge_thermo:     uigrf_text( 2, 4, uitxt_smallbold, "Thermo:" ); break;
-                    case UImm_gauge_hygro:      uigrf_text( 2, 4, uitxt_smallbold, "Hygro:" );  break;
-                    case UImm_gauge_pressure:   uigrf_text( 2, 4, uitxt_smallbold, "Baro:" );   break;
+                    case UImm_gauge_thermo:     uigrf_text( 15, 3, uitxt_smallbold, "Thermo:" ); break;
+                    case UImm_gauge_hygro:      uigrf_text( 15, 3, uitxt_smallbold, "Hygro:" );  break;
+                    case UImm_gauge_pressure:   uigrf_text( 15, 3, uitxt_smallbold, "Baro:" );   break;
                 }
                 break;
         }
@@ -225,6 +225,24 @@ static void uist_mainwindow_statusbar( int rdrw )
             utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
             uigrf_puttime( 92, 0, uitxt_small, 1, tm, true, false );
             uigrf_putdate( 93, 9, uitxt_micro, 1, dt, false, true );
+        }
+
+        // draw activity
+        {
+            if ( core.nv.op.op_flags.b.op_monitoring )
+            {
+                if ( core.nv.op.op_flags.b.op_registering )
+                    uibm_put_bitmap( 0, 0, BMP_ICO_OP_REGMONI );
+                else
+                    uibm_put_bitmap( 0, 0, BMP_ICO_OP_MONI );
+            }
+            else
+            {
+                if ( core.nv.op.op_flags.b.op_registering )
+                    uibm_put_bitmap( 0, 0, BMP_ICO_OP_REG );
+                else
+                    uibm_put_bitmap( 0, 0, BMP_ICO_OP_NONE );
+            }
         }
     }
 
@@ -531,6 +549,7 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 }
 
 
+const char tendency_total_lenght[][5] = { "3M15", "6M30", "20M", "40M", "1H20", "3H15", "6H30", "20H", "1D15" };
 static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 {
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
@@ -545,7 +564,14 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 
     if ( redraw_type & RDRW_UI_CONTENT )
     {
-
+        int i;
+        for (i=0; i<3; i++)
+        {
+            int setval;
+            setval = uiel_control_list_get_value( &ui.p.swQuickSw.m_rates[i]);
+            uigrf_text( 36, 20+11*i, uitxt_micro, tendency_total_lenght[setval] );
+        }
+        
 
         uist_internal_disp_all_with_focus();
     }
@@ -680,7 +706,7 @@ static inline void uist_setview_setwindow_quickswitch( void )
     // monitoring rate setup
     for ( i=0; i<3; i++ )
     {
-        uiel_control_list_init( &ui.p.swQuickSw.m_rates[i], 12, 16 + i*11, 25, uitxt_small, 1, false );
+        uiel_control_list_init( &ui.p.swQuickSw.m_rates[i], 10, 16 + i*11, 24, uitxt_small, 1, false );
         for (j=0; j< (sizeof(upd_timings) / sizeof(enum EUpdateTimings)); j++ )
             uiel_control_list_add_item( &ui.p.swQuickSw.m_rates[i], upd_rates[j], upd_timings[j] );
         switch (i)
@@ -690,11 +716,12 @@ static inline void uist_setview_setwindow_quickswitch( void )
             case 2: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_press ); break;
         }
         uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+2, ui_call_setwindow_quickswitch_esc_pressed );
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Vchange, i+2, ui_call_setwindow_quickswitch_monitor_rate_val );
         uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_OK, i+2, ui_call_setwindow_quickswitch_monitor_rate );     // context points UI element
         ui.ui_elems[2+i] = &ui.p.swQuickSw.m_rates[i];
     }
 
-    uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 37, 12 );
+    uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 50, 12 );
     uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "RESET MM", uitxt_micro );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_OK, 0, ui_call_setwindow_quickswitch_reset_minmax );

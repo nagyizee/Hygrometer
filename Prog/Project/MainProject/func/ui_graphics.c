@@ -266,12 +266,45 @@ const uint8 uibm_grf_THP_rate[] = {
 // data size = 60
 
 
+// Graphic data for operation_none.pbm 
+// bitmap size: 13 x 13
+const uint8 uibm_icon_op_none[] = { 
+            0xfc, 0x07, 0xfe, 0x0f, 0xff, 0x1f, 0xe7, 0x1c, 0x47, 0x1c, 0x0f, 0x1e, 0x1f, 0x1f, 0x0f, 0x1e,
+            0x47, 0x1c, 0xe7, 0x1c, 0xff, 0x1f, 0xfe, 0x0f, 0xfc, 0x07 };
+// data size = 26
+
+// Graphic data for operation_register.pbm 
+// bitmap size: 13 x 13
+const uint8 uibm_icon_op_reg[] = { 
+            0xfc, 0x07, 0x06, 0x08, 0xbf, 0x1d, 0xdf, 0x1d, 0xef, 0x1d, 0xef, 0x1d, 0xef, 0x1d, 0xdf, 0x1d,
+            0xbf, 0x1d, 0x7f, 0x1d, 0x7f, 0x1d, 0xbe, 0x0d, 0xfc, 0x07 };
+// data size = 26
+
+// Graphic data for operation_register_monitor.pbm 
+// bitmap size: 13 x 13
+const uint8 uibm_icon_op_reg_moni[] = { 
+            0xfc, 0x07, 0x06, 0x0c, 0xbf, 0x1e, 0xdf, 0x1e, 0xed, 0x16, 0xe9, 0x12, 0xe1, 0x10, 0xd9, 0x12,
+            0xbd, 0x16, 0xbf, 0x1e, 0xdf, 0x1e, 0xee, 0x0e, 0xfc, 0x07 };
+// data size = 26
+
+// Graphic data for operation_monitor.pbm 
+// bitmap size: 13 x 13
+const uint8 uibm_icon_op_moni[] = { 
+            0xfc, 0x07, 0xfe, 0x0f, 0xff, 0x1f, 0xff, 0x1f, 0x0d, 0x16, 0xd9, 0x13, 0xb1, 0x11, 0xd9, 0x13,
+            0x0d, 0x16, 0xff, 0x1f, 0xff, 0x1f, 0xfe, 0x0f, 0xfc, 0x07 };
+// data size = 26
+
+
+
 const uint8* bitmap_list[] = { uibm_start_screen, uibm_grf_selected, uibm_grf_gauge_HI, uibm_grf_gauge_LO,
-                               uibm_grf_THP_rate };
-const uint16 bitmap_size[] = { 68,47, 8,8, 24,22, 24, 22,
-                               12,33                       };
-const uint16 bitmap_datasz[] = { 408, 8,   72,    72,
-                                 60                        };
+                               uibm_grf_THP_rate, uibm_icon_op_none, uibm_icon_op_moni, uibm_icon_op_reg,
+                               uibm_icon_op_reg_moni       };
+const uint16 bitmap_size[] = { 68,47,  8,8,   24,22,  24,22,
+                               12,33,  13,13, 13,13,  13,13,
+                               13,13 };
+const uint16 bitmap_datasz[] = { 408,  8,     72,     72,
+                                 60,   26,    26,     26,
+                                 26                     };
 
 
 

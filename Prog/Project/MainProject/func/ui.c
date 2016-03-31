@@ -165,6 +165,10 @@ void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
         // start monitoring / registering
         if ( context == 0 )
             core_op_monitoring_switch(true);
+        else
+            //---- reimplement
+            core.nv.op.op_flags.b.op_registering = 1;
+            //----------------
     }
     else
     {
@@ -217,6 +221,11 @@ void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval )
     core_op_monitoring_rate( context + ss_thermo - 2, val );
 }
 
+
+void ui_call_setwindow_quickswitch_monitor_rate_val( int context, void *pval )
+{
+    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+}
 
 void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
 {
@@ -380,7 +389,7 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
         if ( ui.focus > 1 )
             ui.focus--;
         else
-            ui.focus = ui.ui_elem_nr - 1;
+            ui.focus = ui.ui_elem_nr;
         ui.upd_ui_disp |= RDRW_UI_CONTENT;
         focus_moved = true;
     }
@@ -813,6 +822,11 @@ void uist_setwindow( struct SEventStruct *evmask )
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
+        }
+        if ( evmask->key_released & KEY_MODE )
+        {
+            ui.m_state = UI_STATE_MODE_SELECT;
+            ui.m_substate = UI_SUBST_ENTRY;
         }
     }
 
