@@ -295,16 +295,121 @@ const uint8 uibm_icon_op_moni[] = {
 // data size = 26
 
 
+// Graphic data for regstat_started.pbm 
+// bitmap size: 11 x 9
+const uint8 uibm_icon_regstat_started[] = { 
+            0xff, 0x01, 0xff, 0x01, 0x83, 0x01, 0x7d, 0x01, 0x01, 0x01, 0x45, 0x01, 0x6d, 0x01, 0x7d, 0x01,
+            0x83, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 22
 
-const uint8* bitmap_list[] = { uibm_start_screen, uibm_grf_selected, uibm_grf_gauge_HI, uibm_grf_gauge_LO,
-                               uibm_grf_THP_rate, uibm_icon_op_none, uibm_icon_op_moni, uibm_icon_op_reg,
-                               uibm_icon_op_reg_moni       };
+// Graphic data for regstat_stopped.pbm 
+// bitmap size: 11 x 9
+const uint8 uibm_icon_regstat_stopped[] = { 
+            0xff, 0x01, 0xff, 0x01, 0x83, 0x01, 0x7d, 0x01, 0x45, 0x01, 0x45, 0x01, 0x45, 0x01, 0x7d, 0x01,
+            0x83, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 22
+
+// Graphic data for regstat_H.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_H[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0x82, 0x00, 0xef, 0x01,
+            0x82, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_HP.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_HP[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0x82, 0x00, 0xef, 0x01,
+            0x82, 0x00, 0xff, 0x01, 0x82, 0x00, 0xdb, 0x01, 0xe6, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_P.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_P[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01,
+            0xee, 0x00, 0xff, 0x01, 0x82, 0x00, 0xdb, 0x01, 0xe6, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_T.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_T[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xfa, 0x00, 0x83, 0x01, 0xfa, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01,
+            0xee, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_TH.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_TH[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xfa, 0x00, 0x83, 0x01, 0xfa, 0x00, 0xff, 0x01, 0x82, 0x00, 0xef, 0x01,
+            0x82, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01, 0xee, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_THP.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_THP[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xfa, 0x00, 0x83, 0x01, 0xfa, 0x00, 0xff, 0x01, 0x82, 0x00, 0xef, 0x01,
+            0x82, 0x00, 0xff, 0x01, 0x82, 0x00, 0xdb, 0x01, 0xe6, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_TP.pbm 
+// bitmap size: 15 x 9
+const uint8 uibm_icon_regstat_TP[] = { 
+            0xaa, 0x00, 0xff, 0x01, 0xfa, 0x00, 0x83, 0x01, 0xfa, 0x00, 0xff, 0x01, 0xee, 0x00, 0xef, 0x01,
+            0xee, 0x00, 0xff, 0x01, 0x82, 0x00, 0xdb, 0x01, 0xe6, 0x00, 0xff, 0x01, 0xaa, 0x00 };
+// data size = 30
+
+// Graphic data for regstat_Task1.pbm 
+// bitmap size: 14 x 9
+const uint8 uibm_icon_regstat_task1[] = { 
+            0xfe, 0x00, 0xff, 0x01, 0xf9, 0x01, 0x01, 0x01, 0x01, 0x01, 0xf9, 0x01, 0xff, 0x01, 0x33, 0x01,
+            0x01, 0x01, 0x01, 0x01, 0x3f, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 28
+
+// Graphic data for regstat_Task2.pbm 
+// bitmap size: 14 x 9
+const uint8 uibm_icon_regstat_task2[] = { 
+            0xfe, 0x00, 0xff, 0x01, 0xff, 0x01, 0xf9, 0x01, 0x01, 0x01, 0x01, 0x01, 0xf9, 0x01, 0xff, 0x01,
+            0x19, 0x01, 0x09, 0x01, 0x01, 0x01, 0x23, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 28
+
+// Graphic data for regstat_Task3.pbm 
+// bitmap size: 14 x 9
+const uint8 uibm_icon_regstat_task3[] = { 
+            0xfe, 0x00, 0xff, 0x01, 0xff, 0x01, 0xf9, 0x01, 0x01, 0x01, 0x01, 0x01, 0xf9, 0x01, 0xff, 0x01,
+            0x39, 0x01, 0x29, 0x01, 0x01, 0x01, 0x93, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 28
+
+// Graphic data for regstat_Task4.pbm 
+// bitmap size: 14 x 9
+const uint8 uibm_icon_regstat_task4[] = { 
+            0xfe, 0x00, 0xff, 0x01, 0xff, 0x01, 0xf9, 0x01, 0x01, 0x01, 0x01, 0x01, 0xf9, 0x01, 0xff, 0x01,
+            0x87, 0x01, 0x83, 0x01, 0x11, 0x01, 0x19, 0x01, 0xff, 0x01, 0xff, 0x01 };
+// data size = 28
+
+
+
+
+const uint8* bitmap_list[] = { uibm_start_screen,     uibm_grf_selected,     uibm_grf_gauge_HI,     uibm_grf_gauge_LO,
+                               uibm_grf_THP_rate,     uibm_icon_op_none,     uibm_icon_op_moni,     uibm_icon_op_reg,
+                               uibm_icon_op_reg_moni, uibm_icon_regstat_started, uibm_icon_regstat_stopped,  uibm_icon_regstat_H,
+                               uibm_icon_regstat_HP,  uibm_icon_regstat_P,   uibm_icon_regstat_T,   uibm_icon_regstat_TH,
+                               uibm_icon_regstat_THP, uibm_icon_regstat_TP,  uibm_icon_regstat_task1, uibm_icon_regstat_task2,
+                               uibm_icon_regstat_task3, uibm_icon_regstat_task4 };
+
 const uint16 bitmap_size[] = { 68,47,  8,8,   24,22,  24,22,
                                12,33,  13,13, 13,13,  13,13,
-                               13,13 };
+                               13,13,  11,9,  11,9,   15,9,
+                               15,9,   15,9,  15,9,   15,9,
+                               15,9,   15,9,  14,9,   14,9,
+                               14,9,   14,9 
+                         };
 const uint16 bitmap_datasz[] = { 408,  8,     72,     72,
                                  60,   26,    26,     26,
-                                 26                     };
+                                 26,   22,    22,     30,
+                                 30,   30,    30,     30,
+                                 30,   30,    28,     28,
+                                 28,   28
+                         };
 
 
 
@@ -396,29 +501,42 @@ void uigrf_rounded_rect( int x1, int y1, int x2, int y2, int color, bool fill, i
 {
     Graphic_SetColor( color );
     if (fill)
+    {
         Graphic_FillRectangle( x1, y1, x2, y2, bgnd );
+
+        Graphic_PutPixel(  x1, y1, bgnd );
+        Graphic_PutPixel(  x1, y1+1, bgnd );
+        Graphic_PutPixel(  x1+1, y1, bgnd );
+        Graphic_PutPixel(  x1+1, y1+1, color);
+
+        Graphic_PutPixel(  x2, y1, bgnd );
+        Graphic_PutPixel(  x2, y1+1, bgnd );
+        Graphic_PutPixel(  x2-1, y1, bgnd );
+        Graphic_PutPixel(  x2-1, y1+1, color );
+
+        Graphic_PutPixel(  x1,   y2, bgnd );
+        Graphic_PutPixel(  x1,   y2-1, bgnd );
+        Graphic_PutPixel(  x1+1, y2, bgnd );
+        Graphic_PutPixel(  x1+1, y2-1, color );
+
+        Graphic_PutPixel(  x2,   y2, bgnd );
+        Graphic_PutPixel(  x2,   y2-1, bgnd );
+        Graphic_PutPixel(  x2-1, y2, bgnd );
+        Graphic_PutPixel(  x2-1, y2-1, color );
+    }
     else
-        Graphic_Rectangle( x1, y1, x2, y2 );
+    {
+        Graphic_Rectangle( x1+2, y1, x2-2, y1 );
+        Graphic_Rectangle( x1+2, y2, x2-2, y2 );
+        Graphic_Rectangle( x1, y1+2, x1, y2-2 );
+        Graphic_Rectangle( x2, y1+2, x2, y2-2 );
 
-    Graphic_PutPixel(  x1, y1, bgnd );
-    Graphic_PutPixel(  x1, y1+1, bgnd );
-    Graphic_PutPixel(  x1+1, y1, bgnd );
-    Graphic_PutPixel(  x1+1, y1+1, color);
+        Graphic_PutPixel(  x1+1, y1+1, color);
+        Graphic_PutPixel(  x2-1, y1+1, color );
+        Graphic_PutPixel(  x1+1, y2-1, color );
+        Graphic_PutPixel(  x2-1, y2-1, color );
+    }
 
-    Graphic_PutPixel(  x2, y1, bgnd );
-    Graphic_PutPixel(  x2, y1+1, bgnd );
-    Graphic_PutPixel(  x2-1, y1, bgnd );
-    Graphic_PutPixel(  x2-1, y1+1, color );
-
-    Graphic_PutPixel(  x1,   y2, bgnd );
-    Graphic_PutPixel(  x1,   y2-1, bgnd );
-    Graphic_PutPixel(  x1+1, y2, bgnd );
-    Graphic_PutPixel(  x1+1, y2-1, color );
-
-    Graphic_PutPixel(  x2,   y2, bgnd );
-    Graphic_PutPixel(  x2,   y2-1, bgnd );
-    Graphic_PutPixel(  x2-1, y2, bgnd );
-    Graphic_PutPixel(  x2-1, y2-1, color );
 }
 
 

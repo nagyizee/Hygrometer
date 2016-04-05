@@ -525,6 +525,52 @@ static void local_initialize_core_operation(void)
 
 }
 
+static void local_initialize_registering(void)
+{
+    int i;
+    memset( &core.nvreg, 0, sizeof(core.nvreg) );
+
+    core.nvreg.dirty = true;
+    core.nvreg.running = 0;                     // no task in run
+
+    core.nvreg.task[0].mempage = 0;             // 0x400 offset
+    core.nvreg.task[0].size = 60;               // 60kbytes of data -> 7.1 days (~week) of TH aquisition with 1/2 min resolution
+    core.nvreg.task[0].task_elems = rtt_th;  
+
+    core.nvreg.task[1].mempage = 60;            // 0x400 offset
+    core.nvreg.task[1].size = 30;               // 30kbytes of data -> 7.1 days (~week) of P aquisition with 1/2 min resolution
+    core.nvreg.task[1].task_elems = rtt_p;  
+
+    for (i=0; i<STORAGE_REGTASK; i++)
+    {
+        core.nvreg.task[i].sample_rate = ut_30sec;
+        if ( i > 1 )
+        {
+            core.nvreg.task[i].task_elems = rtt_p;  
+            core.nvreg.task[i].size = 1;  
+            core.nvreg.task[i].mempage = 90 + (i-2);
+        }
+    }
+
+
+// test
+
+    core.nvreg.task[2].mempage = 30;
+    core.nvreg.task[2].size = 10;  
+
+    core.nvreg.task[1].mempage = 70;
+    core.nvreg.task[1].size = 10;  
+
+    core.nvreg.task[0].mempage = 90;
+    core.nvreg.task[0].size = 10;  
+
+    core.nvreg.task[3].mempage = 245;
+    core.nvreg.task[3].size = 10;  
+
+///////
+
+    core.vstatus.int_op.f.nv_reg_initted = 1;
+}
 
 static inline void local_poll_aux_operations(void)
 {
@@ -642,8 +688,10 @@ void core_beep( enum EBeepSequence beep )
 
 #define EEADDR_SETUP    0x00
 #define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
-#define EEADDR_CK_SETUP (EEADDR_OPS + sizeof(struct SCoreOperation))
+#define EEADDR_REGISTER (EEADDR_OPS + sizeof(struct SCoreOperation))
+#define EEADDR_CK_SETUP (EEADDR_REGISTER + sizeof(struct SCoreNonVolatileReg))
 #define EEADDR_CK_OPS   (EEADDR_CK_SETUP + 2)
+#define EEADDR_CK_REG   (EEADDR_CK_OPS + 2)
 
 
 int core_setup_save( void )
@@ -685,6 +733,23 @@ int core_setup_save( void )
     if ( eeprom_write( EEADDR_CK_OPS, (uint8*)&cksum_op, 2, false ) != 2 )
         return -1;
 
+    if ( core.nvreg.dirty )
+    {
+        core.nvreg.dirty = false;
+
+        cksum_setup = 0xABCD;
+        buffer = (uint8*)&core.nvreg;
+        for ( i=0; i<sizeof(core.nvreg); i++ )
+            cksum_setup = cksum_setup + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
+
+        if ( eeprom_write( EEADDR_REGISTER, buffer, sizeof(core.nvreg), true ) != sizeof(core.nvreg) )
+            return -1;
+        while ( eeprom_is_operation_finished() == false );
+
+        if ( eeprom_write( EEADDR_CK_REG, (uint8*)&cksum_setup, 2, false ) != 2 )
+            return -1;
+    }
+
     // disable eeprom
     eeprom_disable();
     return 0;
@@ -717,6 +782,7 @@ int core_setup_reset( bool save )
     setup->tim_tend_press = ut_10min;
 
     local_initialize_core_operation();
+    local_initialize_registering();
 
     if ( save )
     {
@@ -725,6 +791,35 @@ int core_setup_reset( bool save )
     return 0;
 }
 
+
+int core_nvregister_load( void )
+{
+    uint32  i;
+    uint16  cksum;
+    uint16  cksum_op;
+    uint8   *buffer;
+
+    if ( eeprom_enable(false) )
+        return -1;
+    while ( eeprom_is_operation_finished() == false );
+
+    buffer = (uint8*)&core.nvreg;
+    if ( eeprom_read( EEADDR_REGISTER, sizeof(core.nvreg), buffer, true ) != sizeof(core.nvreg) )
+        return -1;
+    while ( eeprom_is_operation_finished() == false );
+    if ( eeprom_read( EEADDR_CK_REG, 2, (uint8*)&cksum_op, false ) != 2 )
+        return -1;
+    while ( eeprom_is_operation_finished() == false );
+
+    cksum = 0xABCD;
+    for ( i=0; i<sizeof(core.nvreg); i++ )
+        cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
+    if ( cksum != cksum_op )
+        return -1;
+
+    core.vstatus.int_op.f.nv_reg_initted = 1;
+    return 0;
+}
 
 int core_setup_load( bool no_op_load )
 {
@@ -776,7 +871,15 @@ int core_setup_load( bool no_op_load )
             cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
         if ( cksum != cksum_op )
             goto _error_exit;
-  }
+    }
+
+
+    // check if registering data should be loaded
+    if ( core.nv.op.op_flags.b.op_registering )
+    {
+        if ( core_nvregister_load() )
+            goto _error_exit;
+    }
 
     eeprom_disable();
     return 0;
@@ -802,7 +905,7 @@ void core_nvfast_save_struct(void)
     BKP_WriteBackupRegister( BKP_DR6, core.measure.measured.rh );
 
 
-    if ( core.nv.dirty )
+    if ( core.nv.dirty || core.nvreg.dirty )
     {
         core.nv.dirty = false;
         core_setup_save();
@@ -975,6 +1078,8 @@ int core_init( struct SCore **instance )
     wur = HW_GetWakeUpReason();
     if ( wur & WUR_FIRST )
     {
+        int i;
+
         // first start-up - means that clock and work status is uninitialized
         local_initialize_core_operation();
 

@@ -267,6 +267,24 @@ void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval )
     uist_close_popup();
 }
 
+void ui_call_setwindow_quickswitch_task_ok( int context, void *pval )
+{
+    ui.m_setstate = UI_SET_RegTaskSet;
+    ui.m_substate = UI_SUBST_ENTRY;
+    ui.m_return = context;
+}
+
+
+// --- Setup registering tasks
+
+void ui_call_setwindow_regtaskset_esc_pressed( int context, void *pval )
+{
+    ui.m_setstate = UI_SET_QuickSwitch;
+    ui.m_substate = UI_SUBST_ENTRY;
+}
+
+
+
 
 
 // Popup window default callback

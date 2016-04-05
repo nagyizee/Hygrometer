@@ -15,7 +15,19 @@
     #define BMP_ICO_OP_MONI     6
     #define BMP_ICO_OP_REG      7
     #define BMP_ICO_OP_REGMONI  8
-
+    #define BMP_ICO_REGST_START 9
+    #define BMP_ICO_REGST_STOP  10
+    #define BMP_ICO_REGST_H     11
+    #define BMP_ICO_REGST_HP    12
+    #define BMP_ICO_REGST_P     13
+    #define BMP_ICO_REGST_T     14
+    #define BMP_ICO_REGST_TH    15
+    #define BMP_ICO_REGST_THP   16
+    #define BMP_ICO_REGST_TP    17
+    #define BMP_ICO_REGST_TASK1 18
+    #define BMP_ICO_REGST_TASK2 19
+    #define BMP_ICO_REGST_TASK3 20
+    #define BMP_ICO_REGST_TASK4 21
 
     enum Etextstyle
     {

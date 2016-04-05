@@ -29,6 +29,8 @@
     enum EUISetupSelect
     {
         UI_SET_QuickSwitch = 0,                 // set up quick switches
+        UI_SET_RegTaskSet,                      // set up registering task
+        UI_SET_RegTaskMem,                      // set up registering task recording lenght and memory repartization
 
     };
 
@@ -87,9 +89,19 @@
         struct Suiel_control_checkbox   monitor;
         struct Suiel_control_pushbutton resetMM;
         struct Suiel_control_checkbox   reg;
-        struct Suiel_control_list       m_rates[3]; // set up monitoring rates for Temp / Hygro / Pressure ( indexes 0, 1, 2 )
+        struct Suiel_control_list       m_rates[3];     // set up monitoring rates for Temp / Hygro / Pressure ( indexes 0, 1, 2 )
+        struct Suiel_control_pushbutton taskbutton[4];
     };
 
+    struct SUISetRegTaskSet
+    {
+        uint32                          task_index;
+        struct Suiel_control_checkbox   run;
+        struct Suiel_control_checkbox   THP[3];
+        struct Suiel_control_list       m_rate;
+        struct Suiel_control_numeric    lenght;
+        struct Suiel_control_pushbutton reallocate;
+    };
 
     union UUIstatusParams
     {
@@ -99,6 +111,7 @@
         struct SUIMainGaugePress   mgPress;
 
         struct SUISetQuickSwitch    swQuickSw;      // params for quick switch
+        struct SUISetRegTaskSet     swRegTaskSet;
 
     };
 
@@ -192,6 +205,9 @@
     void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax( int context, void *pval );
     void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval );
+    void ui_call_setwindow_quickswitch_task_ok( int context, void *pval );
+
+    void ui_call_setwindow_regtaskset_esc_pressed( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

@@ -195,15 +195,20 @@ static void uist_mainwindow_statusbar( int rdrw )
         Graphic_SetColor(0);
 
         Graphic_SetColor(1);
-        Graphic_Line(13,15,127,15);
-        // draw the page selection
-        for ( x=0; x<3; x++ )
+        if ( ui.m_state == UI_STATE_MAIN_GAUGE )
         {
-            if ( x == ui.main_mode )
-                Graphic_Rectangle( 1+x*4, 14, 3+x*4, 15 );
-            else
-                Graphic_PutPixel( 2+x*4, 15, 1 );
+            Graphic_Line(13,15,127,15);
+            // draw the page selection
+            for ( x=0; x<3; x++ )
+            {
+                if ( x == ui.main_mode )
+                    Graphic_Rectangle( 1+x*4, 14, 3+x*4, 15 );
+                else
+                    Graphic_PutPixel( 2+x*4, 15, 1 );
+            }
         }
+        else
+            Graphic_Line(0,15,127,15);
 
         switch ( ui.m_state )
         {
@@ -215,6 +220,14 @@ static void uist_mainwindow_statusbar( int rdrw )
                     case UImm_gauge_pressure:   uigrf_text( 15, 3, uitxt_smallbold, "Baro:" );   break;
                 }
                 break;
+            case UI_STATE_SETWINDOW:
+                switch ( ui.m_setstate )
+                {
+                    case UI_SET_RegTaskSet:
+                        uigrf_text( 15, 3, uitxt_smallbold, "Task");
+                        Gtext_PutChar( '1' + ui.p.swRegTaskSet.task_index );
+                        break;
+                }
         }
 
         // draw time
@@ -292,6 +305,106 @@ void internal_gauge_put_hi_lo( bool high )
     else
         uibm_put_bitmap( 21, 16, BMP_GAUGE_LO );
 }
+
+void internal_rectask_summary( uint32 x, uint32 y, int index )
+{
+    // internal space:  67x9
+
+    //uigrf_rounded_rect( x, y, x+69, y+11, 1, false, 0 ); 
+
+    uibm_put_bitmap( x+1, y+1, BMP_ICO_REGST_TASK1 + index );
+    switch ( core.nvreg.task[index].task_elems )
+    {
+        case rtt_t: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_T ); break;
+        case rtt_h: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_H ); break;
+        case rtt_p: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_P ); break;
+        case rtt_th: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TH ); break;
+        case rtt_tp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TP ); break;
+        case rtt_hp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_HP ); break;
+        case rtt_thp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_THP ); break;
+    }
+    if ( core.nvreg.running & (1<<index) )
+        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_START );
+    else
+        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_STOP );
+
+    Graphic_SetColor(1);
+    Graphic_FillRectangle( x+40, y+1, x+68, y+9, 1 );
+
+    grf_setup_font( uitxt_micro, 0, 1 );
+    Gtext_SetCoordinates( x+40, y+3 );
+
+    Gtext_PutText( "230D23H" );
+}
+
+void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 current )
+{
+    // black - unallocated
+    // grey - allocated, other tasks
+    // white - current task
+    // maximum data lenght: 255, bar lenght: 123pixels
+    int i,j;
+    uint8 order[4] = {0, 1, 2, 3};
+
+    uint32 ypoz = 49;
+
+    Graphic_SetColor(1);
+    Graphic_Rectangle(1, ypoz, 126, ypoz+6 );
+
+    do
+    {
+        j = 0;
+        for (i=0; i<3; i++)
+        {
+            if ( tasks[ order[i] ].mempage > tasks[ order[i+1] ].mempage )
+            {
+                uint32 val;
+                val = order[i+1];
+                order[i+1] = order[i];
+                order[i] = val;
+                j = 1;
+            }
+        }
+    } while ( j );
+    
+    for (i=0; i<4; i++)
+    {
+        struct SRegTaskInstance *task;
+        uint32 xstart;
+        uint32 xend;
+
+        task = &tasks[ order[i] ];
+        xstart = 2 + ( (123 * (uint32)task->mempage) + 254) / 255;
+        xend = 2 + ( (123 * ((uint32)task->size + task->mempage)) + 254) / 255;
+
+        if ( order[i] == current )
+            Graphic_FillRectangle(xstart, ypoz+1, xend, ypoz+5, 1 );
+        else
+        {
+            uint32 x;
+            for (x=xstart; x<=xend; x++)
+            {
+                if ( x & 0x01 )
+                {
+                    Graphic_PutPixel(x, ypoz+1, 1);
+                    Graphic_PutPixel(x, ypoz+3, 1);
+                    Graphic_PutPixel(x, ypoz+5, 1);
+                }
+                else
+                {
+                    Graphic_PutPixel(x, ypoz+2, 1);
+                    Graphic_PutPixel(x, ypoz+4, 1);
+                }
+            }
+        }
+
+        Graphic_PutPixel(xstart, ypoz-1, 1);
+        Graphic_PutPixel(xstart, ypoz+7, 1);
+        Graphic_PutPixel(xend, ypoz-1, 1);
+        Graphic_PutPixel(xend, ypoz+7, 1);
+    }
+}
+
 
 ////////////////////////////////////////////////////
 //
@@ -552,6 +665,7 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 const char tendency_total_lenght[][5] = { "3M15", "6M30", "20M", "40M", "1H20", "3H15", "6H30", "20H", "1D15" };
 static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 {
+    int i;
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
     {
         uigrf_text( 0, 3, uitxt_smallbold,  "Monitor" );
@@ -560,11 +674,17 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
         Graphic_Line(0,15,127,15);
         uibm_put_bitmap( 0, 16, BMP_QSW_THP_RATE );
 
+        for (i=0; i<4; i++)
+        {
+            internal_rectask_summary( 58, 17+i*12, i );
+        }
+
+        // create 
+
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )
     {
-        int i;
         for (i=0; i<3; i++)
         {
             int setval;
@@ -577,6 +697,24 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
     }
 }
 
+
+static inline void uist_draw_setwindow_regtask_set( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uigrf_text( 3, 18, uitxt_smallbold,  "RUN" );
+        uigrf_text( 30, 18, uitxt_small,  "T  RH  P" );
+        uigrf_text( 73, 18, uitxt_small,  "Rate" );
+        uigrf_text( 98, 18, uitxt_small,  "Lenght" );
+
+        internal_task_allocation_bar( core.nvreg.task, ui.p.swRegTaskSet.task_index );
+    }
+
+    if ( redraw_type & RDRW_UI_CONTENT )
+    {
+        uist_internal_disp_all_with_focus();
+    }
+}
 
 ////////////////////////////////////////////////////
 //
@@ -689,6 +827,16 @@ const enum EUpdateTimings upd_timings[] = { ut_5sec,  ut_10sec, ut_30sec, ut_1mi
 static inline void uist_setview_setwindow_quickswitch( void )
 {   
     int i, j;
+
+    if ( core.vstatus.int_op.f.nv_reg_initted == 0 )
+    {
+        if ( core_nvregister_load() )
+        {
+            core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
+            // TODO the rest
+        }
+    }
+
     // monitoring on/off switch
     uiel_control_checkbox_init( &ui.p.swQuickSw.monitor, 40, 2 );
     uiel_control_checkbox_set( &ui.p.swQuickSw.monitor, core.nv.op.op_flags.b.op_monitoring );
@@ -727,10 +875,59 @@ static inline void uist_setview_setwindow_quickswitch( void )
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_OK, 0, ui_call_setwindow_quickswitch_reset_minmax );
     ui.ui_elems[5] = &ui.p.swQuickSw.resetMM;
 
-    ui.ui_elem_nr = 6;
+    for ( i=0; i<4; i++ )
+    {
+        uiel_control_pushbutton_init( &ui.p.swQuickSw.taskbutton[i], 58, 17+i*12, 69, 10 );
+        uiel_control_pushbutton_set_content( &ui.p.swQuickSw.taskbutton[i], uicnt_hollow, 0, NULL, (enum Etextstyle)0 );
+        uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.taskbutton[i], UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+        uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.taskbutton[i], UICpb_OK, i, ui_call_setwindow_quickswitch_task_ok );
+        ui.ui_elems[6+i] = &ui.p.swQuickSw.taskbutton[i];
+    }
+
+    ui.ui_elem_nr = 10;
 }
 
 
+static inline void uist_setview_setwindow_regtask_set( void )
+{
+    int i;
+    int task_idx;
+    // get the task index from the ui.m_return
+    ui.p.swRegTaskSet.task_index = ui.m_return;
+    task_idx = ui.p.swRegTaskSet.task_index;
+
+    uiel_control_checkbox_init( &ui.p.swRegTaskSet.run, 7, 28 );
+    uiel_control_checkbox_set( &ui.p.swRegTaskSet.run, (core.nvreg.running & (1<<task_idx)) != 0 );
+    uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.run, UICcb_Esc, 0, ui_call_setwindow_regtaskset_esc_pressed );
+    ui.ui_elems[0] = &ui.p.swRegTaskSet.run;
+
+    for (i=0; i<3; i++)
+    {
+        uiel_control_checkbox_init( &ui.p.swRegTaskSet.THP[i], 28+i*11, 28 );
+        uiel_control_checkbox_set( &ui.p.swRegTaskSet.THP[i], (core.nvreg.task[task_idx].task_elems & (1<<task_idx)) != 0 );
+        uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.THP[i], UICcb_Esc, 0, ui_call_setwindow_regtaskset_esc_pressed );
+        ui.ui_elems[1+i] = &ui.p.swRegTaskSet.THP[i];
+    }
+
+    uiel_control_list_init( &ui.p.swRegTaskSet.m_rate, 68, 28, 24, uitxt_small, 1, false );
+    for (i=0; i< (sizeof(upd_timings) / sizeof(enum EUpdateTimings)); i++ )
+        uiel_control_list_add_item( &ui.p.swRegTaskSet.m_rate, upd_rates[i], upd_timings[i] );
+    uiel_control_list_set_index(&ui.p.swRegTaskSet.m_rate, (enum EUpdateTimings)core.nvreg.task[task_idx].sample_rate );
+    uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_Esc, 0, ui_call_setwindow_regtaskset_esc_pressed );
+    ui.ui_elems[4] = &ui.p.swRegTaskSet.m_rate;
+
+    uiel_control_numeric_init( &ui.p.swRegTaskSet.lenght, 1, 252, 1, 100, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_set( &ui.p.swRegTaskSet.lenght, core.nvreg.task[task_idx].size );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskSet.lenght, UICnum_Esc, 0, ui_call_setwindow_regtaskset_esc_pressed );
+    ui.ui_elems[5] = &ui.p.swRegTaskSet.lenght;
+
+    uiel_control_pushbutton_init( &ui.p.swRegTaskSet.reallocate, 0, 40, 127, 23 );
+    uiel_control_pushbutton_set_content( &ui.p.swRegTaskSet.reallocate, uicnt_hollow, 0, NULL, uitxt_micro );
+    uiel_control_pushbutton_set_callback( &ui.p.swRegTaskSet.reallocate, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    ui.ui_elems[6] = &ui.p.swRegTaskSet.reallocate;
+
+    ui.ui_elem_nr = 7;
+}
 
 
 static void local_drawwindow_common_op( int redraw_type )
@@ -793,6 +990,7 @@ void uist_drawview_setwindow( int redraw_type )
         switch ( ui.m_setstate )
         {
             case UI_SET_QuickSwitch:    uist_draw_setwindow_quickswitch(redraw_type); break;
+            case UI_SET_RegTaskSet:     uist_draw_setwindow_regtask_set(redraw_type); break;
         }
 
     }
@@ -911,6 +1109,7 @@ void uist_setupview_setwindow( bool reset )
     switch ( ui.m_setstate )
     {
         case UI_SET_QuickSwitch:    uist_setview_setwindow_quickswitch(); break;
+        case UI_SET_RegTaskSet:     uist_setview_setwindow_regtask_set(); break;
     }
 }
 

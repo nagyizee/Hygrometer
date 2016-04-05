@@ -26,6 +26,7 @@
 
     #define STORAGE_MINMAX      6
     #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging, 19*30' data with 30min sampling
+    #define STORAGE_REGTASK     4
 
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
@@ -56,6 +57,10 @@
     #define CORE_MMP_ABSH       2
 
     #define CORE_MSR_SET        4   // we track 4 parameters for monitoring (see CORE_MMP_xxx)
+
+    #define CORE_BM_TEMP        0x01
+    #define CORE_BM_RH          0x02
+    #define CORE_BM_PRESS       0x04
 
     enum ESensorSelect
     {
@@ -205,6 +210,44 @@
         uint16  press_alt;          // reference altitude (in meters) for msl pressure calculation
     };
 
+    enum ERegistrationTaskType
+    {
+        rtt_t = CORE_BM_TEMP,                                   // registering temperature only - 1.5 bytes element size
+        rtt_h = CORE_BM_RH,                                     // registering rh only - 1.5 bytes element size
+        rtt_p = CORE_BM_PRESS,                                  // registering pressure only - 1.5 bytes element size
+        rtt_th = CORE_BM_TEMP | CORE_BM_RH,                     // temperature and RH  - 3 bytes
+        rtt_tp = CORE_BM_TEMP | CORE_BM_PRESS,                  // temperature and Pressure - 3bytes
+        rtt_hp = CORE_BM_RH | CORE_BM_PRESS,                    // RH and pressure - 3 bytes
+        rtt_thp = CORE_BM_TEMP | CORE_BM_RH | CORE_BM_PRESS     // all 3 parameters - 4.5 bytes
+    };
+
+    struct SRegTaskInstance
+    {
+        uint8   mempage;            // start of the task memory in pages of 1024 bytes. Minimum task lenght is 1 page = 1024 byte
+        uint8   size;               // task size in pages. min 1024 bytes, maximum 252 pages = 258048 bytes - calculated in fn of task_elems
+        uint8   task_elems;         // see enum ERegistrationTaskType
+        uint8   sample_rate;        // see enum EUpdateTimings
+    };
+
+    struct SRegTaskInternals
+    {   
+                                    // Element size is dependent of taks_elem setup - see enum ERegistrationTaskType
+        uint16  r;                  // start pointer of the registration
+        uint16  w;                  // first free element after a registration
+        uint16  c;                  // nr. of elements of a registration
+                                    // A maximum of 64*1024 elements can be registered in a single task -> 1.24 year of data in 10min resolution
+                                                        //                                                 7.5  days of data in 10sec resolution
+        uint16  avg_cnt_t;          // averaging counters for temperature
+        uint16  avg_cnt_rh;         // rh
+        uint16  avg_cnt_p;          // and pressure
+
+        uint32  avg_sum_t;          // average sum for temperature
+        uint32  avg_sum_rh;         // for rh
+        uint32  avg_sum_p;          // and pressure
+
+        uint32  last_timestamp;     // RTC timestamp of the last registered value
+    };
+
     struct SCoreOperation           // core operations in nonvolatile space
     {
         union UCoreOperationFlags   op_flags;       // operation flags - see CORE_OP_XXX defines
@@ -275,6 +318,14 @@
         uint32                  next_schedule;          // 2x16bit - BKP3/4 - the next scheduled operation RTC counter
     };
 
+    struct SCoreNonVolatileReg
+    {
+        uint16                      dirty;                      // if it is altered and it should be saved.
+        uint16                      running;                    // bitfield of running tasks. 1-->4
+        struct SRegTaskInstance     task[STORAGE_REGTASK];      // 16 bytes
+        struct SRegTaskInternals    func[STORAGE_REGTASK];      // 112 bytes
+    };
+
 
     #define CORE_UISTATE_START_LONGPRESS    0x01    // wait long press for UI start-up
     #define CORE_UISTATE_SET_DATETIME       0x02    // order date-time setup from UI
@@ -302,13 +353,13 @@
 
             uint32  nv_initted:1;       // nonvolatile structure content initted
             uint32  nv_state:2;         // state of nonvolatile memory init
-
+            uint32  nv_reg_initted:1;   // set when registering structure initted
+    
             uint32  sens_real_time:2;   // sensor in real time - see enum ESensorSelect
 
         } f;
         uint32 val;
     };
-
 
     struct SCoreVolatileStatus
     {
@@ -319,11 +370,11 @@
     };
 
 
-
     struct SCore
     {
         struct SCoreNonVolatileData nv;         // nonvolatile data - it is written in FRAM at low power entry (unpowering system) and read at startup
         struct SCoreNonVolatileFast nf;         // nonvolatile data with fast access - holds operational status and such - limitted space in the battery backup domain
+        struct SCoreNonVolatileReg  nvreg;      // nonvolatile registering data - hold this separately - load only if registering is active or graph is requested
 
         struct SCoreVolatileStatus  vstatus;    // operational status in volatile domain (means - can be discarded when power is down)
 
@@ -356,6 +407,7 @@
     // save / load / reset setup in eeprom
     int core_setup_save( void );
     int core_setup_reset( bool save );
+    int core_nvregister_load(void);
     int core_setup_load( bool no_op_load );
     void core_nvfast_save_struct(void);
 

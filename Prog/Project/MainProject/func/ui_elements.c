@@ -741,7 +741,7 @@ void uiel_control_pushbutton_set_content( struct Suiel_control_pushbutton *handl
         handle->offsx = offsx;
         handle->offsy = offsy;
     }
-    else
+    else if ( cnt_type == uicnt_bitmap )
     {
         handle->content.bitmap = bitmap;
     }
@@ -754,17 +754,20 @@ static inline void uiel_control_pushbutton_display( struct Suiel_control_pushbut
     xe = handle->xpoz+handle->w;
     ye = handle->ypoz+handle->h;
 
-    uigrf_rounded_rect(handle->xpoz, handle->ypoz, xe, ye, 1, true, 0);
+    if ( handle->type != uicnt_hollow )
+    {
+        uigrf_rounded_rect(handle->xpoz, handle->ypoz, xe, ye, 1, true, 0);
 
-    if ( handle->type == uicnt_text )
-    {
-        Graphic_SetColor(1);
-        grf_setup_font( (enum Etextstyle)handle->txt_style, 1, 0 );
-        uigrf_text( handle->xpoz + handle->offsx, handle->ypoz + handle->offsy, (enum Etextstyle)handle->txt_style, handle->content.text );
-    }
-    else
-    {
-        uibm_put_bitmap( handle->xpoz + 1, handle->ypoz + 1, handle->content.bitmap );
+        if ( handle->type == uicnt_text )
+        {
+            Graphic_SetColor(1);
+            grf_setup_font( (enum Etextstyle)handle->txt_style, 1, 0 );
+            uigrf_text( handle->xpoz + handle->offsx, handle->ypoz + handle->offsy, (enum Etextstyle)handle->txt_style, handle->content.text );
+        }
+        else
+        {
+            uibm_put_bitmap( handle->xpoz + 1, handle->ypoz + 1, handle->content.bitmap );
+        }
     }
 
     if ( focus )
@@ -774,11 +777,17 @@ static inline void uiel_control_pushbutton_display( struct Suiel_control_pushbut
             int_focus = 0;  // the control just got the focus, reset the internal focus state
             handle->ID |= ELEM_IN_FOCUS;
         }
-        Graphic_Rectangle( handle->xpoz+1, handle->ypoz+1, xe-1, ye-1 );
+
+        if ( handle->type != uicnt_hollow )
+            Graphic_Rectangle( handle->xpoz+1, handle->ypoz+1, xe-1, ye-1 );
+        else
+            uigrf_rounded_rect( handle->xpoz, handle->ypoz, xe, ye, 1, false, 0);
     }
     else
     {
         handle->ID &= ~ELEM_IN_FOCUS;
+        if ( handle->type == uicnt_hollow )
+            uigrf_rounded_rect( handle->xpoz, handle->ypoz, xe, ye, 0, false, 0);
     }
 }
 

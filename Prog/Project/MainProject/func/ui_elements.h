@@ -38,7 +38,8 @@
     enum Eui_element_content
     {
         uicnt_text = 0,
-        uicnt_bitmap
+        uicnt_bitmap,
+        uicnt_hollow
     };
 
     enum EUIelCallList
