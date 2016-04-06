@@ -420,6 +420,16 @@
     // reset min/max value set for a specified sensor
     void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset );
 
+    // master switch for registering operation
+    void core_op_register_switch( bool enabled );
+    // set up registering parameters
+    void core_op_register_setup_task( uint32 task_idx, struct SRegTaskInstance *task );
+    // stop and start individual tasks
+    void core_op_register_task_run( uint32 task_idx, bool run );
+    
+
+
+
 
 
 #ifdef __cplusplus

@@ -55,6 +55,25 @@ static void local_ui_set_shutdown_state(void)
     ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
 }
 
+void internal_get_regtask_set_from_ui(struct SRegTaskInstance *task)
+{
+    int i;
+    uint32 elems = 0;
+    for (i=0; i<3; i++)
+    {
+        if ( uiel_control_checkbox_get( &ui.p.swRegTaskSet.THP[i] ) )
+            elems |= (1<<i);
+    }
+    if ( elems == 0 )       // do not permit 0 value
+        elems = rtt_t;
+
+    task->task_elems = elems;
+    task->size = uiel_control_numeric_get( &ui.p.swRegTaskSet.lenght );
+    task->sample_rate = uiel_control_list_get_value( &ui.p.swRegTaskSet.m_rate );
+    task->mempage = ui.p.swRegTaskSet.task.mempage;
+}
+
+
 
 ////////////////////////////////////////////////////
 //
@@ -271,15 +290,116 @@ void ui_call_setwindow_quickswitch_task_ok( int context, void *pval )
 {
     ui.m_setstate = UI_SET_RegTaskSet;
     ui.m_substate = UI_SUBST_ENTRY;
-    ui.m_return = context;
+    ui.m_return = context + 1;          // task index is stored in m_return in 1-based value
 }
 
 
 // --- Setup registering tasks
 
-void ui_call_setwindow_regtaskset_esc_pressed( int context, void *pval )
+const char popup_msg_regtaskset_setup1[] = "Setup changed, will loose";
+const char popup_msg_regtaskset_setup2[] = "recorded data";
+const char popup_msg_regtaskset_stop1[] = "Data will be discarded";
+const char popup_msg_regtaskset_stop2[] = "at restart";
+
+void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
 {
-    ui.m_setstate = UI_SET_QuickSwitch;
+    // exitting from registering task set - check for changes
+    struct SRegTaskInstance task_ui;
+    uint32 elems = 0;
+    bool change = false;
+
+    internal_get_regtask_set_from_ui( &task_ui );
+    if ( memcmp( &task_ui, &ui.p.swRegTaskSet.task, sizeof(task_ui) ) )     // if setup is changed
+    {   
+        ui.p.swRegTaskSet.task = task_ui;
+        ui.popup.params.line1 = (uint32)popup_msg_regtaskset_setup1;
+        ui.popup.params.line2 = (uint32)popup_msg_regtaskset_setup2;
+        change = true;
+    }
+    else 
+    {
+        if ( ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) == 0) &&     // if run mode changed from recording -> stopped
+             uiel_control_checkbox_get( &ui.p.swRegTaskSet.run ) )
+        {
+            ui.popup.params.line1 = (uint32)popup_msg_regtaskset_stop1;
+            ui.popup.params.line2 = (uint32)popup_msg_regtaskset_stop2;
+            change = true;
+        }
+        ui.p.swRegTaskSet.task.size = 0;        // mark that task setup is not changed
+    }
+
+    if ( change )
+    {
+        // if changes in setup - go through popup
+        ui.popup.params.style1 = uitxt_small;
+        ui.popup.params.style3 = uitxt_small;
+        ui.popup.params.x1 = 5;
+        ui.popup.params.y1 = 2;
+        ui.popup.params.y2 = 10;
+        ui.popup.params.x3 = 10;
+        ui.popup.params.y3 = 18;
+        ui.popup.params.popup_action = uipa_ok_cancel;
+        uist_enter_popup( context | UI_REG_OK_PRESSED, 
+                          ui_call_setwindow_regtaskset_close, 
+                          context, 
+                          ui_call_setwindow_regtaskset_close );
+    }
+    else
+    {
+        // if no change at all - just proceed
+        if ( context == UI_REG_TO_BEFORE )
+        {
+            ui.m_setstate = UI_SET_QuickSwitch;     // back to page before
+            ui.m_substate = UI_SUBST_ENTRY;
+        }
+        else
+        {
+            ui.m_setstate = UI_SET_RegTaskMem;      // go to memory allocator
+            ui.m_substate = UI_SUBST_ENTRY;
+        }
+    }
+    // ui.m_return - 1 indicates the task index
+}
+
+void ui_call_setwindow_regtaskset_close( int context, void *pval )
+{
+    // callback finished - there is for sure a change - apply it if UI_REG_OK_PRESSED flag is set in config
+    if ( context & UI_REG_OK_PRESSED )
+    {
+        bool set_run;
+
+        set_run = uiel_control_checkbox_get( &ui.p.swRegTaskSet.run );
+        // apply new params if needed
+        if ( ui.p.swRegTaskSet.task.size )
+            core_op_register_setup_task( ui.p.swRegTaskSet.task_index, &ui.p.swRegTaskSet.task );
+
+        // change run mode if needed
+        if ( set_run != ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) != 0) )
+            core_op_register_task_run( ui.p.swRegTaskSet.task_index, set_run );
+    }
+
+    uist_close_popup();
+
+    if ( context & UI_REG_TO_BEFORE )
+    {
+        ui.m_setstate = UI_SET_QuickSwitch;     // back to page before
+        ui.m_substate = UI_SUBST_ENTRY;
+    }
+    else
+    {
+        ui.m_setstate = UI_SET_RegTaskMem;      // go to memory allocator
+        ui.m_substate = UI_SUBST_ENTRY;
+    }
+    // ui.m_return - 1 indicates the task index
+}
+
+
+// --- Setup registering task allocation
+
+void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
+{
+    
+    ui.m_setstate = UI_SET_RegTaskSet;      // go back to task setup
     ui.m_substate = UI_SUBST_ENTRY;
 }
 
@@ -797,6 +917,7 @@ void uist_opmodeselect( struct SEventStruct *evmask )
             ui.m_state = UI_STATE_SETWINDOW;
             ui.m_setstate = UI_SET_QuickSwitch;
             ui.m_substate = UI_SUBST_ENTRY;
+            ui.m_return = 0;
         }
         if ( evmask->key_longpressed & KEY_MODE )
         {

@@ -96,11 +96,21 @@
     struct SUISetRegTaskSet
     {
         uint32                          task_index;
+        struct SRegTaskInstance         task;
         struct Suiel_control_checkbox   run;
         struct Suiel_control_checkbox   THP[3];
         struct Suiel_control_list       m_rate;
         struct Suiel_control_numeric    lenght;
         struct Suiel_control_pushbutton reallocate;
+    };
+
+    struct SUISetRegTaskMemory
+    {
+        uint32                          task_index;
+        struct SRegTaskInstance         task[4];    // task setups
+        struct Suiel_control_numeric    select;     // task selector
+        struct Suiel_control_numeric    start;      // start address
+        struct Suiel_control_numeric    lenght;     // sequence 
     };
 
     union UUIstatusParams
@@ -112,6 +122,7 @@
 
         struct SUISetQuickSwitch    swQuickSw;      // params for quick switch
         struct SUISetRegTaskSet     swRegTaskSet;
+        struct SUISetRegTaskMemory  swRegTaskMem;
 
     };
 
@@ -183,6 +194,9 @@
         uint32 upd_ui_disp;     // display update type to be used at polling. It will set in ui callbacks also
     };
 
+    #define UI_REG_TO_BEFORE    0x00
+    #define UI_REG_TO_REALLOC   0x01
+    #define UI_REG_OK_PRESSED   0x10
 
     // callbacks
     void ui_call_maingauge_esc_pressed( int context, void *pval );
@@ -207,7 +221,10 @@
     void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval );
     void ui_call_setwindow_quickswitch_task_ok( int context, void *pval );
 
-    void ui_call_setwindow_regtaskset_esc_pressed( int context, void *pval );
+    void ui_call_setwindow_regtaskset_next_action( int context, void *pval );
+    void ui_call_setwindow_regtaskset_close( int context, void *pval );
+
+    void ui_call_setwindow_regtaskmem_exit( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

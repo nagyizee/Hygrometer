@@ -552,23 +552,6 @@ static void local_initialize_registering(void)
         }
     }
 
-
-// test
-
-    core.nvreg.task[2].mempage = 30;
-    core.nvreg.task[2].size = 10;  
-
-    core.nvreg.task[1].mempage = 70;
-    core.nvreg.task[1].size = 10;  
-
-    core.nvreg.task[0].mempage = 90;
-    core.nvreg.task[0].size = 10;  
-
-    core.nvreg.task[3].mempage = 245;
-    core.nvreg.task[3].size = 10;  
-
-///////
-
     core.vstatus.int_op.f.nv_reg_initted = 1;
 }
 
@@ -1054,6 +1037,23 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
                 break;
         }
     }
+}
+
+
+void core_op_register_switch( bool enabled )
+{
+    //TBI
+}
+
+void core_op_register_setup_task( uint32 task_idx, struct SRegTaskInstance *task )
+{
+    core.nvreg.task[task_idx] = *task;
+    //TBI
+}
+
+void core_op_register_task_run( uint32 task_idx, bool run )
+{
+    //TBI
 }
 
 
