@@ -415,10 +415,10 @@ void ui_call_setwindow_regtaskmem_chtask( int context, void *pval )
     ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
 }
 
-bool internal_regtaskmem_inside( uint32 mstart, struct SRegTaskInstance mytask, struct SRegTaskInstance task )
+bool internal_regtaskmem_inside( uint32 mstart, uint32 size, struct SRegTaskInstance task )
 {
     if ( (mstart <= task.mempage) &&                // current addess <= checked task's address
-         ((mstart+mytask.size) > task.mempage) )    // total lenght > checked task's address
+         ((mstart+size) > task.mempage) )   // total lenght > checked task's address
         return true;
 
     if ( (mstart > task.mempage) &&
@@ -428,6 +428,27 @@ bool internal_regtaskmem_inside( uint32 mstart, struct SRegTaskInstance mytask, 
     return false;
 }
 
+uint32 internal_regtaskmem_maxlenght( struct SRegTaskInstance task )
+{
+    // maximum memory length is limmited to 2^16 elements
+    switch ( task.task_elems )
+    {
+        case rtt_t:
+        case rtt_h:
+        case rtt_p:
+            return 96;          // 1.5 byte  - 1x 12bit -> 98304 bytes -> 96 pages
+            break;
+        case rtt_th:
+        case rtt_hp:
+        case rtt_tp:
+            return 192;       // 3 bytes   - 2x 12bit -> 196608 bytes -> 192 pages
+            break;
+        case rtt_thp:
+            return 288;       // 4.5 bytes - 3x 12bit -> 294912 bytes -> 288 pages
+            break;
+    }
+    return 0;
+}
 
 
 void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
@@ -442,7 +463,10 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
     idx = ui.p.swRegTaskMem.task_index;
     task = ui.p.swRegTaskMem.task[idx];
 
-    if ( val > task.mempage )   // check if 
+    if ( core.nvreg.running & (1<<idx) )        // editing a running task is not allowed
+        goto _set_original;
+
+    if ( val > task.mempage )
         up = true;
 
     do
@@ -450,7 +474,7 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
         iter = false;
         for (i=0;i<4;i++)
         {
-            if ( (i != idx) && internal_regtaskmem_inside(val, task, ui.p.swRegTaskMem.task[i]) )       // if current task with the new position is inside of one of tasks
+            if ( (i != idx) && internal_regtaskmem_inside(val, task.size, ui.p.swRegTaskMem.task[i]) )      // if current task with the new position is inside of one of tasks
             {
                 if ( up )
                 {
@@ -486,9 +510,48 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
 _set_original:
     // moving failed - revert to original mempage value
     uiel_control_numeric_set( &ui.p.swRegTaskMem.start, ui.p.swRegTaskMem.task[idx].mempage );
-    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+    ui.upd_ui_disp |= RDRW_UI_CONTENT;
 }
 
+
+void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval )
+{
+    struct SRegTaskInstance task;
+    int val = *((int*)pval);
+
+    bool iter = false;
+    bool up = false;
+    int i;
+    int idx;
+
+    idx = ui.p.swRegTaskMem.task_index;
+    task = ui.p.swRegTaskMem.task[idx];
+
+    if ( core.nvreg.running & (1<<idx) )        // editing a running task is not allowed
+        goto _set_original;
+        
+    // no need to check for smaller value, numeric control takes care of the 1 minimum
+    // check only for increasing values
+    if ( val >= task.size )
+    {   
+        if ( (val+task.mempage) > CORE_REGMEM_MAXPAGE )                                     // if task doesn't fit in memory - revert to original value
+            goto _set_original;
+        if ( val > internal_regtaskmem_maxlenght(task) )
+            goto _set_original;
+
+        for (i=0;i<4;i++)
+        {
+            if ( (i != idx) && internal_regtaskmem_inside(task.mempage, val, ui.p.swRegTaskMem.task[i]) )
+                goto _set_original;
+        }
+    }
+    ui.p.swRegTaskMem.task[idx].size = val;
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+    return;
+_set_original:
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.lenght, ui.p.swRegTaskMem.task[idx].size );
+    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+}
 
 
 // Popup window default callback

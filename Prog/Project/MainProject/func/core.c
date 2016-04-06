@@ -1056,6 +1056,30 @@ void core_op_register_task_run( uint32 task_idx, bool run )
     //TBI
 }
 
+uint32 core_op_register_get_total_samplenr( uint32 mem_len, enum ERegistrationTaskType regtype )
+{
+    uint32 factor = 0;
+    switch ( regtype )
+    {
+        case rtt_t:
+        case rtt_h:
+        case rtt_p:
+            factor = 3;       // 1.5 byte  - 1x 12bit
+            break;
+        case rtt_th:
+        case rtt_hp:
+        case rtt_tp:
+            factor = 6;       // 3 bytes   - 2x 12bit
+            break;
+        case rtt_thp:
+            factor = 9;       // 4.5 bytes - 3x 12bit
+            break;
+    }
+
+    return ( (mem_len * 2) / factor ); 
+}
+
+
 
 //-------------------------------------------------
 //     main core interface

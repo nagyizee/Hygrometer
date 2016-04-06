@@ -227,6 +227,9 @@ static void uist_mainwindow_statusbar( int rdrw )
                         uigrf_text( 15, 3, uitxt_smallbold, "Task");
                         Gtext_PutChar( '1' + ui.p.swRegTaskSet.task_index );
                         break;
+                    case UI_SET_RegTaskMem:
+                        uigrf_text( 15, 3, uitxt_smallbold, "Task Memory");
+                        break;
                 }
         }
 
@@ -773,11 +776,21 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
 {
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
     {
+        uint32 smpl;
         uigrf_text( 3, 18, uitxt_smallbold,  "Task" );
         uigrf_text( 32, 18, uitxt_small,  "Poz" );
         uigrf_text( 52, 18, uitxt_small,  "Len" );
 
         internal_task_allocation_bar( ui.p.swRegTaskMem.task, ui.p.swRegTaskMem.task_index );
+
+        uigrf_text( 72, 18, uitxt_micro,  "TASK INFO:" );
+        uigrf_text( 72, 26, uitxt_micro,  "TIME:" );
+        uigrf_text( 72, 34, uitxt_micro,  "SMPL:" );
+
+        smpl = core_op_register_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_REGMEM_PAGESIZE,
+                                                    ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
+        uigrf_putnr( 92, 34, uitxt_micro, smpl, 5, 0, false );
+
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )
@@ -1036,9 +1049,10 @@ static inline void uist_setview_setwindow_regtask_mem(void)
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.start, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chstart );
     ui.ui_elems[1] = &ui.p.swRegTaskMem.start;
 
-    uiel_control_numeric_init( &ui.p.swRegTaskMem.lenght, 0, CORE_REGMEM_MAXPAGE-1, 1, 50, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.lenght, 1, CORE_REGMEM_MAXPAGE-1, 1, 50, 28, 3, '0', uitxt_small );
     uiel_control_numeric_set( &ui.p.swRegTaskMem.lenght, ui.p.swRegTaskMem.task[task_idx].size );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.lenght, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.lenght, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chlenght );
     ui.ui_elems[2] = &ui.p.swRegTaskMem.lenght;
 
     ui.ui_elem_nr = 3;
