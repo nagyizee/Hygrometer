@@ -225,6 +225,8 @@
     void ui_call_setwindow_regtaskset_close( int context, void *pval );
 
     void ui_call_setwindow_regtaskmem_exit( int context, void *pval );
+    void ui_call_setwindow_regtaskmem_chtask( int context, void *pval );
+    void ui_call_setwindow_regtaskmem_chstart( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

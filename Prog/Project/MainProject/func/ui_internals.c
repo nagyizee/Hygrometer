@@ -351,13 +351,15 @@ void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 curren
     // black - unallocated
     // grey - allocated, other tasks
     // white - current task
-    // maximum data lenght: 255, bar lenght: 123pixels
+    // maximum data lenght: CORE_REGMEM_MAXPAGE, bar lenght: 123pixels
     int i,j,s;
     uint8 order[4] = {0, 1, 2, 3};
     uint8 txtX[4];
 
     uint32 ypoz = 49;
 
+    Graphic_SetColor(0);
+    Graphic_FillRectangle(1, ypoz-7, 126, ypoz+14, 0 );
     Graphic_SetColor(1);
     Graphic_Rectangle(1, ypoz, 126, ypoz+6 );
 
@@ -386,8 +388,8 @@ void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 curren
         uint32 xend;
 
         task = &tasks[ order[i] ];
-        xstart = 2 + ( (123 * (uint32)task->mempage) + 254) / 255;
-        xend = 2 + ( (123 * ((uint32)task->size + task->mempage)) + 254) / 255;
+        xstart = 2 + ( (123 * (uint32)task->mempage) + CORE_REGMEM_MAXPAGE-1) / CORE_REGMEM_MAXPAGE;
+        xend = 2 + ( (123 * ((uint32)task->size + task->mempage)) + CORE_REGMEM_MAXPAGE-1) / CORE_REGMEM_MAXPAGE;
 
         if ( order[i] == current )
             Graphic_FillRectangle(xstart, ypoz+1, xend, ypoz+5, 1 );
@@ -749,12 +751,33 @@ static inline void uist_draw_setwindow_regtask_set( int redraw_type )
 {
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
     {
+        struct SRegTaskInstance tasks[4];
+
         uigrf_text( 3, 18, uitxt_smallbold,  "RUN" );
         uigrf_text( 30, 18, uitxt_small,  "T  RH  P" );
         uigrf_text( 73, 18, uitxt_small,  "Rate" );
         uigrf_text( 98, 18, uitxt_small,  "Lenght" );
 
-        internal_task_allocation_bar( core.nvreg.task, ui.p.swRegTaskSet.task_index );
+        memcpy(tasks, core.nvreg.task, 4*sizeof(struct SRegTaskInstance) );
+        tasks[ui.p.swRegTaskSet.task_index] = ui.p.swRegTaskSet.task;
+        internal_task_allocation_bar( tasks, ui.p.swRegTaskSet.task_index );
+    }
+
+    if ( redraw_type & RDRW_UI_CONTENT )
+    {
+        uist_internal_disp_all_with_focus();
+    }
+}
+
+static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uigrf_text( 3, 18, uitxt_smallbold,  "Task" );
+        uigrf_text( 32, 18, uitxt_small,  "Poz" );
+        uigrf_text( 52, 18, uitxt_small,  "Len" );
+
+        internal_task_allocation_bar( ui.p.swRegTaskMem.task, ui.p.swRegTaskMem.task_index );
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )
@@ -1001,11 +1024,24 @@ static inline void uist_setview_setwindow_regtask_mem(void)
 
     memcpy( ui.p.swRegTaskMem.task, core.nvreg.task, 4 * sizeof(struct SRegTaskInstance) );
 
-    uiel_control_numeric_init( &ui.p.swRegTaskMem.select, 1, 4, 1, 10, 28, 1, 0, uitxt_small );
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.select, 1, 4, 1, 11, 28, 1, 0, uitxt_small );
     uiel_control_numeric_set( &ui.p.swRegTaskMem.select, task_idx + 1 );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.select, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.select, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chtask );
     ui.ui_elems[0] = &ui.p.swRegTaskMem.select;
     
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.start, 0, CORE_REGMEM_MAXPAGE-1, 1, 30, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.start, ui.p.swRegTaskMem.task[task_idx].mempage );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.start, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.start, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chstart );
+    ui.ui_elems[1] = &ui.p.swRegTaskMem.start;
+
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.lenght, 0, CORE_REGMEM_MAXPAGE-1, 1, 50, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.lenght, ui.p.swRegTaskMem.task[task_idx].size );
+    uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.lenght, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
+    ui.ui_elems[2] = &ui.p.swRegTaskMem.lenght;
+
+    ui.ui_elem_nr = 3;
 }
 
 
@@ -1070,6 +1106,7 @@ void uist_drawview_setwindow( int redraw_type )
         {
             case UI_SET_QuickSwitch:    uist_draw_setwindow_quickswitch(redraw_type); break;
             case UI_SET_RegTaskSet:     uist_draw_setwindow_regtask_set(redraw_type); break;
+            case UI_SET_RegTaskMem:     uist_draw_setwindow_regtask_mem(redraw_type); break;
         }
 
     }

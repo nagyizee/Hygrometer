@@ -28,6 +28,8 @@
     #define STORAGE_TENDENCY    39      // 6'30" worth of data with 10sec sampling/averaging, 19*30' data with 30min sampling
     #define STORAGE_REGTASK     4
 
+    #define CORE_REGMEM_MAXPAGE 255     // 255*1024 bytes. The first 1024 byte is for setup/etc.
+
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
 

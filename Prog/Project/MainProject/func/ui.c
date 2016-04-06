@@ -309,7 +309,7 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
     bool change = false;
 
     internal_get_regtask_set_from_ui( &task_ui );
-    if ( memcmp( &task_ui, &ui.p.swRegTaskSet.task, sizeof(task_ui) ) )     // if setup is changed
+    if ( memcmp( &task_ui, &core.nvreg.task[ui.p.swRegTaskSet.task_index], sizeof(task_ui) ) )     // if setup is changed
     {   
         ui.p.swRegTaskSet.task = task_ui;
         ui.popup.params.line1 = (uint32)popup_msg_regtaskset_setup1;
@@ -403,7 +403,91 @@ void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
     ui.m_substate = UI_SUBST_ENTRY;
 }
 
+void ui_call_setwindow_regtaskmem_chtask( int context, void *pval )
+{
+    int val = *((int*)pval);
+    val--;      // since it is 1 based
 
+    ui.p.swRegTaskMem.task_index = val;
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.start, ui.p.swRegTaskMem.task[val].mempage );
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.lenght, ui.p.swRegTaskMem.task[val].size );
+
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+}
+
+bool internal_regtaskmem_inside( uint32 mstart, struct SRegTaskInstance mytask, struct SRegTaskInstance task )
+{
+    if ( (mstart <= task.mempage) &&                // current addess <= checked task's address
+         ((mstart+mytask.size) > task.mempage) )    // total lenght > checked task's address
+        return true;
+
+    if ( (mstart > task.mempage) &&
+         ( mstart < (task.mempage+task.size)) )
+        return true;
+        
+    return false;
+}
+
+
+
+void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
+{
+    struct SRegTaskInstance task;
+    int val = *((int*)pval);
+    bool iter = false;
+    bool up = false;
+    int i;
+    int idx;
+
+    idx = ui.p.swRegTaskMem.task_index;
+    task = ui.p.swRegTaskMem.task[idx];
+
+    if ( val > task.mempage )   // check if 
+        up = true;
+
+    do
+    {
+        iter = false;
+        for (i=0;i<4;i++)
+        {
+            if ( (i != idx) && internal_regtaskmem_inside(val, task, ui.p.swRegTaskMem.task[i]) )       // if current task with the new position is inside of one of tasks
+            {
+                if ( up )
+                {
+                    val = ui.p.swRegTaskMem.task[i].mempage + ui.p.swRegTaskMem.task[i].size;           // move the start address to the conflicting task's end
+                    if ( (val+task.size) > CORE_REGMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
+                        goto _set_original;
+                }
+                else
+                {
+                    val = (int)ui.p.swRegTaskMem.task[i].mempage - (int)task.size;                      // move the value before the confligting taks
+                    if ( val < 0 )                                                                      // if task doesn't fit in memory - revert to original value
+                        goto _set_original;
+                }
+                iter = true;
+            }
+        }
+
+        if ( up )
+        {
+            if ( (val+task.size) > CORE_REGMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
+                        goto _set_original;
+        }
+        else if ( val < 0 )                                                                     // if task doesn't fit in memory - revert to original value
+                        goto _set_original;
+
+    } while( iter );
+
+    // moving succeeded - save the new mempage value and update ui
+    ui.p.swRegTaskMem.task[idx].mempage = val;
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.start, val );
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+    return;
+_set_original:
+    // moving failed - revert to original mempage value
+    uiel_control_numeric_set( &ui.p.swRegTaskMem.start, ui.p.swRegTaskMem.task[idx].mempage );
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+}
 
 
 
