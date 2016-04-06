@@ -287,7 +287,7 @@ static void uist_internal_disp_all_with_focus()
         ui_element_display( ui.ui_elems[i], (ui.focus - 1) == i );
 }
 
-void internal_drawthermo_minmaxval( int x, int y, int value )
+static void internal_drawthermo_minmaxval( int x, int y, int value )
 {
     if ( value == NUM100_MAX )
         uigrf_text( x, y, (enum Etextstyle)(uitxt_small | uitxt_MONO), " HI" );
@@ -297,7 +297,7 @@ void internal_drawthermo_minmaxval( int x, int y, int value )
         uigrf_putfixpoint( x, y, uitxt_small, value / 10, 3, 1, 0x00, false );
 }
 
-void internal_gauge_put_hi_lo( bool high )
+static void internal_gauge_put_hi_lo( bool high )
 {
     Graphic_SetColor(0);
     Graphic_FillRectangle(13, 16, 47, 37, 0 );
@@ -309,7 +309,7 @@ void internal_gauge_put_hi_lo( bool high )
         uibm_put_bitmap( 21, 16, BMP_GAUGE_LO );
 }
 
-void internal_rectask_summary( uint32 x, uint32 y, int index )
+static void internal_rectask_summary( uint32 x, uint32 y, int index )
 {
     // internal space:  67x9
 
@@ -341,7 +341,7 @@ void internal_rectask_summary( uint32 x, uint32 y, int index )
 }
 
 
-int internal_diff( int v1, int v2 )
+static int internal_diff( int v1, int v2 )
 {
     if ( v1 > v2 )
         return v1 - v2;
@@ -349,7 +349,7 @@ int internal_diff( int v1, int v2 )
         return v2 - v1;
 }
 
-void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 current )
+static void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 current )
 {
     // black - unallocated
     // grey - allocated, other tasks
@@ -454,7 +454,46 @@ void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 curren
 
         Gtext_PutChar( order[i] + '1' );
     }
+}
 
+static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 time )
+{
+    // time is in seconds
+    if ( time >= (3600*24*365) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24*365), 1, 0, false );
+        Gtext_PutText( "Y " );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*365))/(24*3600), 3, 0, false );
+        Gtext_PutText( "D" );
+    }
+    else if ( time >= (3600*24*304/10) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24*304/10), 2, 0, false );
+        Gtext_PutText( "M " );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*304/10)) / (24*3600), 2, 0, false );
+        Gtext_PutText( "D" );
+    }
+    else if ( time >= (3600*24) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24), 2, 0, false );
+        Gtext_PutText( "D " );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24)) / 3600, 2, 0, false );
+        Gtext_PutText( "H" );
+    }
+    else if ( time >= 3600 )
+    {
+        uigrf_putnr(x, y, style, time / (3600), 2, 0, false );
+        Gtext_PutText( "H " );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600)) / 60, 2, 0, false );
+        Gtext_PutText( "M" );
+    } 
+    else
+    {
+        uigrf_putnr(x, y, style, time / (60), 2, 0, false );
+        Gtext_PutText( "M" );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (60)), 2, 0, false );
+        Gtext_PutText( "S" );
+    }
 }
 
 
@@ -783,6 +822,9 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
 
         internal_task_allocation_bar( ui.p.swRegTaskMem.task, ui.p.swRegTaskMem.task_index );
 
+        Graphic_SetColor(0);
+        Graphic_FillRectangle( 72, 18, 126, 40, 0 ); 
+
         uigrf_text( 72, 18, uitxt_micro,  "TASK INFO:" );
         uigrf_text( 72, 26, uitxt_micro,  "TIME:" );
         uigrf_text( 72, 34, uitxt_micro,  "SMPL:" );
@@ -790,7 +832,8 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
         smpl = core_op_register_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_REGMEM_PAGESIZE,
                                                     ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
         uigrf_putnr( 92, 34, uitxt_micro, smpl, 5, 0, false );
-
+        smpl = smpl * core_utils_timeunit2seconds( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].sample_rate );
+        internal_puttime_info( 92, 26, uitxt_micro, smpl );
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )

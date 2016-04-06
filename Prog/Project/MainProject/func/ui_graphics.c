@@ -607,7 +607,8 @@ void uigrf_text_mono( int x, int y, enum Etextstyle style, char *text, bool spec
 void uigrf_putnr( int x, int y, enum Etextstyle style, int nr, int digits, char fill, bool show_plus_sign )
 {
     grf_setup_font( style, 1, 0 );
-    Gtext_SetCoordinates( x, y );
+    if ( x < GDISP_WIDTH )
+        Gtext_SetCoordinates( x, y );    
     internal_display_number( nr, digits, fill, 10, show_plus_sign, false );
 }
 

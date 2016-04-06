@@ -141,23 +141,6 @@ extern void DispHAL_ISR_Poll(void);
 //
 /////////////////////////////////////////////////////
 
-static uint32 internal_time_unit_2_seconds( uint32 time_unit )
-{
-    switch ( time_unit )
-    {
-        case ut_5sec:       return 5;
-        case ut_10sec:      return 10;
-        case ut_30sec:      return 30;
-        case ut_1min:       return 60;
-        case ut_2min:       return 120;
-        case ut_5min:       return 300;
-        case ut_10min:      return 600;
-        case ut_30min:      return 1800;
-        case ut_60min:      return 3600;
-        default:            return 0;
-    }
-}
-
 static void internal_clear_monitoring(void)
 {
     uint32 i;
@@ -289,7 +272,7 @@ static inline void local_process_temp_sensor_result( uint32 temp )
             // clean up the average and set up for the next session
             core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
             core.nv.op.sens_rd.moni.avg_sum_temp = 0;
-            core.nv.op.sens_rd.moni.sch_moni_temp += 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_temp );
+            core.nv.op.sens_rd.moni.sch_moni_temp += 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_temp );
             // notify the UI to update
             core.measure.dirty.b.upd_th_tendency = 1;
         }
@@ -349,7 +332,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
             core.nv.op.sens_rd.moni.avg_sum_rh = 0;
             core.nv.op.sens_rd.moni.avg_sum_abshum = 0;
             core.nv.op.sens_rd.moni.avg_ctr_hygro = 0;
-            core.nv.op.sens_rd.moni.sch_moni_hygro += 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_hygro );
+            core.nv.op.sens_rd.moni.sch_moni_hygro += 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_hygro );
             // notify the UI to update
             core.measure.dirty.b.upd_th_tendency = 1;
         }
@@ -390,7 +373,7 @@ static inline void local_process_pressure_sensor_result( uint32 press )
             // clean up the average and set up for the next session
             core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
             core.nv.op.sens_rd.moni.avg_sum_temp = 0;
-            core.nv.op.sens_rd.moni.sch_moni_press += 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_press );
+            core.nv.op.sens_rd.moni.sch_moni_press += 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_press );
             // notify the UI to update
             core.measure.dirty.b.upd_press_tendency = 1;
         }
@@ -629,7 +612,22 @@ uint32 core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit )
     return 0;
 }
 
-
+uint32 core_utils_timeunit2seconds( uint32 time_unit )
+{
+    switch ( time_unit )
+    {
+        case ut_5sec:       return 5;
+        case ut_10sec:      return 10;
+        case ut_30sec:      return 30;
+        case ut_1min:       return 60;
+        case ut_2min:       return 120;
+        case ut_5min:       return 300;
+        case ut_10min:      return 600;
+        case ut_30min:      return 1800;
+        case ut_60min:      return 3600;
+        default:            return 0;
+    }
+}
 
 uint32 core_get_clock_counter(void)
 {
@@ -933,9 +931,9 @@ void core_op_monitoring_switch( bool enable )
     else if ( core.nv.op.op_flags.b.op_monitoring == 0 )
     {
         internal_clear_monitoring();
-        core.nv.op.sens_rd.moni.sch_moni_temp  = RTCclock + 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_temp );
-        core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_hygro );
-        core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * internal_time_unit_2_seconds( core.nv.setup.tim_tend_press );
+        core.nv.op.sens_rd.moni.sch_moni_temp  = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_temp );
+        core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_hygro );
+        core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_press );
         core.nv.op.sens_rd.moni.clk_last_day = RTCclock / DAY_TICKS;
         core.nv.op.sens_rd.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
         core.nv.op.op_flags.b.op_monitoring = 1;
@@ -955,7 +953,7 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                 core.nv.setup.tim_tend_temp = timing;
                 if ( core.nv.op.op_flags.b.op_monitoring )
                 {
-                    core.nv.op.sens_rd.moni.sch_moni_temp = RTCclock + 2 * internal_time_unit_2_seconds( timing );
+                    core.nv.op.sens_rd.moni.sch_moni_temp = RTCclock + 2 * core_utils_timeunit2seconds( timing );
                     core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
                     core.nv.op.sens_rd.moni.avg_sum_temp = 0;
                     local_tendency_restart( CORE_MMP_TEMP );
@@ -968,7 +966,7 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                 core.nv.setup.tim_tend_hygro = timing;
                 if ( core.nv.op.op_flags.b.op_monitoring )
                 {
-                    core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * internal_time_unit_2_seconds( timing );
+                    core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * core_utils_timeunit2seconds( timing );
                     core.nv.op.sens_rd.moni.avg_ctr_hygro = 0;
                     core.nv.op.sens_rd.moni.avg_sum_rh = 0;
                     core.nv.op.sens_rd.moni.avg_sum_abshum = 0;
@@ -983,7 +981,7 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                 core.nv.setup.tim_tend_press = timing;
                 if ( core.nv.op.op_flags.b.op_monitoring )
                 {
-                    core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * internal_time_unit_2_seconds( timing );
+                    core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * core_utils_timeunit2seconds( timing );
                     core.nv.op.sens_rd.moni.avg_ctr_press = 0;
                     core.nv.op.sens_rd.moni.avg_sum_press = 0;
                     local_tendency_restart( CORE_MMP_PRESS );

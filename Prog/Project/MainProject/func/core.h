@@ -398,6 +398,7 @@
     // convert 16fp9 temperature to the given unit in x100 integer format
     int     core_utils_temperature2unit( uint16 temp16fp9, enum ETemperatureUnits unit );
     uint32  core_utils_unit2temperature( int temp100, enum ETemperatureUnits unit );
+    uint32  core_utils_timeunit2seconds( uint32 time_unit );
 
     // gets or sets the RTC clock
     uint32 core_get_clock_counter(void);
