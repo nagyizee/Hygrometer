@@ -179,6 +179,8 @@ const char popup_msg_op_monitoring[] =  "TENDENCY GRAPH WILL BE";
 const char popup_msg_op_registering[] = "REGISTERED DATA WILL BE";
 const char popup_msg_op_monitoring2[] = "DISCARDED AT RESTART!";
 const char popup_msg_op_2[] =          "Proceed?";
+const char popup_msg_op_register_nosel1[] =  "NO TASK IS SELECTED FOR";
+const char popup_msg_op_register_nosel2[] =  "RECORDING. SELECT ONE FIRST";
 
 void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
 {
@@ -190,9 +192,24 @@ void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
         if ( context == 0 )
             core_op_monitoring_switch(true);
         else
-            //---- reimplement
-            core.nv.op.op_flags.b.op_registering = 1;
-            //----------------
+        {
+            if ( core.nvreg.running == 0 )
+            {
+                ui.popup.params.line1 = (uint32)popup_msg_op_register_nosel1;       // need to trick the compiler to not to complain about const type
+                ui.popup.params.line2 = (uint32)popup_msg_op_register_nosel2;
+                ui.popup.params.line3 = 0;
+                ui.popup.params.style1 = uitxt_micro;
+                ui.popup.params.x1 = 4;
+                ui.popup.params.y1 = 8;
+                ui.popup.params.y2 = 16;
+                ui.popup.params.popup_action = uipa_close;
+                uist_enter_popup( 0, NULL, 0, NULL );
+                // reset switch
+                uiel_control_checkbox_set( &ui.p.swQuickSw.reg, false );
+            }
+            else
+                core_op_register_switch(true);
+        }
     }
     else
     {
@@ -222,6 +239,12 @@ void ui_call_setwindow_quickswitch_op_switch_ok( int context, void *pval )
 {
     if ( context == 0 )
         core_op_monitoring_switch(false);
+    else if ( context == 1 )
+        core_op_register_switch(false);
+    else
+    {
+
+    }
 
     uist_close_popup();
 }
@@ -230,7 +253,7 @@ void ui_call_setwindow_quickswitch_op_switch_cancel( int context, void *pval )
 {
     if (context == 0)
         uiel_control_checkbox_set( (struct Suiel_control_checkbox*)(&ui.p.swQuickSw.monitor), true );
-    else
+    else if ( context == 1)
         uiel_control_checkbox_set( (struct Suiel_control_checkbox*)(&ui.p.swQuickSw.reg), true );
 
     uist_close_popup();
@@ -932,11 +955,11 @@ void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, 
     switch ( ui.popup.params.popup_action )
     {
         case uipa_close:
-            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 50, 48, 14 );
+            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 45, 48, 12 );
             uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "Close", uitxt_smallbold ); 
             break;
         case uipa_ok:
-            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 50, 48, 14 );
+            uiel_control_pushbutton_init( &ui.popup.pb1, 40, 45, 48, 12 );
             uiel_control_pushbutton_set_content( &ui.popup.pb1, uicnt_text, 0, "OK", uitxt_smallbold ); 
             break;
         case uipa_ok_cancel:
@@ -951,6 +974,8 @@ void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, 
 
     uiel_control_pushbutton_set_callback( &ui.popup.pb1, UICpb_OK, cont_ok, call_ok ? call_ok : ui_call_popup_default );
     uiel_control_pushbutton_set_callback( &ui.popup.pb2, UICpb_OK, cont_cancel, call_cancel ? call_cancel : ui_call_popup_default );
+    uiel_control_pushbutton_set_callback( &ui.popup.pb1, UICpb_Esc, cont_cancel, call_cancel ? call_cancel : ui_call_popup_default );
+    uiel_control_pushbutton_set_callback( &ui.popup.pb2, UICpb_Esc, cont_cancel, call_cancel ? call_cancel : ui_call_popup_default );
 
     uist_drawview_popup( RDRW_ALL );
     DispHAL_UpdateScreen();

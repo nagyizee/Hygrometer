@@ -1041,6 +1041,7 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
 void core_op_register_switch( bool enabled )
 {
     //TBI
+    core.nv.op.op_flags.b.op_registering = enabled ? 1 : 0;
 }
 
 void core_op_register_setup_task( uint32 task_idx, struct SRegTaskInstance *task )
