@@ -28,7 +28,8 @@
 
     enum EUISetupSelect
     {
-        UI_SET_QuickSwitch = 0,                 // set up quick switches
+        UI_SET_NONE = 0,
+        UI_SET_QuickSwitch,                     // set up quick switches
         UI_SET_RegTaskSet,                      // set up registering task
         UI_SET_RegTaskMem,                      // set up registering task recording lenght and memory repartization
 
@@ -161,15 +162,24 @@
         struct Suiel_control_pushbutton pb1;
         struct Suiel_control_pushbutton pb2;
     };
-    
+
+    struct SUInewstatus
+    {
+        uint8   dirty;          // callback set up new state - must exit current loop and reinit
+        uint8   m_state;
+        uint8   m_setstate;
+        uint8   init;
+    };
 
     struct SUIstatus
     {
-        uint32 m_state;             // main ui state - see enum EUIStates
-        uint32 m_substate;          // 0 means state entry
-        uint32 m_setstate;          // internal state for windows with settings - see enum EUISetupSelect
-        uint32 m_return;            // return value set by inner state for an outer state
-        enum UIMainMode main_mode;  // mode for gauge/graph display - selects bw. temperature - humidity - pressure
+        enum EUIStates m_state;             // main ui state - see enum EUIStates
+        enum UIMainMode main_mode;          // mode for gauge/graph display - selects bw. temperature - humidity - pressure
+        enum EUISetupSelect m_setstate;     // internal state for windows with settings - see enum EUISetupSelect
+        uint32 m_substate;                  // 0 means state entry
+        uint32 m_return;                    // return value set by inner state for an outer state
+
+        struct SUInewstatus newst;          // New status to be set up in the main loop after exitting from callback
 
         void *ui_elems[ UI_MAX_ELEMS ]; // active elements on the current screen
         uint32 ui_elem_nr;              // number of active elements

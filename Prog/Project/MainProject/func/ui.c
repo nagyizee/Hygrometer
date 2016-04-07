@@ -29,6 +29,7 @@ extern struct SCore core;
 
 void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, uiel_callback call_cancel );
 void uist_close_popup(void);
+void uist_change_state( enum EUIStates m_state, enum EUISetupSelect set_state, bool init );
 
 static void local_uist_display_init(void)
 {
@@ -78,6 +79,10 @@ void internal_get_regtask_set_from_ui(struct SRegTaskInstance *task)
 ////////////////////////////////////////////////////
 //
 //   UI callbacks
+//
+//   General rule:
+//      Do not change UI states directly
+//      Use uist_change_state() routine instead
 //
 ////////////////////////////////////////////////////
 
@@ -249,8 +254,7 @@ void ui_call_setwindow_quickswitch_monitor_rate_val( int context, void *pval )
 void ui_call_setwindow_quickswitch_esc_pressed( int context, void *pval )
 {
     // esc pressed - return to the mode selector window
-    ui.m_state = UI_STATE_MODE_SELECT;
-    ui.m_substate = UI_SUBST_ENTRY;
+    uist_change_state( UI_STATE_MODE_SELECT, UI_SET_NONE, true );
 }
 
 
@@ -288,8 +292,7 @@ void ui_call_setwindow_quickswitch_reset_minmax_ok( int context, void *pval )
 
 void ui_call_setwindow_quickswitch_task_ok( int context, void *pval )
 {
-    ui.m_setstate = UI_SET_RegTaskSet;
-    ui.m_substate = UI_SUBST_ENTRY;
+    uist_change_state( UI_STATE_NONE, UI_SET_RegTaskSet, true );
     ui.m_return = context + 1;          // task index is stored in m_return in 1-based value
 }
 
@@ -348,15 +351,9 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
     {
         // if no change at all - just proceed
         if ( context == UI_REG_TO_BEFORE )
-        {
-            ui.m_setstate = UI_SET_QuickSwitch;     // back to page before
-            ui.m_substate = UI_SUBST_ENTRY;
-        }
+            uist_change_state( UI_STATE_NONE, UI_SET_QuickSwitch, true );
         else
-        {
-            ui.m_setstate = UI_SET_RegTaskMem;      // go to memory allocator
-            ui.m_substate = UI_SUBST_ENTRY;
-        }
+            uist_change_state( UI_STATE_NONE, UI_SET_RegTaskMem, true );
     }
     // ui.m_return - 1 indicates the task index
 }
@@ -380,16 +377,10 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
 
     uist_close_popup();
 
-    if ( context & UI_REG_TO_BEFORE )
-    {
-        ui.m_setstate = UI_SET_QuickSwitch;     // back to page before
-        ui.m_substate = UI_SUBST_ENTRY;
-    }
+    if ( context & UI_REG_TO_REALLOC )
+        uist_change_state( UI_STATE_NONE, UI_SET_RegTaskMem, true );
     else
-    {
-        ui.m_setstate = UI_SET_RegTaskMem;      // go to memory allocator
-        ui.m_substate = UI_SUBST_ENTRY;
-    }
+        uist_change_state( UI_STATE_NONE, UI_SET_QuickSwitch, true );
     // ui.m_return - 1 indicates the task index
 }
 
@@ -398,9 +389,7 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
 
 void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
 {
-    
-    ui.m_setstate = UI_SET_RegTaskSet;      // go back to task setup
-    ui.m_substate = UI_SUBST_ENTRY;
+    uist_change_state( UI_STATE_NONE, UI_SET_RegTaskSet, true );
 }
 
 void ui_call_setwindow_regtaskmem_chtask( int context, void *pval )
@@ -568,6 +557,36 @@ void ui_call_popup_default( int context, void *pval )
 //   Generic UI functional elements
 //
 ////////////////////////////////////////////////////
+
+void uist_change_state( enum EUIStates m_state, enum EUISetupSelect set_state, bool init )
+{
+    // call this to change UI states from callback 
+    // - this will postpone state update, and prevent display setup with non-existing controls from the new states
+    ui.newst.dirty = 1;
+    ui.newst.m_setstate = (uint8)set_state;
+    ui.newst.m_state    = (uint8)m_state;
+    ui.newst.init       = init ? 1 : 0;
+}
+
+bool uist_apply_newstate(void)
+{
+    // called in the state loops
+    if ( ui.newst.dirty == 0 )
+        return false;
+
+    ui.newst.dirty = 0;
+
+    if ( ui.newst.m_state != UI_STATE_NONE )
+        ui.m_state = (enum EUIStates)ui.newst.m_state;
+
+    if ( ui.newst.m_setstate != UI_SET_NONE )
+        ui.m_setstate = (enum EUISetupSelect)ui.newst.m_setstate;
+
+    if ( ui.newst.init )
+        ui.m_substate = UI_SUBST_ENTRY;
+
+    return true;
+}
 
 static void uist_update_display( int disp_update )
 {
@@ -816,6 +835,9 @@ void uist_startup( struct SEventStruct *evmask )
         }
     }
 
+    if ( uist_apply_newstate() )
+        return;
+
     if ( ui.m_substate == 0 )
     {
         // no pwr.on long press, timed out - power down
@@ -831,7 +853,7 @@ void uist_startup( struct SEventStruct *evmask )
 void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, uiel_callback call_cancel )
 {
     ui.popup.ret_state = ui.m_state;
-    ui.m_state = UI_STATE_POPUP;
+    uist_change_state( UI_STATE_POPUP, UI_SET_NONE, false );
 
     ui.popup.focus = 0;
     ui.popup.elems = 1;
@@ -869,8 +891,9 @@ void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, 
 void uist_close_popup(void)
 {
     // revert original state
-    ui.m_state = ui.popup.ret_state;
-    
+    ui.m_state = ui.popup.ret_state;    // set directly the main state - if a callback sets new state through uist_change_state - we will
+                                        // lose the org. main state otherwise
+                                        // The controls from the org. state are still valid, so it is safe to use
     // redraw the original display
     uist_update_display( RDRW_ALL );
     ui.upd_ui_disp = RDRW_ALL;
@@ -886,6 +909,9 @@ void uist_popupwindow( struct SEventStruct *evmask )
         {
             ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
         }
+
+        if ( uist_apply_newstate() )
+            return;
 
         if ( evmask->key_pressed & KEY_RIGHT )
         {
@@ -905,6 +931,7 @@ void uist_popupwindow( struct SEventStruct *evmask )
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
+            return;
         }
     }
 
@@ -1058,6 +1085,7 @@ void uist_opmodeselect( struct SEventStruct *evmask )
         {
             ui.m_state = UI_STATE_MAIN_GAUGE;
             ui.m_substate = UI_SUBST_ENTRY;
+            return;
         }
         if ( evmask->key_pressed & KEY_LEFT )
         {
@@ -1065,11 +1093,15 @@ void uist_opmodeselect( struct SEventStruct *evmask )
             ui.m_setstate = UI_SET_QuickSwitch;
             ui.m_substate = UI_SUBST_ENTRY;
             ui.m_return = 0;
+            return;
         }
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
+            return;
         }
+        if ( uist_apply_newstate() )
+            return;
     }
 
     // update screen on timebase
@@ -1101,6 +1133,10 @@ void uist_setwindow( struct SEventStruct *evmask )
             {
                 ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
             }
+
+            if ( uist_apply_newstate() )
+                return;
+
             uist_infocus_generic_key_processing( evmask );
         }
 
@@ -1108,11 +1144,13 @@ void uist_setwindow( struct SEventStruct *evmask )
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
+            return;
         }
         if ( evmask->key_released & KEY_MODE )
         {
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
+            return;
         }
     }
 
@@ -1149,6 +1187,10 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
             {
                 ui.upd_ui_disp |= RDRW_DISP_UPDATE;
             }
+
+            if ( uist_apply_newstate() )
+                return;
+
             uist_infocus_generic_key_processing( evmask );
         }
         else
@@ -1188,12 +1230,14 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
+            return;
         }
         if ( evmask->key_released & KEY_MODE )
         {
             core_op_realtime_sensor_select( ss_none );
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
+            return;
         }
     }
 
