@@ -309,38 +309,6 @@ static void internal_gauge_put_hi_lo( bool high )
         uibm_put_bitmap( 21, 16, BMP_GAUGE_LO );
 }
 
-static void internal_rectask_summary( uint32 x, uint32 y, int index )
-{
-    // internal space:  67x9
-
-    //uigrf_rounded_rect( x, y, x+69, y+11, 1, false, 0 ); 
-
-    uibm_put_bitmap( x+1, y+1, BMP_ICO_REGST_TASK1 + index );
-    switch ( core.nvreg.task[index].task_elems )
-    {
-        case rtt_t: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_T ); break;
-        case rtt_h: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_H ); break;
-        case rtt_p: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_P ); break;
-        case rtt_th: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TH ); break;
-        case rtt_tp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TP ); break;
-        case rtt_hp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_HP ); break;
-        case rtt_thp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_THP ); break;
-    }
-    if ( core.nvreg.running & (1<<index) )
-        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_START );
-    else
-        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_STOP );
-
-    Graphic_SetColor(1);
-    Graphic_FillRectangle( x+40, y+1, x+68, y+9, 1 );
-
-    grf_setup_font( uitxt_micro, 0, 1 );
-    Gtext_SetCoordinates( x+40, y+3 );
-
-    Gtext_PutText( "230D23H" );
-}
-
-
 static int internal_diff( int v1, int v2 )
 {
     if ( v1 > v2 )
@@ -456,46 +424,94 @@ static void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32
     }
 }
 
-static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 time )
+static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 time, bool spaces )
 {
     // time is in seconds
     if ( time >= (3600*24*365) )
     {
         uigrf_putnr(x, y, style, time / (3600*24*365), 1, 0, false );
-        Gtext_PutText( "Y " );
+        if ( spaces )
+            Gtext_PutText( "Y " );
+        else
+            Gtext_PutChar( 'Y' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*365))/(24*3600), 3, 0, false );
-        Gtext_PutText( "D" );
+        Gtext_PutChar( 'D' );
     }
     else if ( time >= (3600*24*304/10) )
     {
         uigrf_putnr(x, y, style, time / (3600*24*304/10), 2, 0, false );
-        Gtext_PutText( "M " );
+        if ( spaces )
+            Gtext_PutText( "M " );
+        else
+            Gtext_PutChar( 'M' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*304/10)) / (24*3600), 2, 0, false );
-        Gtext_PutText( "D" );
+        Gtext_PutChar( 'D' );
     }
     else if ( time >= (3600*24) )
     {
         uigrf_putnr(x, y, style, time / (3600*24), 2, 0, false );
-        Gtext_PutText( "D " );
+        if ( spaces )
+            Gtext_PutText( "D " );
+        else
+            Gtext_PutChar( 'D' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24)) / 3600, 2, 0, false );
-        Gtext_PutText( "H" );
+        Gtext_PutChar( 'H' );
     }
     else if ( time >= 3600 )
     {
         uigrf_putnr(x, y, style, time / (3600), 2, 0, false );
-        Gtext_PutText( "H " );
+        if ( spaces )
+            Gtext_PutText( "H " );
+        else
+            Gtext_PutChar( 'H' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600)) / 60, 2, 0, false );
-        Gtext_PutText( "M" );
+        Gtext_PutChar( 'M' );
     } 
     else
     {
         uigrf_putnr(x, y, style, time / (60), 2, 0, false );
-        Gtext_PutText( "M" );
+        if ( spaces )
+            Gtext_PutText( "M " );
+        else
+            Gtext_PutChar( 'M' );
+        
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (60)), 2, 0, false );
-        Gtext_PutText( "S" );
+        Gtext_PutChar( 'S' );
     }
 }
 
+static void internal_rectask_summary( uint32 x, uint32 y, int index )
+{
+    uint32 time;
+
+    uibm_put_bitmap( x+1, y+1, BMP_ICO_REGST_TASK1 + index );
+    switch ( core.nvreg.task[index].task_elems )
+    {
+        case rtt_t: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_T ); break;
+        case rtt_h: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_H ); break;
+        case rtt_p: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_P ); break;
+        case rtt_th: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TH ); break;
+        case rtt_tp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_TP ); break;
+        case rtt_hp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_HP ); break;
+        case rtt_thp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_THP ); break;
+    }
+    if ( core.nvreg.running & (1<<index) )
+        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_START );
+    else
+        uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_STOP );
+
+    Graphic_SetColor(0);
+    Graphic_FillRectangle( x+41, y+1, x+68, y+9, 0 );
+
+    time = core_op_register_get_total_samplenr( core.nvreg.task[index].size * CORE_REGMEM_PAGESIZE,
+                                               (enum ERegistrationTaskType)core.nvreg.task[index].task_elems ) *
+           core_utils_timeunit2seconds( core.nvreg.task[index].sample_rate );
+    internal_puttime_info( x+41, y+3, uitxt_micro, time, false );
+
+    Graphic_SetColor(-1);
+    Graphic_FillRectangle( x+41, y+1, x+68, y+9, -1 );
+
+}
 
 ////////////////////////////////////////////////////
 //
@@ -685,7 +701,6 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
 
 static inline void uist_draw_gauge_pressure( int redraw_all )
 {
-    int press = ( 1013.25 * 100 );       // testing purpose
     int x,y;
 
     if ( redraw_all & RDRW_UI_DYNAMIC )
@@ -769,9 +784,6 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
         {
             internal_rectask_summary( 58, 17+i*12, i );
         }
-
-        // create 
-
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )
@@ -779,8 +791,10 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
         for (i=0; i<3; i++)
         {
             int setval;
+            uint32 textaddr;
             setval = uiel_control_list_get_value( &ui.p.swQuickSw.m_rates[i]);
-            uigrf_text( 36, 20+11*i, uitxt_micro, tendency_total_lenght[setval] );
+            textaddr = (uint32)tendency_total_lenght[setval];                   // trick the compiler
+            uigrf_text( 36, 20+11*i, uitxt_micro, (char*)textaddr );
         }
         
 
@@ -830,10 +844,10 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
         uigrf_text( 72, 34, uitxt_micro,  "SMPL:" );
 
         smpl = core_op_register_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_REGMEM_PAGESIZE,
-                                                    ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
+                                                    (enum ERegistrationTaskType)ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
         uigrf_putnr( 92, 34, uitxt_micro, smpl, 5, 0, false );
         smpl = smpl * core_utils_timeunit2seconds( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].sample_rate );
-        internal_puttime_info( 92, 26, uitxt_micro, smpl );
+        internal_puttime_info( 92, 26, uitxt_micro, smpl, true );
     }
 
     if ( redraw_type & RDRW_UI_CONTENT )
@@ -1050,7 +1064,7 @@ static inline void uist_setview_setwindow_regtask_set( void )
     for (i=0; i< (sizeof(upd_timings) / sizeof(enum EUpdateTimings)); i++ )
         uiel_control_list_add_item( &ui.p.swRegTaskSet.m_rate, upd_rates[i], upd_timings[i] );
     uiel_control_list_set_index(&ui.p.swRegTaskSet.m_rate, (enum EUpdateTimings)core.nvreg.task[task_idx].sample_rate );
-    uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_Esc, UI_REG_TO_BEFORE, ui_call_setwindow_regtaskset_next_action );
+    uiel_control_list_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_Esc, UI_REG_TO_BEFORE, ui_call_setwindow_regtaskset_next_action );
     ui.ui_elems[4] = &ui.p.swRegTaskSet.m_rate;
 
     uiel_control_numeric_init( &ui.p.swRegTaskSet.lenght, 1, 252, 1, 100, 28, 3, '0', uitxt_small );

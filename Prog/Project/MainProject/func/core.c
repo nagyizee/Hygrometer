@@ -1100,8 +1100,6 @@ int core_init( struct SCore **instance )
     wur = HW_GetWakeUpReason();
     if ( wur & WUR_FIRST )
     {
-        int i;
-
         // first start-up - means that clock and work status is uninitialized
         local_initialize_core_operation();
 

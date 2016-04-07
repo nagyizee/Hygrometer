@@ -242,7 +242,7 @@ void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval )
     // context points to the ui element, to obtain the sensor use context-2
     int val;
     val = uiel_control_list_get_value( (struct Suiel_control_list*)(ui.ui_elems[context]) );
-    core_op_monitoring_rate( context + ss_thermo - 2, val );
+    core_op_monitoring_rate( (enum ESensorSelect)(context + ss_thermo - 2), (enum EUpdateTimings)val );
 }
 
 
@@ -308,7 +308,6 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
 {
     // exitting from registering task set - check for changes
     struct SRegTaskInstance task_ui;
-    uint32 elems = 0;
     bool change = false;
 
     internal_get_regtask_set_from_ui( &task_ui );
@@ -336,6 +335,7 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
         // if changes in setup - go through popup
         ui.popup.params.style1 = uitxt_small;
         ui.popup.params.style3 = uitxt_small;
+        ui.popup.params.line3 = (uint32)popup_msg_op_2;
         ui.popup.params.x1 = 5;
         ui.popup.params.y1 = 2;
         ui.popup.params.y2 = 10;
@@ -387,10 +387,66 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
 
 // --- Setup registering task allocation
 
+const char popup_msg_regtaskmem_change[] = "Data will be cleared";
+char popup_msg_regtaskmem_tasks[] = "for tasks         ";
+
 void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
 {
+    int i;
+    uint32 change = 0;
+
+    // check for changes
+    for (i=0; i<4; i++)
+    {
+        if ( memcmp( &ui.p.swRegTaskMem.task[i], &core.nvreg.task[i], sizeof(struct SRegTaskInstance) ) )
+        {
+            change |= ( 1 << i );
+            popup_msg_regtaskmem_tasks[10] = i + '1';
+        }
+    }
+
+    // set the selected task at the return window
+    ui.m_return = uiel_control_numeric_get( &ui.p.swRegTaskMem.select );
+
+    // if change - put callback
+    if ( change )
+    {
+        ui.popup.params.line1 = (uint32)popup_msg_regtaskmem_change;
+        ui.popup.params.line2 = (uint32)popup_msg_regtaskmem_tasks;
+        ui.popup.params.line3 = (uint32)popup_msg_op_2;
+
+        ui.popup.params.style1 = uitxt_small;
+        ui.popup.params.style3 = uitxt_small;
+        ui.popup.params.x1 = 5;
+        ui.popup.params.y1 = 2;
+        ui.popup.params.y2 = 10;
+        ui.popup.params.x3 = 10;
+        ui.popup.params.y3 = 18;
+        ui.popup.params.popup_action = uipa_ok_cancel;
+        uist_enter_popup( change, 
+                          ui_call_setwindow_regtaskmem_exit_close, 
+                          0, 
+                          ui_call_setwindow_regtaskmem_exit_close );
+    }
+    else
+        uist_change_state( UI_STATE_NONE, UI_SET_RegTaskSet, true );
+}
+
+void ui_call_setwindow_regtaskmem_exit_close( int context, void *pval )
+{
+    if ( context )
+    {
+        int i;
+        for (i=0; i<4; i++)
+        {
+            if ( context & (1<<i) )
+                core_op_register_setup_task( i, &ui.p.swRegTaskMem.task[i] );
+        }
+    }
+    uist_close_popup();
     uist_change_state( UI_STATE_NONE, UI_SET_RegTaskSet, true );
 }
+
 
 void ui_call_setwindow_regtaskmem_chtask( int context, void *pval )
 {
@@ -508,8 +564,6 @@ void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval )
     struct SRegTaskInstance task;
     int val = *((int*)pval);
 
-    bool iter = false;
-    bool up = false;
     int i;
     int idx;
 

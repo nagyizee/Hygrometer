@@ -158,7 +158,7 @@
         struct SPopupSetup  params;
         uint8 focus;
         uint8 elems;
-        uint32 ret_state;
+        enum EUIStates ret_state;
         struct Suiel_control_pushbutton pb1;
         struct Suiel_control_pushbutton pb2;
     };
@@ -235,6 +235,7 @@
     void ui_call_setwindow_regtaskset_close( int context, void *pval );
 
     void ui_call_setwindow_regtaskmem_exit( int context, void *pval );
+    void ui_call_setwindow_regtaskmem_exit_close( int context, void *pval );
     void ui_call_setwindow_regtaskmem_chtask( int context, void *pval );
     void ui_call_setwindow_regtaskmem_chstart( int context, void *pval );
     void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval );

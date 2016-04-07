@@ -412,13 +412,11 @@ extern void TimerRTCIntrHandler(void);
         NVIC_InitTypeDef            NVIC_InitStructure;
         DMA_Channel_TypeDef *DMAtx = NULL;
         DMA_Channel_TypeDef *DMArx = NULL;
-        uint32 clear_flags = 0;
 
         switch ( dma_ch )
         {
             case DMACH_DISP:
                 DMAtx = DMA_DISP_TX_Channel;
-                clear_flags = DMA_DISP_IRQ_FLAGS;
                 NVIC_InitStructure.NVIC_IRQChannel              = DMA_DISP_TX_IRQ;
                 NVIC_InitStructure.NVIC_IRQChannelCmd           = DISABLE;
                 NVIC_Init( &NVIC_InitStructure );
@@ -426,12 +424,10 @@ extern void TimerRTCIntrHandler(void);
             case DMACH_EE:
                 DMAtx = DMA_EE_TX_Channel;
                 DMArx = DMA_EE_RX_Channel;
-                clear_flags = DMA_EE_RX_IRQ_FLAGS | DMA_EE_TX_IRQ_FLAGS;
                 break;
             case DMACH_SENS:
                 DMAtx = DMA_SENS_TX_Channel;
                 DMArx = DMA_SENS_RX_Channel;
-                clear_flags = DMA_SENS_RX_IRQ_FLAGS | DMA_SENS_TX_IRQ_FLAGS;
                 break;
         }
 
@@ -809,7 +805,6 @@ extern void TimerRTCIntrHandler(void);
 
     uint32 HW_Sleep( enum EPowerMode mode )
     {
-        uint32 ret;
         wakeup_reason = WUR_NONE;
         switch ( mode )
         {
