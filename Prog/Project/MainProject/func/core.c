@@ -1047,11 +1047,16 @@ void core_op_register_setup_task( uint32 task_idx, struct SRegTaskInstance *task
 {
     core.nvreg.task[task_idx] = *task;
     //TBI
+    //TODO: take care - if format changed during recording - clear the data and record from 0
 }
 
 void core_op_register_task_run( uint32 task_idx, bool run )
 {
     //TBI
+    if ( run )
+        core.nvreg.running |= (1<<task_idx);
+    else
+        core.nvreg.running &= ~(1<<task_idx);
 }
 
 uint32 core_op_register_get_total_samplenr( uint32 mem_len, enum ERegistrationTaskType regtype )

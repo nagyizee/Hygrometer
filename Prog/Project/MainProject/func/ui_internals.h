@@ -101,7 +101,6 @@
         struct Suiel_control_checkbox   run;
         struct Suiel_control_checkbox   THP[3];
         struct Suiel_control_list       m_rate;
-        struct Suiel_control_numeric    lenght;
         struct Suiel_control_pushbutton reallocate;
     };
 
@@ -233,6 +232,7 @@
 
     void ui_call_setwindow_regtaskset_next_action( int context, void *pval );
     void ui_call_setwindow_regtaskset_close( int context, void *pval );
+    void ui_call_setwindow_regtaskset_valch( int context, void *pval );
 
     void ui_call_setwindow_regtaskmem_exit( int context, void *pval );
     void ui_call_setwindow_regtaskmem_exit_close( int context, void *pval );
@@ -251,6 +251,9 @@
     void uist_setupview_mainwindow( bool reset );
     void uist_setupview_setwindow( bool reset );
     void uist_setupview_debuginputs( void );
+
+    // misc
+    void internal_get_regtask_set_from_ui(struct SRegTaskInstance *task);
 
 
 #ifdef __cplusplus

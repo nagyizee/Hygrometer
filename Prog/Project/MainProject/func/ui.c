@@ -69,7 +69,7 @@ void internal_get_regtask_set_from_ui(struct SRegTaskInstance *task)
         elems = rtt_t;
 
     task->task_elems = elems;
-    task->size = uiel_control_numeric_get( &ui.p.swRegTaskSet.lenght );
+    task->size = ui.p.swRegTaskSet.task.size;
     task->sample_rate = uiel_control_list_get_value( &ui.p.swRegTaskSet.m_rate );
     task->mempage = ui.p.swRegTaskSet.task.mempage;
 }
@@ -299,10 +299,12 @@ void ui_call_setwindow_quickswitch_task_ok( int context, void *pval )
 
 // --- Setup registering tasks
 
-const char popup_msg_regtaskset_setup1[] = "Setup changed, will loose";
+const char popup_msg_regtaskset_setup1[] = "Setup changed, will discard";
 const char popup_msg_regtaskset_setup2[] = "recorded data";
-const char popup_msg_regtaskset_stop1[] = "Data will be discarded";
-const char popup_msg_regtaskset_stop2[] = "at restart";
+const char popup_msg_regtaskset_stop1[] = "Recording in progess";
+const char popup_msg_regtaskset_stop2[] = "stop it?";
+const char popup_msg_regtaskset_start1[] = "Recording started";
+const char popup_msg_regtaskset_start2[] = "data will be discarded";
 
 void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
 {
@@ -320,13 +322,21 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
     }
     else 
     {
-        if ( ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) == 0) &&     // if run mode changed from recording -> stopped
-             uiel_control_checkbox_get( &ui.p.swRegTaskSet.run ) )
+        if ( (core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) &&
+             (uiel_control_checkbox_get( &ui.p.swRegTaskSet.run ) == false)  )      // stopping
         {
             ui.popup.params.line1 = (uint32)popup_msg_regtaskset_stop1;
             ui.popup.params.line2 = (uint32)popup_msg_regtaskset_stop2;
             change = true;
         }
+        else if (  ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) == 0) &&
+                   uiel_control_checkbox_get( &ui.p.swRegTaskSet.run )  )           // starting
+        {
+            ui.popup.params.line1 = (uint32)popup_msg_regtaskset_start1;
+            ui.popup.params.line2 = (uint32)popup_msg_regtaskset_start2;
+            change = true;
+        }
+
         ui.p.swRegTaskSet.task.size = 0;        // mark that task setup is not changed
     }
 
@@ -339,7 +349,7 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
         ui.popup.params.x1 = 5;
         ui.popup.params.y1 = 2;
         ui.popup.params.y2 = 10;
-        ui.popup.params.x3 = 10;
+        ui.popup.params.x3 = 40;
         ui.popup.params.y3 = 18;
         ui.popup.params.popup_action = uipa_ok_cancel;
         uist_enter_popup( context | UI_REG_OK_PRESSED, 
@@ -368,7 +378,9 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
         set_run = uiel_control_checkbox_get( &ui.p.swRegTaskSet.run );
         // apply new params if needed
         if ( ui.p.swRegTaskSet.task.size )
+        {
             core_op_register_setup_task( ui.p.swRegTaskSet.task_index, &ui.p.swRegTaskSet.task );
+        }
 
         // change run mode if needed
         if ( set_run != ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) != 0) )
@@ -382,6 +394,11 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
     else
         uist_change_state( UI_STATE_NONE, UI_SET_QuickSwitch, true );
     // ui.m_return - 1 indicates the task index
+}
+
+void ui_call_setwindow_regtaskset_valch( int context, void *pval )
+{
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
 }
 
 
@@ -420,7 +437,7 @@ void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
         ui.popup.params.x1 = 5;
         ui.popup.params.y1 = 2;
         ui.popup.params.y2 = 10;
-        ui.popup.params.x3 = 10;
+        ui.popup.params.x3 = 40;
         ui.popup.params.y3 = 18;
         ui.popup.params.popup_action = uipa_ok_cancel;
         uist_enter_popup( change, 
