@@ -637,6 +637,24 @@ _set_original:
 }
 
 
+// --- Recorded graph displaying
+
+// --- graph select window
+
+void ui_call_graphselect_action( int context, void *pval )
+{
+    // context = 0 if esc. pressed, 1..4 for the 4 tasks
+    if ( context == 0 )
+    { 
+        uist_change_state( UI_STATE_MODE_SELECT, UI_SET_NONE, true );
+        return;
+    }
+    // graph display selected
+    context--;
+    ui.m_return = context;
+}
+
+
 // Popup window default callback
 
 void ui_call_popup_default( int context, void *pval )
@@ -1189,6 +1207,14 @@ void uist_opmodeselect( struct SEventStruct *evmask )
             ui.m_setstate = UI_SET_QuickSwitch;
             ui.m_substate = UI_SUBST_ENTRY;
             ui.m_return = 0;
+            return;
+        }
+        if ( evmask->key_pressed & KEY_RIGHT )
+        {
+            ui.m_state = UI_STATE_SETWINDOW;
+            ui.m_setstate = UI_SET_GraphSelect;
+            ui.m_substate = UI_SUBST_ENTRY;
+            ui.m_return = 1;
             return;
         }
         if ( evmask->key_longpressed & KEY_MODE )

@@ -37,6 +37,8 @@ extern struct SCore core;
 
 const char c_menu_main[]            = { "combine shutter setup" };
 const char c_menu_setup[]           = { "display power_save reset" };
+const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
+
 
 // local general purpose buffers for graph and tendency
 int grf_up_lim;
@@ -229,6 +231,9 @@ static void uist_mainwindow_statusbar( int rdrw )
                         break;
                     case UI_SET_RegTaskMem:
                         uigrf_text( 15, 3, uitxt_smallbold, "Task Memory");
+                        break;
+                    case UI_SET_GraphSelect:
+                        uigrf_text( 15, 3, uitxt_smallbold, "Graph Select:");
                         break;
                 }
         }
@@ -455,17 +460,17 @@ static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 t
         else
             Gtext_PutChar( 'D' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24)) / 3600, 2, 0, false );
-        Gtext_PutChar( 'H' );
+        Gtext_PutChar( 'h' );
     }
     else if ( time >= 3600 )
     {
         uigrf_putnr(x, y, style, time / (3600), 2, 0, false );
         if ( spaces )
-            Gtext_PutText( "H " );
+            Gtext_PutText( "h " );
         else
-            Gtext_PutChar( 'H' );
+            Gtext_PutChar( 'h' );
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600)) / 60, 2, 0, false );
-        Gtext_PutChar( 'M' );
+        Gtext_PutChar( 'm' );
     } 
     else
     {
@@ -476,7 +481,7 @@ static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 t
             Gtext_PutChar( 'M' );
         
         uigrf_putnr(GDISP_WIDTH, 0, style, (time % (60)), 2, 0, false );
-        Gtext_PutChar( 'S' );
+        Gtext_PutChar( 's' );
     }
 }
 
@@ -487,10 +492,8 @@ static uint32 internal_mem_rate_2_time( struct SRegTaskInstance task )
 }   
 
 
-static void internal_rectask_summary( uint32 x, uint32 y, int index )
+static void internal_rectask_summary( uint32 x, uint32 y, int index, uint32 time )
 {
-    uint32 time;
-
     uibm_put_bitmap( x+1, y+1, BMP_ICO_REGST_TASK1 + index );
     switch ( core.nvreg.task[index].task_elems )
     {
@@ -510,7 +513,6 @@ static void internal_rectask_summary( uint32 x, uint32 y, int index )
     Graphic_SetColor(0);
     Graphic_FillRectangle( x+41, y+1, x+68, y+9, 0 );
 
-    time = internal_mem_rate_2_time( core.nvreg.task[index] );
     internal_puttime_info( x+41, y+3, uitxt_micro, time, false );
 
     Graphic_SetColor(-1);
@@ -787,7 +789,7 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 
         for (i=0; i<4; i++)
         {
-            internal_rectask_summary( 58, 17+i*12, i );
+            internal_rectask_summary( 58, 17+i*12, i, internal_mem_rate_2_time(core.nvreg.task[i]) );
         }
     }
 
@@ -858,9 +860,9 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
         Graphic_SetColor(0);
         Graphic_FillRectangle( 72, 18, 126, 40, 0 ); 
 
-        uigrf_text( 72, 18, uitxt_micro,  "TASK INFO:" );
-        uigrf_text( 72, 26, uitxt_micro,  "TIME:" );
-        uigrf_text( 72, 34, uitxt_micro,  "SMPL:" );
+        uigrf_text( 72, 18, uitxt_micro,  "Task Info:" );
+        uigrf_text( 72, 26, uitxt_micro,  "Time:" );
+        uigrf_text( 72, 34, uitxt_micro,  "Smpl:" );
 
         smpl = core_op_register_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_REGMEM_PAGESIZE,
                                                     (enum ERegistrationTaskType)ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
@@ -874,6 +876,34 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
         uist_internal_disp_all_with_focus();
     }
 }
+
+
+static inline void uist_draw_graphselect( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        int i;
+        uint32 time;
+
+        for (i=0; i<4; i++)
+        {
+            time = core.nvreg.func[i].c * core_utils_timeunit2seconds( core.nvreg.task[i].sample_rate );
+            internal_rectask_summary( 0, 17+i*12, i, time );
+            
+            internal_puttime_info( 72, 20+i*12, uitxt_micro, internal_mem_rate_2_time( core.nvreg.task[i] ), false );
+            uigrf_text( 107, 20+i*12, uitxt_micro, upd_rates[ core.nvreg.task[i].sample_rate ] );
+        }
+    }
+    if ( redraw_type & RDRW_UI_CONTENT )
+    {
+        uist_internal_disp_all_with_focus();
+    }
+}
+
+
+
+
+
 
 ////////////////////////////////////////////////////
 //
@@ -897,12 +927,12 @@ static inline void uist_setview_mainwindowgauge_thermo( void )
     for (i=0; i<3; i++)
     {
         uiel_control_list_init( &ui.p.mgThermo.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET1", mms_set1 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "SET2", mms_set2 );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY", mms_day_crt );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "DAY-", mms_day_bfr );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WEEK", mms_week_crt );
-        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "WK-", mms_week_bfr );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Set1", mms_set1 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Set2", mms_set2 );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Day", mms_day_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Day-", mms_day_bfr );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Week", mms_week_crt );
+        uiel_control_list_add_item( &ui.p.mgThermo.minmaxset[i], "Wk-", mms_week_bfr );
         uiel_control_list_set_index( &ui.p.mgThermo.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_temp, i) );
         uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_thermo_minmax_vchange );
         uiel_control_list_set_callback( &ui.p.mgThermo.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_thermo_minmax_toDefault );
@@ -931,12 +961,12 @@ static inline void uist_setview_mainwindowgauge_hygro( void )
     for (i=0; i<3; i++)
     {
         uiel_control_list_init( &ui.p.mgHygro.minmaxset[i], 4+i*27, 41, 16, uitxt_micro, 0, true );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "SET1", mms_set1 );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "SET2", mms_set2 );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "DAY", mms_day_crt );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "DAY-", mms_day_bfr );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WEEK", mms_week_crt );
-        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "WK-", mms_week_bfr );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Set1", mms_set1 );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Set2", mms_set2 );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Day", mms_day_crt );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Day-", mms_day_bfr );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Week", mms_week_crt );
+        uiel_control_list_add_item( &ui.p.mgHygro.minmaxset[i], "Wk-", mms_week_bfr );
         uiel_control_list_set_index( &ui.p.mgHygro.minmaxset[i], GET_MM_SET_SELECTOR(core.nv.setup.show_mm_hygro, i) );
         uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_Vchange, i, ui_call_maingauge_hygro_minmax_vchange );
         uiel_control_list_set_callback( &ui.p.mgHygro.minmaxset[i], UIClist_EscLong, i, ui_call_maingauge_hygro_minmax_toDefault );
@@ -967,12 +997,12 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 
     // min/max set
     uiel_control_list_init( &ui.p.mgPress.minmaxset, 52, 40, 16, uitxt_micro, 0, true );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "SET1", mms_set1 );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "SET2", mms_set2 );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "DAY", mms_day_crt );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "DAY-", mms_day_bfr );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "WEEK", mms_week_crt );
-    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "WK-", mms_week_bfr );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Set1", mms_set1 );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Set2", mms_set2 );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Day", mms_day_crt );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Day-", mms_day_bfr );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Week", mms_week_crt );
+    uiel_control_list_add_item( &ui.p.mgPress.minmaxset, "Wk-", mms_week_bfr );
     uiel_control_list_set_index( &ui.p.mgPress.minmaxset, GET_MM_SET_SELECTOR(core.nv.setup.show_mm_press, 0) );
     ui.ui_elems[3] = &ui.p.mgPress.minmaxset;
 
@@ -980,21 +1010,13 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 }
 
 
-const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
 const enum EUpdateTimings upd_timings[] = { ut_5sec,  ut_10sec, ut_30sec, ut_1min,  ut_2min,  ut_5min,  ut_10min, ut_30min, ut_60min };
 
 static inline void uist_setview_setwindow_quickswitch( void )
 {   
     int i, j;
 
-    if ( core.vstatus.int_op.f.nv_reg_initted == 0 )
-    {
-        if ( core_nvregister_load() )
-        {
-            core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
-            // TODO the rest
-        }
-    }
+    core_op_register_init();
 
     // monitoring on/off switch
     uiel_control_checkbox_init( &ui.p.swQuickSw.monitor, 40, 2 );
@@ -1029,7 +1051,7 @@ static inline void uist_setview_setwindow_quickswitch( void )
     }
 
     uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 50, 12 );
-    uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "RESET MM", uitxt_micro );
+    uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "Reset MM", uitxt_micro );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_OK, 0, ui_call_setwindow_quickswitch_reset_minmax );
     ui.ui_elems[5] = &ui.p.swQuickSw.resetMM;
@@ -1132,6 +1154,31 @@ static inline void uist_setview_setwindow_regtask_mem(void)
 }
 
 
+static inline void uist_setview_graphselect(void)
+{
+    int i;
+
+    if ( ui.m_return == 0 )
+        ui.m_return++;      // paranoia
+
+    core_op_register_init();    
+
+    ui.p.grSelect.task_idx = ui.m_return - 1;
+
+    for ( i=0; i<4; i++ )
+    {
+        uiel_control_pushbutton_init( &ui.p.grSelect.taskbutton[i], 0, 17+i*12, 69, 10 );
+        uiel_control_pushbutton_set_content( &ui.p.grSelect.taskbutton[i], uicnt_hollow, 0, NULL, (enum Etextstyle)0 );
+        uiel_control_pushbutton_set_callback( &ui.p.grSelect.taskbutton[i], UICpb_Esc, 0, ui_call_graphselect_action );
+        uiel_control_pushbutton_set_callback( &ui.p.grSelect.taskbutton[i], UICpb_OK, i+1, ui_call_graphselect_action );
+        ui.ui_elems[i] = &ui.p.grSelect.taskbutton[i];
+    }
+
+    ui.focus = ui.m_return;
+    ui.ui_elem_nr = 4;
+}
+
+
 static void local_drawwindow_common_op( int redraw_type )
 {
     // if all the content should be redrawn
@@ -1194,8 +1241,8 @@ void uist_drawview_setwindow( int redraw_type )
             case UI_SET_QuickSwitch:    uist_draw_setwindow_quickswitch(redraw_type); break;
             case UI_SET_RegTaskSet:     uist_draw_setwindow_regtask_set(redraw_type); break;
             case UI_SET_RegTaskMem:     uist_draw_setwindow_regtask_mem(redraw_type); break;
+            case UI_SET_GraphSelect:    uist_draw_graphselect(redraw_type); break;
         }
-
     }
 
 }
@@ -1314,6 +1361,7 @@ void uist_setupview_setwindow( bool reset )
         case UI_SET_QuickSwitch:    uist_setview_setwindow_quickswitch(); break;
         case UI_SET_RegTaskSet:     uist_setview_setwindow_regtask_set(); break;
         case UI_SET_RegTaskMem:     uist_setview_setwindow_regtask_mem(); break;
+        case UI_SET_GraphSelect:    uist_setview_graphselect(); break;
     }
 }
 

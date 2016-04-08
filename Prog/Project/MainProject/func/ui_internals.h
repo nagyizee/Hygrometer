@@ -29,9 +29,11 @@
     enum EUISetupSelect
     {
         UI_SET_NONE = 0,
+        UI_SET_GraphSelect,                     // Select graph display screen - not really a setup, but using the infrastructure
         UI_SET_QuickSwitch,                     // set up quick switches
         UI_SET_RegTaskSet,                      // set up registering task
         UI_SET_RegTaskMem,                      // set up registering task recording lenght and memory repartization
+
 
     };
 
@@ -85,6 +87,14 @@
         bool                         msl_ref;       // if true - mean see level pressure is the reference -> calculate altitude
     };                                              // if false - altitude is the reference -> calculate the msl pressure
 
+
+    struct SUIGraphSelect
+    {
+        uint32  task_idx;
+        struct Suiel_control_pushbutton taskbutton[4];
+    };
+
+
     struct SUISetQuickSwitch
     {
         struct Suiel_control_checkbox   monitor;
@@ -120,9 +130,13 @@
         struct SUIMainGaugeHygro   mgHygro;
         struct SUIMainGaugePress   mgPress;
 
+        struct SUIGraphSelect      grSelect;
+
         struct SUISetQuickSwitch    swQuickSw;      // params for quick switch
         struct SUISetRegTaskSet     swRegTaskSet;
         struct SUISetRegTaskMemory  swRegTaskMem;
+
+
 
     };
 
@@ -239,6 +253,9 @@
     void ui_call_setwindow_regtaskmem_chtask( int context, void *pval );
     void ui_call_setwindow_regtaskmem_chstart( int context, void *pval );
     void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval );
+
+    void ui_call_graphselect_action( int context, void *pval );
+
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

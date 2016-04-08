@@ -796,7 +796,7 @@ int core_nvregister_load( void )
     for ( i=0; i<sizeof(core.nvreg); i++ )
         cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
     if ( cksum != cksum_op )
-        return -1;
+        return -2;
 
     core.vstatus.int_op.f.nv_reg_initted = 1;
     return 0;
@@ -1037,6 +1037,18 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
     }
 }
 
+
+void core_op_register_init(void)
+{
+    if ( core.vstatus.int_op.f.nv_reg_initted )
+        return;
+
+    if ( core_nvregister_load() )
+    {
+        core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
+        // TODO the rest
+    }
+}
 
 void core_op_register_switch( bool enabled )
 {

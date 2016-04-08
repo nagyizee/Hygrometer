@@ -411,7 +411,6 @@
     // save / load / reset setup in eeprom
     int core_setup_save( void );
     int core_setup_reset( bool save );
-    int core_nvregister_load(void);
     int core_setup_load( bool no_op_load );
     void core_nvfast_save_struct(void);
 
@@ -424,6 +423,8 @@
     // reset min/max value set for a specified sensor
     void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset );
 
+    // init registering structure from nonvolatile ram (if needed)
+    void core_op_register_init(void);
     // master switch for registering operation
     void core_op_register_switch( bool enabled );
     // set up registering parameters

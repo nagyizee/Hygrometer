@@ -15,7 +15,7 @@ DEFINES += ON_QT_PLATFORM
 
 INCLUDEPATH += ../../../Prog/Project/MainProject/ \
                ../../../Prog/Project/MainProject/func/  \
-               ../../../../../../000_SoftOnly/MyGraphicLibrary/MyGraphicLibrary/graphic_lib_app/graphic_lib/
+               ../../../Prog/Project/MainProject/graphic_lib/  \
 
 SOURCES += main.cpp\
         mainw.cpp \
@@ -26,7 +26,7 @@ SOURCES += main.cpp\
     ../../../Prog/Project/MainProject/func/ui.c \
     ../../../Prog/Project/MainProject/func/core.c \
     ../../../Prog/Project/MainProject/func/ui_elements.c \
-    ../../../../../../000_SoftOnly/MyGraphicLibrary/MyGraphicLibrary/graphic_lib_app/graphic_lib/graphic_lib.c \
+    ../../../Prog/Project/MainProject/graphic_lib/graphic_lib.c \
     ../../../Prog/Project/MainProject/func/ui_graphics.c \
     ../../../Prog/Project/MainProject/func/utilities.c \
     ../../../Prog/Project/MainProject/func/ui_internals.c

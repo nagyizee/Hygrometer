@@ -778,21 +778,60 @@ const uint8 SystemFontData[] = {0x25, 0x08, 0x05, 0x84, 0x10, 0x42, 0x00, 0x01, 
     //
     //////////////////////////////////////////////////////////////////
 
-    static bool CheckCHRinFont( uint8 chr )
+    //  generated font file:
+    //      1 byte info flag: ttfddddd
+    //                                      tt: - font file type:
+    //                                              00 - full ASCII caracter set
+    //                                              01 - half ASCII caracter set ( contains only the alphanumerics from 0x20 -> 0x7F )
+    //                                              10 - only Upper case with numeric
+    //                                              11 - numeric only
+    //                                      f:  - fixed size: 0 - variable size, each caracter has a width field at the beginning
+    //                                                        1 - fixed size - each caracter has the same width - one more field in plus in the font file header
+    //                                      ddddd:  c_size - one caracter graphics size in bytes (containing header if it has)
+    //
+    //      1 byte caracter height:     - caracter height
+    //      1 byte caracter width:      - 0 if f=0, caracter width if f=1 (see abowe)
+    //      n bytes caracter graphics:
+    //
+    //          - each caracter graphics:   - size of c_size
+    //                  in case of f=1:
+    //                      - 1 byte         - width info
+    //                      - c_size-1 bytes - caracter graphics
+    //                  in case of f=0:
+    //                      - c_size bytes   - caracter graphics
+    //
+    //                      caracter graphics: shifted bit graphic data - if caracter width reached, continue in the next line, till caracter height+width reached
+    //
+    //  font elements for upper case only + numeric (tt = 10):
+    //       !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_'
+    //  font elements for numeric only:
+    //       !"#$%&'()*+,-./0123456789:
+    
+
+    static bool CheckCHRinFont( uint8 *pchr )
     {
+        uint8 chr = *pchr;
+
         if ( chr < '!' )
             return false;
 
         if ( (G_var.text.pFont[0] & 0xC0) == 0 )        // full ASCII
             return true;
         // else consider half ASCII
-        if ( chr > '~' )
+        if ( (chr > '~') || (chr < ' ') )
             return false;
 
-        if ( ((G_var.text.pFont[0] & 0xC0) == 2 ) &&    // upper case only
+        if ( ((G_var.text.pFont[0] & 0xC0) == 0x80 ) &&    // upper case only
              ((chr >= 'a') && (chr < '{' )) )
+        {
+            if ( (chr >= 'a') && (chr <= 'z') )     // lower case caracters will be converted
+            {
+                *pchr = chr & 0xDF;
+                return true;
+            }
             return false;
-        if ( ((G_var.text.pFont[0] & 0xC0) == 3 ) &&    // numeric only
+        }
+        if ( ((G_var.text.pFont[0] & 0xC0) == 0xC0 ) &&    // numeric only
              (chr > ':') )
             return false;
 
@@ -872,7 +911,7 @@ const uint8 SystemFontData[] = {0x25, 0x08, 0x05, 0x84, 0x10, 0x42, 0x00, 0x01, 
         height = G_var.text.pFont[1];
 
         // check if character is in the font file and get it's width
-        if ( CheckCHRinFont(chr) == false )     // if character is not in font file or it is 'space' then advance X pointer 
+        if ( CheckCHRinFont(&chr) == false )     // if character is not in font file or it is 'space' then advance X pointer 
         {
             width = Gtext_GetCharacterWidth(' ');
             printable = false;
@@ -1030,7 +1069,7 @@ const uint8 SystemFontData[] = {0x25, 0x08, 0x05, 0x84, 0x10, 0x42, 0x00, 0x01, 
         if ( chr == ' ' )
             return G_var.text.pFont[offset];     // for space return the width of the first character from the font
 
-        if ( CheckCHRinFont( chr ) )
+        if ( CheckCHRinFont( &chr ) )
             return G_var.text.pFont[ (chr - '!') * c_size + offset ];
         else
             return GRESULT_PARAM_ERROR;
