@@ -652,6 +652,7 @@ void ui_call_graphselect_action( int context, void *pval )
     // graph display selected
     context--;
     ui.m_return = context;
+    uist_change_state( UI_STATE_MAIN_GRAPH, UI_SET_NONE, true );
 }
 
 
@@ -1370,6 +1371,46 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 }
 
 
+/// UI MAIN GRAPHIC WINDOW
+
+void uist_mainwindowgraph_entry( void )
+{
+    uist_setupview_mainwindow( true );
+    uist_drawview_mainwindow( RDRW_ALL );
+    DispHAL_UpdateScreen();
+    core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
+    ui.m_substate ++;
+    ui.upd_ui_disp = 0;
+}
+
+
+void uist_mainwindowgraph( struct SEventStruct *evmask )
+{
+    if ( evmask->key_event )
+    {
+
+
+        // power button activated
+        if ( evmask->key_longpressed & KEY_MODE )
+        {
+            uist_goto_shutdown();
+            return;
+        }
+        if ( evmask->key_released & KEY_MODE )
+        {
+            core_op_realtime_sensor_select( ss_none );
+            ui.m_state = UI_STATE_MODE_SELECT;
+            ui.m_substate = UI_SUBST_ENTRY;
+            return;
+        }
+    }
+
+    // update screen on timebase
+    ui.upd_ui_disp |= uist_timebased_updates( evmask );
+    uist_update_display( ui.upd_ui_disp );
+    ui.upd_ui_disp = 0;
+}
+
 
 ////////////////////////////////////////////////////
 //
@@ -1416,6 +1457,9 @@ uint32 ui_poll( struct SEventStruct *evmask )
                 case UI_STATE_MAIN_GAUGE:
                     uist_mainwindowgauge_entry();
                     break;
+                case UI_STATE_MAIN_GRAPH:
+                    uist_mainwindowgraph_entry();
+                    break;
                 case UI_STATE_SETWINDOW:
                     uist_setwindow_entry();
                     break;
@@ -1439,6 +1483,9 @@ uint32 ui_poll( struct SEventStruct *evmask )
             {
                 case UI_STATE_MAIN_GAUGE:
                     uist_mainwindowgauge( evmask );
+                    break;
+                case UI_STATE_MAIN_GRAPH:
+                    uist_mainwindowgraph( evmask );
                     break;
                 case UI_STATE_SETWINDOW:
                     uist_setwindow( evmask );

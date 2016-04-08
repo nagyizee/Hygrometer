@@ -189,6 +189,9 @@ static void uist_mainwindow_statusbar( int rdrw )
     if ( rdrw & RDRW_BATTERY)
         uigrf_draw_battery(120, 0, core.measure.battery );
 
+    if ( ui.m_state == UI_STATE_MAIN_GRAPH )  // skip status bar drawing for graph view
+        return;
+
     if ( (rdrw & RDRW_STATUSBAR) == RDRW_STATUSBAR )
     {
         // redraw everything
@@ -775,6 +778,46 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 }
 
 
+static inline void uist_draw_graph( int redraw_all )
+{
+    if ( redraw_all & RDRW_UI_CONTENT )
+    {
+        Graphic_SetColor(1);
+        Graphic_Line(0,15,127,15);
+        Graphic_Line(111,16,111,63);
+
+        // left/right time domain
+        uigrf_text( 0, 0, uitxt_micro | uitxt_MONO,  "11-30" );
+        uigrf_text( 0, 7, uitxt_micro | uitxt_MONO,  "15:23" );
+
+        uigrf_text( 100, 0, uitxt_micro | uitxt_MONO,  "12-30" );
+        uigrf_text( 100, 7, uitxt_micro | uitxt_MONO,  "08:45" );
+
+        // Selected task
+        uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
+        uibm_put_bitmap( 35, 1, BMP_ICO_REGST_THP );
+        Graphic_SetColor(-1);
+        Graphic_FillRectangle(44,2,48,9,-1);
+
+        // current value display
+        uigrf_text( 60, 1, uitxt_small,  "1012.56" );
+
+
+        // memory position (zoom)
+        Graphic_SetColor(1);
+        Graphic_Rectangle( 21, 11, 97, 15 );
+        Graphic_FillRectangle( 21, 12, 45, 14, 1 );
+        Graphic_FillRectangle( 53, 12, 97, 14, 1 );
+
+        // Y scale
+        uigrf_text( 113, 16, uitxt_micro, "1001" );
+        uigrf_text( 113, 58, uitxt_micro, "1013" );
+        uigrf_text( 113, 22, uitxt_micro, "hpa" );
+
+    }
+}
+
+
 const char tendency_total_lenght[][5] = { "3M15", "6M30", "20M", "40M", "1H20", "3H15", "6H30", "20H", "1D15" };
 static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 {
@@ -902,9 +945,6 @@ static inline void uist_draw_graphselect( int redraw_type )
 
 
 
-
-
-
 ////////////////////////////////////////////////////
 //
 //   UI status dependent window setups
@@ -1008,6 +1048,15 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 
     ui.ui_elem_nr = 4;
 }
+
+
+static inline void uist_setview_mainwindow_graph( void )
+{
+
+
+    ui.ui_elem_nr = 0;
+}
+
 
 
 const enum EUpdateTimings upd_timings[] = { ut_5sec,  ut_10sec, ut_30sec, ut_1min,  ut_2min,  ut_5min,  ut_10min, ut_30min, ut_60min };
@@ -1218,12 +1267,20 @@ void uist_drawview_mainwindow( int redraw_type )
     // if UI content should be redrawn
     if ( redraw_type & (~RDRW_STATUSBAR) )                          // if there are other things to be redrawn from the UI
     {
-        switch ( ui.main_mode )
+        switch ( ui.m_state )
         {
-            case UImm_gauge_thermo:   uist_draw_gauge_thermo(redraw_type); break;
-            case UImm_gauge_hygro:    uist_draw_gauge_hygro(redraw_type); break;
-            case UImm_gauge_pressure: uist_draw_gauge_pressure(redraw_type); break;
-            break;
+            case UI_STATE_MAIN_GAUGE:
+                switch ( ui.main_mode )
+                {
+                    case UImm_gauge_thermo:   uist_draw_gauge_thermo(redraw_type); break;
+                    case UImm_gauge_hygro:    uist_draw_gauge_hygro(redraw_type); break;
+                    case UImm_gauge_pressure: uist_draw_gauge_pressure(redraw_type); break;
+                    break;
+                }
+                break;
+            case UI_STATE_MAIN_GRAPH:
+                uist_draw_graph(redraw_type);
+                break;
         }
     }
 }
@@ -1344,11 +1401,19 @@ void uist_setupview_mainwindow( bool reset )
     ui.focus = 0;
 
     // main windows
-    switch ( ui.main_mode )
+    switch ( ui.m_state )
     {
-        case UImm_gauge_thermo:      uist_setview_mainwindowgauge_thermo(); break;
-        case UImm_gauge_hygro:       uist_setview_mainwindowgauge_hygro(); break;
-        case UImm_gauge_pressure:    uist_setview_mainwindowgauge_pressure(); break;
+        case UI_STATE_MAIN_GAUGE:
+            switch ( ui.main_mode )
+            {
+                case UImm_gauge_thermo:      uist_setview_mainwindowgauge_thermo(); break;
+                case UImm_gauge_hygro:       uist_setview_mainwindowgauge_hygro(); break;
+                case UImm_gauge_pressure:    uist_setview_mainwindowgauge_pressure(); break;
+            }
+            break;
+        case UI_STATE_MAIN_GRAPH:
+            uist_setview_mainwindow_graph(); 
+            break;
     }
 }
 
