@@ -99,7 +99,7 @@ void TimerRTCIntrHandler(void);
 
 
 void HW_ASSERT();
-
+void HW_DBG_DUMP(struct SCore *core);
 
 
 // just a wrapper solution

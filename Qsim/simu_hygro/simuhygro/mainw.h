@@ -150,6 +150,10 @@ public:
 
     uint16  BKPregs[10];
 
+    uint32  dbg_shed_sens_temp;
+    uint32  dbg_shed_sens_rh;
+    uint32  dbg_shed_sens_press;
+
 private:
     void Application_MainLoop( bool tick );
     void CPULoopSimulation( bool tick );

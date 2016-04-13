@@ -37,6 +37,14 @@ void HW_ASSERT(const char *reason)
     pClass->HW_assertion(reason);
 }
 
+void HW_DBG_DUMP(struct SCore *core)
+{
+    pClass->dbg_shed_sens_temp = core->nv.op.sched.sch_thermo;
+    pClass->dbg_shed_sens_rh = core->nv.op.sched.sch_hygro;
+    pClass->dbg_shed_sens_press = core->nv.op.sched.sch_press;
+}
+
+
 bool BtnGet_OK()
 {
     return pClass->HW_wrapper_getButton(BTN_OK);
@@ -273,6 +281,10 @@ void mainw::HW_wrapper_update_display()
     static uint32 OldRTC = 0;
     static uint32 OldAlarm = 0;
 
+    static uint32 old_sched_sens_temp = 0;
+    static uint32 old_sched_sens_rh = 0;
+    static uint32 old_sched_sens_press = 0;
+
     if ( disp_changed )
     {
         disp_changed = false;
@@ -312,6 +324,28 @@ void mainw::HW_wrapper_update_display()
                  (RTCalarm & 0x01) ? '5' : '0',               // 1/2 second
                  RTCalarm                      );
         ui->tb_alarm->setText(tr(timedisp));
+    }
+
+    {
+        char timedisp[256];
+        if ( old_sched_sens_temp != dbg_shed_sens_temp )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_temp );
+            ui->tb_shed_temp->setText(tr(timedisp));
+            old_sched_sens_temp = dbg_shed_sens_temp;
+        }
+        if ( old_sched_sens_rh != dbg_shed_sens_rh )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_rh );
+            ui->tb_shed_rh->setText(tr(timedisp));
+            old_sched_sens_rh = dbg_shed_sens_rh;
+        }
+        if ( old_sched_sens_press != dbg_shed_sens_press )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_press );
+            ui->tb_shed_press->setText(tr(timedisp));
+            old_sched_sens_press = dbg_shed_sens_press;
+        }
     }
 
     disppwr_redraw_content();

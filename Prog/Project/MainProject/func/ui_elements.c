@@ -1509,7 +1509,7 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
 
         // Up and Down are captured for any element in focus and have immediate action
         {
-            if ( evmask->key_pressed & KEY_UP )
+            if ( evmask->key_pressed & KEY_RIGHT )
             {
                 switch ( handle_ID )
                 {
@@ -1520,9 +1520,9 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                     case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle ); break;
                 }
                 changed = true;
-                evmask->key_pressed &= ~KEY_UP;     // delete the keypress event for the upper layer as it is captured by this layer
+                evmask->key_pressed &= ~KEY_RIGHT;     // delete the keypress event for the upper layer as it is captured by this layer
             }
-            else if ( evmask->key_pressed & KEY_DOWN )
+            else if ( evmask->key_pressed & KEY_LEFT )
             {
                 switch ( handle_ID )
                 {
@@ -1533,7 +1533,7 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                     case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle ); break;
                 }
                 changed = true;
-                evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
+                evmask->key_pressed &= ~KEY_LEFT;     // delete the keypress event for the upper layer as it is captured by this layer
             }
         }
 

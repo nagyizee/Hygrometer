@@ -56,7 +56,7 @@ static void local_ui_set_shutdown_state(void)
     ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
 }
 
-void internal_get_regtask_set_from_ui(struct SRegTaskInstance *task)
+void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
 {
     int i;
     uint32 elems = 0;
@@ -175,12 +175,12 @@ void ui_call_maingauge_hygro_minmax_vchange( int context, void *pval )
 
 // --- Setup quick switches 
 
-const char popup_msg_op_monitoring[] =  "TENDENCY GRAPH WILL BE";
-const char popup_msg_op_registering[] = "REGISTERED DATA WILL BE";
-const char popup_msg_op_monitoring2[] = "DISCARDED AT RESTART!";
+const char popup_msg_op_monitoring[] =  "tendency graph will be";
+const char popup_msg_op_registering[] = "Recorded data will be";
+const char popup_msg_op_monitoring2[] = "discarded at restart!";
 const char popup_msg_op_2[] =          "Proceed?";
-const char popup_msg_op_register_nosel1[] =  "NO TASK IS SELECTED FOR";
-const char popup_msg_op_register_nosel2[] =  "RECORDING. SELECT ONE FIRST";
+const char popup_msg_op_register_nosel1[] =  "no task is selected for";
+const char popup_msg_op_register_nosel2[] =  "recording. select one first";
 
 void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
 {
@@ -193,7 +193,7 @@ void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
             core_op_monitoring_switch(true);
         else
         {
-            if ( core.nvreg.running == 0 )
+            if ( core.nvrec.running == 0 )
             {
                 ui.popup.params.line1 = (uint32)popup_msg_op_register_nosel1;       // need to trick the compiler to not to complain about const type
                 ui.popup.params.line2 = (uint32)popup_msg_op_register_nosel2;
@@ -208,7 +208,7 @@ void ui_call_setwindow_quickswitch_op_switch( int context, void *pval )
                 uiel_control_checkbox_set( &ui.p.swQuickSw.reg, false );
             }
             else
-                core_op_register_switch(true);
+                core_op_recording_switch(true);
         }
     }
     else
@@ -240,7 +240,7 @@ void ui_call_setwindow_quickswitch_op_switch_ok( int context, void *pval )
     if ( context == 0 )
         core_op_monitoring_switch(false);
     else if ( context == 1 )
-        core_op_register_switch(false);
+        core_op_recording_switch(false);
     else
     {
 
@@ -262,10 +262,10 @@ void ui_call_setwindow_quickswitch_op_switch_cancel( int context, void *pval )
 
 void ui_call_setwindow_quickswitch_monitor_rate( int context, void *pval )
 {
-    // context points to the ui element, to obtain the sensor use context-2
+    // context points to the ui element, to obtain the sensor use context-1
     int val;
     val = uiel_control_list_get_value( (struct Suiel_control_list*)(ui.ui_elems[context]) );
-    core_op_monitoring_rate( (enum ESensorSelect)(context + ss_thermo - 2), (enum EUpdateTimings)val );
+    core_op_monitoring_rate( (enum ESensorSelect)(context + ss_thermo - 1), (enum EUpdateTimings)val );
 }
 
 
@@ -332,11 +332,11 @@ const char popup_msg_regtaskset_start2[] = "data will be discarded";
 void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
 {
     // exitting from registering task set - check for changes
-    struct SRegTaskInstance task_ui;
+    struct SRecTaskInstance task_ui;
     bool change = false;
 
     internal_get_regtask_set_from_ui( &task_ui );
-    if ( memcmp( &task_ui, &core.nvreg.task[ui.p.swRegTaskSet.task_index], sizeof(task_ui) ) )     // if setup is changed
+    if ( memcmp( &task_ui, &core.nvrec.task[ui.p.swRegTaskSet.task_index], sizeof(task_ui) ) )     // if setup is changed
     {   
         ui.p.swRegTaskSet.task = task_ui;
         ui.popup.params.line1 = (uint32)popup_msg_regtaskset_setup1;
@@ -345,14 +345,14 @@ void ui_call_setwindow_regtaskset_next_action( int context, void *pval )
     }
     else 
     {
-        if ( (core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) &&
+        if ( (core.nvrec.running & (1<<ui.p.swRegTaskSet.task_index)) &&
              (uiel_control_checkbox_get( &ui.p.swRegTaskSet.run ) == false)  )      // stopping
         {
             ui.popup.params.line1 = (uint32)popup_msg_regtaskset_stop1;
             ui.popup.params.line2 = (uint32)popup_msg_regtaskset_stop2;
             change = true;
         }
-        else if (  ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) == 0) &&
+        else if (  ((core.nvrec.running & (1<<ui.p.swRegTaskSet.task_index)) == 0) &&
                    uiel_control_checkbox_get( &ui.p.swRegTaskSet.run )  )           // starting
         {
             ui.popup.params.line1 = (uint32)popup_msg_regtaskset_start1;
@@ -402,12 +402,12 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
         // apply new params if needed
         if ( ui.p.swRegTaskSet.task.size )
         {
-            core_op_register_setup_task( ui.p.swRegTaskSet.task_index, &ui.p.swRegTaskSet.task );
+            core_op_recording_setup_task( ui.p.swRegTaskSet.task_index, &ui.p.swRegTaskSet.task );
         }
 
         // change run mode if needed
-        if ( set_run != ((core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index)) != 0) )
-            core_op_register_task_run( ui.p.swRegTaskSet.task_index, set_run );
+        if ( set_run != ((core.nvrec.running & (1<<ui.p.swRegTaskSet.task_index)) != 0) )
+            core_op_recording_task_run( ui.p.swRegTaskSet.task_index, set_run );
     }
 
     uist_close_popup();
@@ -425,6 +425,14 @@ void ui_call_setwindow_regtaskset_valch( int context, void *pval )
 }
 
 
+void ui_call_setwindow_dbg_gen_data( int context, void *pval )
+{
+    // hidden debug feature - generate test data
+    core_op_recording_dbgfill( ui.p.swRegTaskSet.task_index );
+}
+
+
+
 // --- Setup registering task allocation
 
 const char popup_msg_regtaskmem_change[] = "Data will be cleared";
@@ -438,7 +446,7 @@ void ui_call_setwindow_regtaskmem_exit( int context, void *pval )
     // check for changes
     for (i=0; i<4; i++)
     {
-        if ( memcmp( &ui.p.swRegTaskMem.task[i], &core.nvreg.task[i], sizeof(struct SRegTaskInstance) ) )
+        if ( memcmp( &ui.p.swRegTaskMem.task[i], &core.nvrec.task[i], sizeof(struct SRecTaskInstance) ) )
         {
             change |= ( 1 << i );
             popup_msg_regtaskmem_tasks[10] = i + '1';
@@ -480,7 +488,7 @@ void ui_call_setwindow_regtaskmem_exit_close( int context, void *pval )
         for (i=0; i<4; i++)
         {
             if ( context & (1<<i) )
-                core_op_register_setup_task( i, &ui.p.swRegTaskMem.task[i] );
+                core_op_recording_setup_task( i, &ui.p.swRegTaskMem.task[i] );
         }
     }
     uist_close_popup();
@@ -500,7 +508,7 @@ void ui_call_setwindow_regtaskmem_chtask( int context, void *pval )
     ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
 }
 
-bool internal_regtaskmem_inside( uint32 mstart, uint32 size, struct SRegTaskInstance task )
+bool internal_regtaskmem_inside( uint32 mstart, uint32 size, struct SRecTaskInstance task )
 {
     if ( (mstart <= task.mempage) &&                // current addess <= checked task's address
          ((mstart+size) > task.mempage) )   // total lenght > checked task's address
@@ -513,7 +521,7 @@ bool internal_regtaskmem_inside( uint32 mstart, uint32 size, struct SRegTaskInst
     return false;
 }
 
-uint32 internal_regtaskmem_maxlenght( struct SRegTaskInstance task )
+uint32 internal_regtaskmem_maxlenght( struct SRecTaskInstance task )
 {
     // maximum memory length is limmited to 2^16 elements
     switch ( task.task_elems )
@@ -538,7 +546,7 @@ uint32 internal_regtaskmem_maxlenght( struct SRegTaskInstance task )
 
 void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
 {
-    struct SRegTaskInstance task;
+    struct SRecTaskInstance task;
     int val = *((int*)pval);
     bool iter = false;
     bool up = false;
@@ -548,7 +556,7 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
     idx = ui.p.swRegTaskMem.task_index;
     task = ui.p.swRegTaskMem.task[idx];
 
-    if ( core.nvreg.running & (1<<idx) )        // editing a running task is not allowed
+    if ( core.nvrec.running & (1<<idx) )        // editing a running task is not allowed
         goto _set_original;
 
     if ( val > task.mempage )
@@ -564,7 +572,7 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
                 if ( up )
                 {
                     val = ui.p.swRegTaskMem.task[i].mempage + ui.p.swRegTaskMem.task[i].size;           // move the start address to the conflicting task's end
-                    if ( (val+task.size) > CORE_REGMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
+                    if ( (val+task.size) > CORE_RECMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
                         goto _set_original;
                 }
                 else
@@ -579,7 +587,7 @@ void ui_call_setwindow_regtaskmem_chstart( int context, void *pval )
 
         if ( up )
         {
-            if ( (val+task.size) > CORE_REGMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
+            if ( (val+task.size) > CORE_RECMEM_MAXPAGE )                                        // if task doesn't fit in memory - revert to original value
                         goto _set_original;
         }
         else if ( val < 0 )                                                                     // if task doesn't fit in memory - revert to original value
@@ -601,7 +609,7 @@ _set_original:
 
 void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval )
 {
-    struct SRegTaskInstance task;
+    struct SRecTaskInstance task;
     int val = *((int*)pval);
 
     int i;
@@ -610,14 +618,14 @@ void ui_call_setwindow_regtaskmem_chlenght( int context, void *pval )
     idx = ui.p.swRegTaskMem.task_index;
     task = ui.p.swRegTaskMem.task[idx];
 
-    if ( core.nvreg.running & (1<<idx) )        // editing a running task is not allowed
+    if ( core.nvrec.running & (1<<idx) )        // editing a running task is not allowed
         goto _set_original;
         
     // no need to check for smaller value, numeric control takes care of the 1 minimum
     // check only for increasing values
     if ( val >= task.size )
     {   
-        if ( (val+task.mempage) > CORE_REGMEM_MAXPAGE )                                     // if task doesn't fit in memory - revert to original value
+        if ( (val+task.mempage) > CORE_RECMEM_MAXPAGE )                                     // if task doesn't fit in memory - revert to original value
             goto _set_original;
         if ( val > internal_regtaskmem_maxlenght(task) )
             goto _set_original;
@@ -791,7 +799,7 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
     bool focus_moved = false;
 
     // move focus to the next element
-    if ( evmask->key_pressed & KEY_RIGHT )
+    if ( evmask->key_pressed & KEY_DOWN )
     {
         if ( ui.focus < ui.ui_elem_nr )
             ui.focus++;
@@ -801,7 +809,7 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
         focus_moved = true;
     }
     // move focus to the previous element
-    if ( evmask->key_pressed & KEY_LEFT )
+    if ( evmask->key_pressed & KEY_UP )
     {
         if ( ui.focus > 1 )
             ui.focus--;

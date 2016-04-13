@@ -255,14 +255,14 @@ static void uist_mainwindow_statusbar( int rdrw )
         {
             if ( core.nv.op.op_flags.b.op_monitoring )
             {
-                if ( core.nv.op.op_flags.b.op_registering )
+                if ( core.nv.op.op_flags.b.op_recording )
                     uibm_put_bitmap( 0, 0, BMP_ICO_OP_REGMONI );
                 else
                     uibm_put_bitmap( 0, 0, BMP_ICO_OP_MONI );
             }
             else
             {
-                if ( core.nv.op.op_flags.b.op_registering )
+                if ( core.nv.op.op_flags.b.op_recording )
                     uibm_put_bitmap( 0, 0, BMP_ICO_OP_REG );
                 else
                     uibm_put_bitmap( 0, 0, BMP_ICO_OP_NONE );
@@ -325,7 +325,7 @@ static int internal_diff( int v1, int v2 )
         return v2 - v1;
 }
 
-static void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32 current )
+static void internal_task_allocation_bar( struct SRecTaskInstance *tasks, uint32 current )
 {
     // black - unallocated
     // grey - allocated, other tasks
@@ -362,13 +362,13 @@ static void internal_task_allocation_bar( struct SRegTaskInstance *tasks, uint32
     // display the bars, calculate text positions
     for (i=0; i<4; i++)
     {
-        struct SRegTaskInstance *task;
+        struct SRecTaskInstance *task;
         uint32 xstart;
         uint32 xend;
 
         task = &tasks[ order[i] ];
-        xstart = 2 + ( (123 * (uint32)task->mempage) + CORE_REGMEM_MAXPAGE-1) / CORE_REGMEM_MAXPAGE;
-        xend = 2 + ( (123 * ((uint32)task->size + task->mempage)) + CORE_REGMEM_MAXPAGE-1) / CORE_REGMEM_MAXPAGE;
+        xstart = 2 + ( (123 * (uint32)task->mempage) + CORE_RECMEM_MAXPAGE-1) / CORE_RECMEM_MAXPAGE;
+        xend = 2 + ( (123 * ((uint32)task->size + task->mempage)) + CORE_RECMEM_MAXPAGE-1) / CORE_RECMEM_MAXPAGE;
 
         if ( order[i] == current )
             Graphic_FillRectangle(xstart, ypoz+1, xend, ypoz+5, 1 );
@@ -489,16 +489,16 @@ static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 t
 }
 
 
-static uint32 internal_mem_rate_2_time( struct SRegTaskInstance task )
+static uint32 internal_mem_rate_2_time( struct SRecTaskInstance task )
 {
-    return core_op_register_get_total_samplenr( task.size * CORE_REGMEM_PAGESIZE, (enum ERegistrationTaskType)task.task_elems ) * core_utils_timeunit2seconds( task.sample_rate );
+    return core_op_recording_get_total_samplenr( task.size * CORE_RECMEM_PAGESIZE, (enum ERecordingTaskType)task.task_elems ) * core_utils_timeunit2seconds( task.sample_rate );
 }   
 
 
 static void internal_rectask_summary( uint32 x, uint32 y, int index, uint32 time )
 {
     uibm_put_bitmap( x+1, y+1, BMP_ICO_REGST_TASK1 + index );
-    switch ( core.nvreg.task[index].task_elems )
+    switch ( core.nvrec.task[index].task_elems )
     {
         case rtt_t: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_T ); break;
         case rtt_h: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_H ); break;
@@ -508,7 +508,7 @@ static void internal_rectask_summary( uint32 x, uint32 y, int index, uint32 time
         case rtt_hp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_HP ); break;
         case rtt_thp: uibm_put_bitmap( x+1+14, y+1, BMP_ICO_REGST_THP ); break;
     }
-    if ( core.nvreg.running & (1<<index) )
+    if ( core.nvrec.running & (1<<index) )
         uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_START );
     else
         uibm_put_bitmap( x+1+14+15, y+1, BMP_ICO_REGST_STOP );
@@ -814,6 +814,20 @@ static inline void uist_draw_graph( int redraw_all )
         uigrf_text( 113, 58, uitxt_micro, "1013" );
         uigrf_text( 113, 22, uitxt_micro, "hpa" );
 
+        {
+            int i,j;
+            for (i=0; i<11; i++)
+            {
+                for (j=0; j<6; j++)
+                {
+                    Graphic_PutPixel(i*10, j*8+16, 1);
+                }
+            }
+
+
+        }
+
+
     }
 }
 
@@ -832,7 +846,7 @@ static inline void uist_draw_setwindow_quickswitch( int redraw_type )
 
         for (i=0; i<4; i++)
         {
-            internal_rectask_summary( 58, 17+i*12, i, internal_mem_rate_2_time(core.nvreg.task[i]) );
+            internal_rectask_summary( 58, 17+i*12, i, internal_mem_rate_2_time(core.nvrec.task[i]) );
         }
     }
 
@@ -857,14 +871,14 @@ static inline void uist_draw_setwindow_regtask_set( int redraw_type )
 {
     if ( redraw_type & RDRW_UI_CONTENT_ALL )
     {
-        struct SRegTaskInstance tasks[4];
+        struct SRecTaskInstance tasks[4];
         uint32 time;
 
         uigrf_text( 3, 18, uitxt_smallbold,  "RUN" );
         uigrf_text( 27, 18, uitxt_small,  "T  RH  P" );
         uigrf_text( 63, 18, uitxt_small,  "Rate" );
 
-        memcpy(tasks, core.nvreg.task, 4*sizeof(struct SRegTaskInstance) );
+        memcpy(tasks, core.nvrec.task, 4*sizeof(struct SRecTaskInstance) );
 
         internal_get_regtask_set_from_ui(  &tasks[ui.p.swRegTaskSet.task_index] );
         internal_task_allocation_bar( tasks, ui.p.swRegTaskSet.task_index );
@@ -873,7 +887,7 @@ static inline void uist_draw_setwindow_regtask_set( int redraw_type )
         Graphic_FillRectangle( 72, 18, 126, 40, 0 ); 
 
         uigrf_text( 86, 18, uitxt_micro,  "STAT:" );
-        if ( core.nvreg.running & (1<<ui.p.swRegTaskSet.task_index) )
+        if ( core.nvrec.running & (1<<ui.p.swRegTaskSet.task_index) )
             uigrf_text( 106, 18, uitxt_micro,  "REC" );
         else
             uigrf_text( 106, 18, uitxt_micro,  "STOP" );
@@ -907,8 +921,8 @@ static inline void uist_draw_setwindow_regtask_mem( int redraw_type )
         uigrf_text( 72, 26, uitxt_micro,  "Time:" );
         uigrf_text( 72, 34, uitxt_micro,  "Smpl:" );
 
-        smpl = core_op_register_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_REGMEM_PAGESIZE,
-                                                    (enum ERegistrationTaskType)ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
+        smpl = core_op_recording_get_total_samplenr( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].size * CORE_RECMEM_PAGESIZE,
+                                                    (enum ERecordingTaskType)ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index].task_elems );
         uigrf_putnr( 92, 34, uitxt_micro, smpl, 5, 0, false );
         smpl = internal_mem_rate_2_time( ui.p.swRegTaskMem.task[ui.p.swRegTaskMem.task_index] );
         internal_puttime_info( 92, 26, uitxt_micro, smpl, true );
@@ -930,11 +944,12 @@ static inline void uist_draw_graphselect( int redraw_type )
 
         for (i=0; i<4; i++)
         {
-            time = core.nvreg.func[i].c * core_utils_timeunit2seconds( core.nvreg.task[i].sample_rate );
+            uint32 txtaddr;
+            time = core.nvrec.func[i].c * core_utils_timeunit2seconds( core.nvrec.task[i].sample_rate );
             internal_rectask_summary( 0, 17+i*12, i, time );
-            
-            internal_puttime_info( 72, 20+i*12, uitxt_micro, internal_mem_rate_2_time( core.nvreg.task[i] ), false );
-            uigrf_text( 107, 20+i*12, uitxt_micro, upd_rates[ core.nvreg.task[i].sample_rate ] );
+            internal_puttime_info( 72, 20+i*12, uitxt_micro, internal_mem_rate_2_time( core.nvrec.task[i] ), false );
+            txtaddr = (uint32)upd_rates[ core.nvrec.task[i].sample_rate ];
+            uigrf_text( 107, 20+i*12, uitxt_micro, (char*)txtaddr );
         }
     }
     if ( redraw_type & RDRW_UI_CONTENT )
@@ -1065,7 +1080,7 @@ static inline void uist_setview_setwindow_quickswitch( void )
 {   
     int i, j;
 
-    core_op_register_init();
+    core_op_recording_init();
 
     // monitoring on/off switch
     uiel_control_checkbox_init( &ui.p.swQuickSw.monitor, 40, 2 );
@@ -1073,13 +1088,6 @@ static inline void uist_setview_setwindow_quickswitch( void )
     uiel_control_checkbox_set_callback( &ui.p.swQuickSw.monitor, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
     uiel_control_checkbox_set_callback( &ui.p.swQuickSw.monitor, UICcb_OK, 0, ui_call_setwindow_quickswitch_op_switch );
     ui.ui_elems[0] = &ui.p.swQuickSw.monitor;
-
-    // registering on/off switch
-    uiel_control_checkbox_init( &ui.p.swQuickSw.reg, 104, 2 );
-    uiel_control_checkbox_set( &ui.p.swQuickSw.reg, core.nv.op.op_flags.b.op_registering );
-    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
-    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_OK, 1, ui_call_setwindow_quickswitch_op_switch );
-    ui.ui_elems[1] = &ui.p.swQuickSw.reg;
 
     // monitoring rate setup
     for ( i=0; i<3; i++ )
@@ -1093,17 +1101,25 @@ static inline void uist_setview_setwindow_quickswitch( void )
             case 1: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_hygro ); break;
             case 2: uiel_control_list_set_index(&ui.p.swQuickSw.m_rates[i], (enum EUpdateTimings)core.nv.setup.tim_tend_press ); break;
         }
-        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+2, ui_call_setwindow_quickswitch_esc_pressed );
-        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Vchange, i+2, ui_call_setwindow_quickswitch_monitor_rate_val );
-        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_OK, i+2, ui_call_setwindow_quickswitch_monitor_rate );     // context points UI element
-        ui.ui_elems[2+i] = &ui.p.swQuickSw.m_rates[i];
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Esc, i+1, ui_call_setwindow_quickswitch_esc_pressed );
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_Vchange, i+1, ui_call_setwindow_quickswitch_monitor_rate_val );
+        uiel_control_list_set_callback ( &ui.p.swQuickSw.m_rates[i], UIClist_OK, i+1, ui_call_setwindow_quickswitch_monitor_rate );     // context points UI element
+        ui.ui_elems[1+i] = &ui.p.swQuickSw.m_rates[i];
     }
 
     uiel_control_pushbutton_init( &ui.p.swQuickSw.resetMM, 0, 51, 50, 12 );
     uiel_control_pushbutton_set_content( &ui.p.swQuickSw.resetMM, uicnt_text, 0, "Reset MM", uitxt_micro );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
     uiel_control_pushbutton_set_callback( &ui.p.swQuickSw.resetMM, UICpb_OK, 0, ui_call_setwindow_quickswitch_reset_minmax );
-    ui.ui_elems[5] = &ui.p.swQuickSw.resetMM;
+    ui.ui_elems[4] = &ui.p.swQuickSw.resetMM;
+
+
+    // registering on/off switch
+    uiel_control_checkbox_init( &ui.p.swQuickSw.reg, 104, 2 );
+    uiel_control_checkbox_set( &ui.p.swQuickSw.reg, core.nv.op.op_flags.b.op_recording );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_Esc, 0, ui_call_setwindow_quickswitch_esc_pressed );
+    uiel_control_checkbox_set_callback( &ui.p.swQuickSw.reg, UICcb_OK, 1, ui_call_setwindow_quickswitch_op_switch );
+    ui.ui_elems[5] = &ui.p.swQuickSw.reg;
 
     for ( i=0; i<4; i++ )
     {
@@ -1134,18 +1150,18 @@ static inline void uist_setview_setwindow_regtask_set( void )
         ui.m_return++;      // paranoia
 
     ui.p.swRegTaskSet.task_index = ui.m_return-1;                   // save the task index
-    ui.p.swRegTaskSet.task = core.nvreg.task[ui.m_return-1];        // save the current task for editing (nvreg should be initted at the quickswitch entry allready)
+    ui.p.swRegTaskSet.task = core.nvrec.task[ui.m_return-1];        // save the current task for editing (nvreg should be initted at the quickswitch entry allready)
     task_idx = ui.p.swRegTaskSet.task_index;
 
     uiel_control_checkbox_init( &ui.p.swRegTaskSet.run, 7, 28 );
-    uiel_control_checkbox_set( &ui.p.swRegTaskSet.run, (core.nvreg.running & (1<<task_idx)) != 0 );
+    uiel_control_checkbox_set( &ui.p.swRegTaskSet.run, (core.nvrec.running & (1<<task_idx)) != 0 );
     uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.run, UICcb_Esc, UI_REG_TO_BEFORE, ui_call_setwindow_regtaskset_next_action );
     ui.ui_elems[0] = &ui.p.swRegTaskSet.run;
 
     for (i=0; i<3; i++)
     {
         uiel_control_checkbox_init( &ui.p.swRegTaskSet.THP[i], 25+i*11, 28 );
-        uiel_control_checkbox_set( &ui.p.swRegTaskSet.THP[i], (core.nvreg.task[task_idx].task_elems & (1<<i)) != 0 );
+        uiel_control_checkbox_set( &ui.p.swRegTaskSet.THP[i], (core.nvrec.task[task_idx].task_elems & (1<<i)) != 0 );
         uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.THP[i], UICcb_Esc, UI_REG_TO_BEFORE, ui_call_setwindow_regtaskset_next_action );
         uiel_control_checkbox_set_callback( &ui.p.swRegTaskSet.THP[i], UICcb_OK, 0, ui_call_setwindow_regtaskset_valch );
         ui.ui_elems[1+i] = &ui.p.swRegTaskSet.THP[i];
@@ -1154,9 +1170,10 @@ static inline void uist_setview_setwindow_regtask_set( void )
     uiel_control_list_init( &ui.p.swRegTaskSet.m_rate, 58, 28, 24, uitxt_small, 1, false );
     for (i=0; i< (sizeof(upd_timings) / sizeof(enum EUpdateTimings)); i++ )
         uiel_control_list_add_item( &ui.p.swRegTaskSet.m_rate, upd_rates[i], upd_timings[i] );
-    uiel_control_list_set_index(&ui.p.swRegTaskSet.m_rate, (enum EUpdateTimings)core.nvreg.task[task_idx].sample_rate );
+    uiel_control_list_set_index(&ui.p.swRegTaskSet.m_rate, (enum EUpdateTimings)core.nvrec.task[task_idx].sample_rate );
     uiel_control_list_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_Esc, UI_REG_TO_BEFORE, ui_call_setwindow_regtaskset_next_action );
     uiel_control_list_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_Vchange, 0, ui_call_setwindow_regtaskset_valch );
+    uiel_control_list_set_callback( &ui.p.swRegTaskSet.m_rate, UIClist_EscLong, 0, ui_call_setwindow_dbg_gen_data );
     ui.ui_elems[4] = &ui.p.swRegTaskSet.m_rate;
 
     uiel_control_pushbutton_init( &ui.p.swRegTaskSet.reallocate, 0, 40, 127, 23 );
@@ -1179,7 +1196,7 @@ static inline void uist_setview_setwindow_regtask_mem(void)
     ui.p.swRegTaskMem.task_index = ui.m_return-1;                   // save the task index
     task_idx = ui.p.swRegTaskMem.task_index;
 
-    memcpy( ui.p.swRegTaskMem.task, core.nvreg.task, 4 * sizeof(struct SRegTaskInstance) );
+    memcpy( ui.p.swRegTaskMem.task, core.nvrec.task, 4 * sizeof(struct SRecTaskInstance) );
 
     uiel_control_numeric_init( &ui.p.swRegTaskMem.select, 1, 4, 1, 11, 28, 1, 0, uitxt_small );
     uiel_control_numeric_set( &ui.p.swRegTaskMem.select, task_idx + 1 );
@@ -1187,13 +1204,13 @@ static inline void uist_setview_setwindow_regtask_mem(void)
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.select, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chtask );
     ui.ui_elems[0] = &ui.p.swRegTaskMem.select;
     
-    uiel_control_numeric_init( &ui.p.swRegTaskMem.start, 0, CORE_REGMEM_MAXPAGE-1, 1, 30, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.start, 0, CORE_RECMEM_MAXPAGE-1, 1, 30, 28, 3, '0', uitxt_small );
     uiel_control_numeric_set( &ui.p.swRegTaskMem.start, ui.p.swRegTaskMem.task[task_idx].mempage );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.start, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.start, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chstart );
     ui.ui_elems[1] = &ui.p.swRegTaskMem.start;
 
-    uiel_control_numeric_init( &ui.p.swRegTaskMem.lenght, 1, CORE_REGMEM_MAXPAGE-1, 1, 50, 28, 3, '0', uitxt_small );
+    uiel_control_numeric_init( &ui.p.swRegTaskMem.lenght, 1, CORE_RECMEM_MAXPAGE-1, 1, 50, 28, 3, '0', uitxt_small );
     uiel_control_numeric_set( &ui.p.swRegTaskMem.lenght, ui.p.swRegTaskMem.task[task_idx].size );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.lenght, UICnum_Esc, 0, ui_call_setwindow_regtaskmem_exit );
     uiel_control_numeric_set_callback( &ui.p.swRegTaskMem.lenght, UICnum_Vchange, 0, ui_call_setwindow_regtaskmem_chlenght );
@@ -1210,7 +1227,7 @@ static inline void uist_setview_graphselect(void)
     if ( ui.m_return == 0 )
         ui.m_return++;      // paranoia
 
-    core_op_register_init();    
+    core_op_recording_init();    
 
     ui.p.grSelect.task_idx = ui.m_return - 1;
 

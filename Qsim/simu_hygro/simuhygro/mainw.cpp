@@ -85,6 +85,11 @@ mainw::mainw(QWidget *parent) :
     ms_hum = 56.7;
     ms_press = 1013.25;
 
+
+    dbg_shed_sens_temp = 1;
+    dbg_shed_sens_rh = 1;
+    dbg_shed_sens_press = 1;
+
     ui->num_temperature->setValue( ms_temp );
     ui->num_humidity->setValue( ms_hum );
     ui->num_pressure->setValue( ms_press );

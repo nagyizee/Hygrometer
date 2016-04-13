@@ -21,7 +21,7 @@
  *                                                          - init sensors / get data from NVram
  *
  *                               At power-save timer out:
- *                                      - if monitoring task and registering task - will power down with alarm set.
+ *                                      - if monitoring task and recording task - will power down with alarm set.
  *                                      - if no task - will power down with battery and pressure low period read schedule
  *
  *                             - Alarm power up - system wake up on RTC alarm.
@@ -39,9 +39,9 @@
  *                                the other sensors are read at monitoring period (2sec. TBD), min/max values are processed, measurements
  *                                are averaged for monitoring rate (10sec, 30sec, 1min, 5min, 30min) for tendency update
  *
- *              - registering mode: - UI will refresh the readings of the current sensor in real time,
+ *              - recording mode: - UI will refresh the readings of the current sensor in real time,
  *                                the other sensors are read at monitoring period (2sec. TBD) in case of high rate or low rate w averaging, values are
- *                                averaged to the registration rate, and registered.
+ *                                averaged to the recording rate, and recording.
  *                                for low rate w/o averaging - sensor read is done at low rate.
  *
  *
@@ -52,6 +52,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "core.h"
 #include "events_ui.h"
 #include "hw_stuff.h"
@@ -82,9 +83,14 @@ static volatile uint32 counter = 0;
 static volatile uint32 RTCctr = 0;
 static volatile uint32 sec_ctr = 0;
 
+#define WB_SIZE             0x700   // 1792 bytes of work memory
+#define WB_OFFS_RAWDISP     0x000   // from 0x000 -> 0x4B0  - 1200 bytes display graph memory: 100 samples * 2 bps * 2 (low/high) * 3 params (T/RH/P)
+#define WB_OFFS_FLIP1       0x500   // 256 bytes transfer buffer
+#define WB_OFFS_FLIP2       0x600   // 256 bytes transfer buffer
 
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
+static uint8    workbuff[ WB_SIZE ];
 
 extern void DispHAL_ISR_Poll(void);
 
@@ -140,6 +146,16 @@ extern void DispHAL_ISR_Poll(void);
 //   internal routines
 //
 /////////////////////////////////////////////////////
+
+void internal_DBG_dump_values()
+{
+    #ifdef ON_QT_PLATFORM
+    if ( core.vstatus.int_op.f.nv_initted )
+        HW_DBG_DUMP( &core );
+    #endif
+}
+
+
 
 static void internal_clear_monitoring(void)
 {
@@ -237,6 +253,16 @@ static void local_tendency_restart( uint32 entry )
     core.nv.op.sens_rd.tendency[entry].c = 0;
     core.nv.op.sens_rd.tendency[entry].w = 0;
 }
+
+
+
+static void local_recording_pushdata( uint32 task_idx, enum ESensorSelect sensor, uint32 value )
+{
+    // value is in 16bit format ( 16fp9+40* for temp, 16fp8 0-100% for RH, 16bit Pascals for pressure )
+
+
+}
+
 
 
 static inline void local_process_temp_sensor_result( uint32 temp )
@@ -440,49 +466,117 @@ static inline void local_check_first_scheduled_op(void)
 }
 
 
+static uint32 internal_sensor_shedule_increment( enum ESensorSelect sensor )
+{
+    uint32 val = CORE_SCHED_NONE;
+    uint32 val_mon = CORE_SCHED_NONE;
+    uint32 val_rec = CORE_SCHED_NONE; 
+
+    if ( core.vstatus.int_op.f.sens_real_time == sensor )
+        return CORE_SCHED_RT;
+
+    // check for monitoring rates on the current sensor
+    if ( core.nv.op.op_flags.b.op_monitoring )
+    {
+        switch( sensor )
+        {
+            case ss_thermo:     val_mon = core.nv.setup.tim_tend_temp; break;
+            case ss_rh:         val_mon = core.nv.setup.tim_tend_hygro; break;
+            case ss_pressure:   val_mon = core.nv.setup.tim_tend_press; break;
+        }
+    }
+
+    // check for recording rates on the current sensor and peek the fastest
+    if ( core.nv.op.op_flags.b.op_recording && core.vstatus.int_op.f.nv_rec_initted )
+    {
+        int i;
+        for (i=0; i<STORAGE_RECTASK; i++)
+        {
+            if ( (core.nvrec.running & (1<<i)) &&                           // if task is running
+                 (core.nvrec.task[i].task_elems & (1 << (sensor-1)) ) &&    // and sensor in use for this task
+                 (val_rec > core.nvrec.task[i].sample_rate) )               // and current rate is bigger than the rate from task
+            {
+                val_rec = core.nvrec.task[i].sample_rate;
+            }
+        }
+    }
+
+    // get the fastest time
+    if ( val_mon < val )
+        val = val_mon;
+    if ( val_rec < val )
+        val = val_rec;
+
+    // for pressure sensor we must have a minimum speed of 1min/sample
+    if ( (sensor == ss_pressure) && (val > ut_60min) )
+        val = ut_60min;
+        
+    // return the right sensor update period
+    if ( val == CORE_SCHED_NONE  )
+        return 0;                   // no read
+    else if ( val == ut_60min )
+        return CORE_SCHED_1MIN;     // 128 ticks -> 64sec / read  - used for 1hr updates
+    else if ( val >= ut_1min )
+        return CORE_SCHED_8SEC;     // 8sec / read                - used for 1min -> 30min updates
+    else if ( val >= ut_10sec )
+        return CORE_SCHED_4SEC;     // 4sec / read                - used for 10sec -> 30sec
+    else
+        return CORE_SCHED_2SEC;     // 2sec / read                - used for 5sec updates
+}
+
+static void internal_sensor_shedule_setval( uint32 incval, uint32 *pshed )
+{
+    uint32 shed = *pshed;
+
+    if ( incval == 0 )      // no increment should be done, disable sheduling
+    {
+        *pshed = CORE_SCHED_NONE;
+        return;
+    }
+
+    shed = (RTCclock + incval);
+    switch ( incval )
+    {
+        case CORE_SCHED_RT:     *pshed = (shed & CORE_SCHED_RT_MASK); return;
+        case CORE_SCHED_2SEC:   *pshed = (shed & CORE_SCHED_2SEC_MASK); return;
+        case CORE_SCHED_4SEC:   *pshed = (shed & CORE_SCHED_4SEC_MASK); return;
+        case CORE_SCHED_8SEC:   *pshed = (shed & CORE_SCHED_8SEC_MASK); return;
+        case CORE_SCHED_1MIN:   *pshed = (shed & CORE_SCHED_1MIN_MASK); return;
+    }
+}
+
 static inline void local_check_sensor_read_schedules(void)
 {
     if ( core.nv.op.sched.sch_thermo <= RTCclock )
     {
         Sensor_Acquire( SENSOR_TEMP );
         core.vstatus.int_op.f.sens_read |= SENSOR_TEMP; 
-
-        if (core.vstatus.int_op.f.sens_real_time == ss_thermo)
-            core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring )
-            core.nv.op.sched.sch_thermo += CORE_SCHED_TEMP_MONITOR;
-        else
-            core.nv.op.sched.sch_thermo = CORE_SCHED_NONE;
+        internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_thermo ), &core.nv.op.sched.sch_thermo );
     }
-
     if ( core.nv.op.sched.sch_hygro <= RTCclock )
     {
         Sensor_Acquire( SENSOR_RH );
         core.vstatus.int_op.f.sens_read |= SENSOR_RH; 
-
-        if (core.vstatus.int_op.f.sens_real_time == ss_rh)
-            core.nv.op.sched.sch_hygro += CORE_SCHED_RH_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring )
-            core.nv.op.sched.sch_hygro += CORE_SCHED_RH_MONITOR;
-        else
-            core.nv.op.sched.sch_hygro = CORE_SCHED_NONE;
+        internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_rh ), &core.nv.op.sched.sch_hygro );
     }
-
     if ( core.nv.op.sched.sch_press <= RTCclock )
     {
         Sensor_Acquire( SENSOR_PRESS );
         core.vstatus.int_op.f.sens_read |= SENSOR_PRESS; 
-
-        if (core.vstatus.int_op.f.sens_real_time == ss_pressure)
-            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_REALTIME;
-        else if ( core.nv.op.op_flags.b.op_monitoring )
-            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_MONITOR;
-        else
-            core.nv.op.sched.sch_press += CORE_SCHED_PRESS_STBY;
+        internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_pressure ), &core.nv.op.sched.sch_press );
     }
 
     local_check_first_scheduled_op();
+}
 
+
+static void local_sensor_reschedule_all(void)
+{
+    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_thermo ), &core.nv.op.sched.sch_thermo );
+    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_rh ), &core.nv.op.sched.sch_hygro );
+    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_pressure ), &core.nv.op.sched.sch_press );
+
+    local_check_first_scheduled_op();
 }
 
 
@@ -508,34 +602,34 @@ static void local_initialize_core_operation(void)
 
 }
 
-static void local_initialize_registering(void)
+static void local_initialize_recording(void)
 {
     int i;
-    memset( &core.nvreg, 0, sizeof(core.nvreg) );
+    memset( &core.nvrec, 0, sizeof(core.nvrec) );
 
-    core.nvreg.dirty = true;
-    core.nvreg.running = 0;                     // no task in run
+    core.nvrec.dirty = true;
+    core.nvrec.running = 0;                     // no task in run
 
-    core.nvreg.task[0].mempage = 0;             // 0x400 offset
-    core.nvreg.task[0].size = 60;               // 60kbytes of data -> 7.1 days (~week) of TH aquisition with 1/2 min resolution
-    core.nvreg.task[0].task_elems = rtt_th;  
+    core.nvrec.task[0].mempage = 0;             // 0x400 offset
+    core.nvrec.task[0].size = 60;               // 60kbytes of data -> 7.1 days (~week) of TH aquisition with 1/2 min resolution
+    core.nvrec.task[0].task_elems = rtt_th;  
 
-    core.nvreg.task[1].mempage = 60;            // 0x400 offset
-    core.nvreg.task[1].size = 30;               // 30kbytes of data -> 7.1 days (~week) of P aquisition with 1/2 min resolution
-    core.nvreg.task[1].task_elems = rtt_p;  
+    core.nvrec.task[1].mempage = 60;            // 0x400 offset
+    core.nvrec.task[1].size = 30;               // 30kbytes of data -> 7.1 days (~week) of P aquisition with 1/2 min resolution
+    core.nvrec.task[1].task_elems = rtt_p;  
 
-    for (i=0; i<STORAGE_REGTASK; i++)
+    for (i=0; i<STORAGE_RECTASK; i++)
     {
-        core.nvreg.task[i].sample_rate = ut_30sec;
+        core.nvrec.task[i].sample_rate = ut_30sec;
         if ( i > 1 )
         {
-            core.nvreg.task[i].task_elems = rtt_p;  
-            core.nvreg.task[i].size = 1;  
-            core.nvreg.task[i].mempage = 90 + (i-2);
+            core.nvrec.task[i].task_elems = rtt_p;  
+            core.nvrec.task[i].size = 1;  
+            core.nvrec.task[i].mempage = 90 + (i-2);
         }
     }
 
-    core.vstatus.int_op.f.nv_reg_initted = 1;
+    core.vstatus.int_op.f.nv_rec_initted = 1;
 }
 
 static inline void local_poll_aux_operations(void)
@@ -669,10 +763,10 @@ void core_beep( enum EBeepSequence beep )
 
 #define EEADDR_SETUP    0x00
 #define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
-#define EEADDR_REGISTER (EEADDR_OPS + sizeof(struct SCoreOperation))
-#define EEADDR_CK_SETUP (EEADDR_REGISTER + sizeof(struct SCoreNonVolatileReg))
+#define EEADDR_RECORD   (EEADDR_OPS + sizeof(struct SCoreOperation))
+#define EEADDR_CK_SETUP (EEADDR_RECORD + sizeof(struct SCoreNonVolatileRec))
 #define EEADDR_CK_OPS   (EEADDR_CK_SETUP + 2)
-#define EEADDR_CK_REG   (EEADDR_CK_OPS + 2)
+#define EEADDR_CK_REC   (EEADDR_CK_OPS + 2)
 
 
 int core_setup_save( void )
@@ -714,20 +808,20 @@ int core_setup_save( void )
     if ( eeprom_write( EEADDR_CK_OPS, (uint8*)&cksum_op, 2, false ) != 2 )
         return -1;
 
-    if ( core.nvreg.dirty )
+    if ( core.nvrec.dirty )
     {
-        core.nvreg.dirty = false;
+        core.nvrec.dirty = false;
 
         cksum_setup = 0xABCD;
-        buffer = (uint8*)&core.nvreg;
-        for ( i=0; i<sizeof(core.nvreg); i++ )
+        buffer = (uint8*)&core.nvrec;
+        for ( i=0; i<sizeof(core.nvrec); i++ )
             cksum_setup = cksum_setup + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
 
-        if ( eeprom_write( EEADDR_REGISTER, buffer, sizeof(core.nvreg), true ) != sizeof(core.nvreg) )
+        if ( eeprom_write( EEADDR_RECORD, buffer, sizeof(core.nvrec), true ) != sizeof(core.nvrec) )
             return -1;
         while ( eeprom_is_operation_finished() == false );
 
-        if ( eeprom_write( EEADDR_CK_REG, (uint8*)&cksum_setup, 2, false ) != 2 )
+        if ( eeprom_write( EEADDR_CK_REC, (uint8*)&cksum_setup, 2, false ) != 2 )
             return -1;
     }
 
@@ -763,7 +857,7 @@ int core_setup_reset( bool save )
     setup->tim_tend_press = ut_10min;
 
     local_initialize_core_operation();
-    local_initialize_registering();
+    local_initialize_recording();
 
     if ( save )
     {
@@ -773,7 +867,7 @@ int core_setup_reset( bool save )
 }
 
 
-int core_nvregister_load( void )
+int core_nvrecording_load( void )
 {
     uint32  i;
     uint16  cksum;
@@ -784,21 +878,21 @@ int core_nvregister_load( void )
         return -1;
     while ( eeprom_is_operation_finished() == false );
 
-    buffer = (uint8*)&core.nvreg;
-    if ( eeprom_read( EEADDR_REGISTER, sizeof(core.nvreg), buffer, true ) != sizeof(core.nvreg) )
+    buffer = (uint8*)&core.nvrec;
+    if ( eeprom_read( EEADDR_RECORD, sizeof(core.nvrec), buffer, true ) != sizeof(core.nvrec) )
         return -1;
     while ( eeprom_is_operation_finished() == false );
-    if ( eeprom_read( EEADDR_CK_REG, 2, (uint8*)&cksum_op, false ) != 2 )
+    if ( eeprom_read( EEADDR_CK_REC, 2, (uint8*)&cksum_op, false ) != 2 )
         return -1;
     while ( eeprom_is_operation_finished() == false );
 
     cksum = 0xABCD;
-    for ( i=0; i<sizeof(core.nvreg); i++ )
+    for ( i=0; i<sizeof(core.nvrec); i++ )
         cksum = cksum + ( (uint16)(buffer[i] << 8) - (uint16)(~buffer[i]) ) + 1;
     if ( cksum != cksum_op )
         return -2;
 
-    core.vstatus.int_op.f.nv_reg_initted = 1;
+    core.vstatus.int_op.f.nv_rec_initted = 1;
     return 0;
 }
 
@@ -855,10 +949,10 @@ int core_setup_load( bool no_op_load )
     }
 
 
-    // check if registering data should be loaded
-    if ( core.nv.op.op_flags.b.op_registering )
+    // check if recording data should be loaded
+    if ( core.nv.op.op_flags.b.op_recording )
     {
-        if ( core_nvregister_load() )
+        if ( core_nvrecording_load() )
             goto _error_exit;
     }
 
@@ -886,7 +980,7 @@ void core_nvfast_save_struct(void)
     BKP_WriteBackupRegister( BKP_DR6, core.measure.measured.rh );
 
 
-    if ( core.nv.dirty || core.nvreg.dirty )
+    if ( core.nv.dirty || core.nvrec.dirty )
     {
         core.nv.dirty = false;
         core_setup_save();
@@ -894,39 +988,28 @@ void core_nvfast_save_struct(void)
 }
 
 
-
 void core_op_realtime_sensor_select( enum ESensorSelect sensor )
 {
     if ( sensor == ss_none )
         core.vstatus.int_op.f.sens_real_time = 0;
-    switch ( sensor )
-    {
-        case ss_thermo:
-            if ( (core.nv.op.sched.sch_thermo > (RTCclock + CORE_SCHED_TEMP_REALTIME)) ||
-                 (core.nv.op.sched.sch_thermo < RTCclock) )
-                core.nv.op.sched.sch_thermo = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
-            break;
-        case ss_rh:
-            if ( (core.nv.op.sched.sch_hygro > (RTCclock + CORE_SCHED_RH_REALTIME)) ||
-                 (core.nv.op.sched.sch_hygro < RTCclock) )
-                core.nv.op.sched.sch_hygro = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
-            break;
-        case ss_pressure:
-            if ( (core.nv.op.sched.sch_press > (RTCclock + CORE_SCHED_PRESS_REALTIME)) ||
-                 (core.nv.op.sched.sch_press < RTCclock) )
-                core.nv.op.sched.sch_press = RTCclock;        // will be rescheduled by the core_loop() at first RTC tick
-            break;
-    }
+
     core.vstatus.int_op.f.sens_real_time = sensor;
-    local_check_first_scheduled_op();
+
+    // reshedule the sensor reads
+    local_sensor_reschedule_all();
 }
+
 
 void core_op_monitoring_switch( bool enable )
 {
     if ( enable == false )
     {
-        // disabling monitoring - clean up the 
-        core.nv.op.op_flags.b.op_monitoring = 0;
+        // disabling monitoring - clean up the
+        if ( core.nv.op.op_flags.b.op_monitoring )
+        {
+            core.nv.op.op_flags.b.op_monitoring = 0;
+            local_sensor_reschedule_all();
+        }
     }
     else if ( core.nv.op.op_flags.b.op_monitoring == 0 )
     {
@@ -937,6 +1020,7 @@ void core_op_monitoring_switch( bool enable )
         core.nv.op.sens_rd.moni.clk_last_day = RTCclock / DAY_TICKS;
         core.nv.op.sens_rd.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
         core.nv.op.op_flags.b.op_monitoring = 1;
+        local_sensor_reschedule_all();
     }
 }
 
@@ -957,6 +1041,8 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                     core.nv.op.sens_rd.moni.avg_ctr_temp = 0;
                     core.nv.op.sens_rd.moni.avg_sum_temp = 0;
                     local_tendency_restart( CORE_MMP_TEMP );
+                    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_thermo ), &core.nv.op.sched.sch_thermo );
+                    local_check_first_scheduled_op();
                 }
             }
             break;
@@ -972,6 +1058,8 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                     core.nv.op.sens_rd.moni.avg_sum_abshum = 0;
                     local_tendency_restart( CORE_MMP_RH );
                     local_tendency_restart( CORE_MMP_ABSH );
+                    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_rh ), &core.nv.op.sched.sch_hygro );
+                    local_check_first_scheduled_op();
                 }
             }
             break;
@@ -985,6 +1073,8 @@ void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings tim
                     core.nv.op.sens_rd.moni.avg_ctr_press = 0;
                     core.nv.op.sens_rd.moni.avg_sum_press = 0;
                     local_tendency_restart( CORE_MMP_PRESS );
+                    internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_pressure ), &core.nv.op.sched.sch_press );
+                    local_check_first_scheduled_op();
                 }
             }
             break;
@@ -1038,44 +1128,50 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
 }
 
 
-void core_op_register_init(void)
+void core_op_recording_init(void)
 {
-    if ( core.vstatus.int_op.f.nv_reg_initted )
+    if ( core.vstatus.int_op.f.nv_rec_initted )
         return;
 
-    if ( core_nvregister_load() )
+    if ( core_nvrecording_load() )
     {
         core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
         // TODO the rest
     }
 }
 
-void core_op_register_switch( bool enabled )
+void core_op_recording_switch( bool enabled )
 {
     //TBI
-    core.nv.op.op_flags.b.op_registering = enabled ? 1 : 0;
+    core.nv.op.op_flags.b.op_recording = enabled ? 1 : 0;
+
+    core.nvrec.dirty = true;
 }
 
-void core_op_register_setup_task( uint32 task_idx, struct SRegTaskInstance *task )
+void core_op_recording_setup_task( uint32 task_idx, struct SRecTaskInstance *task )
 {
-    core.nvreg.task[task_idx] = *task;
+    core.nvrec.task[task_idx] = *task;
     //TBI
     //TODO: take care - if format changed during recording - clear the data and record from 0
+
+    core.nvrec.dirty = true;
 }
 
-void core_op_register_task_run( uint32 task_idx, bool run )
+void core_op_recording_task_run( uint32 task_idx, bool run )
 {
     //TBI
     if ( run )
-        core.nvreg.running |= (1<<task_idx);
+        core.nvrec.running |= (1<<task_idx);
     else
-        core.nvreg.running &= ~(1<<task_idx);
+        core.nvrec.running &= ~(1<<task_idx);
+
+    core.nvrec.dirty = true;
 }
 
-uint32 core_op_register_get_total_samplenr( uint32 mem_len, enum ERegistrationTaskType regtype )
+uint32 core_op_recording_get_total_samplenr( uint32 mem_len, enum ERecordingTaskType rectype )
 {
     uint32 factor = 0;
-    switch ( regtype )
+    switch ( rectype )
     {
         case rtt_t:
         case rtt_h:
@@ -1095,6 +1191,63 @@ uint32 core_op_register_get_total_samplenr( uint32 mem_len, enum ERegistrationTa
     return ( (mem_len * 2) / factor ); 
 }
 
+// for calculations and formulas see reg_generator.mcdx
+// 2*PI = 6.28 - integer part on 3 bytes, max X = 2^16 - 16bytes -> 13  ==> use FP12 for safety and sign
+#define PI2FP12 25736           // 2*pi in FP12                         
+
+int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint32 minim )
+{
+    int val;
+
+    val = (int) (  ( 1 - cos((i*PI2FP12)/(float)(smpl_day << 12)) ) *                                   // ( 1-cos(x*2pi/sday)) * 
+                   (  diff  *  ( cos( (i*PI2FP12)/(float)( (smpl_day << 12) * 10 ) ) + 1 )   /  4 )  ); // (vmax - vmin) *  cos(x*2pi/sday*10)+1  / 4
+
+    val = val + minim + (int)( sin((i*PI2FP12*(uint64)24)/(float)(smpl_day << 12)) * diff / 10 );
+    if ( val < 0 )
+        val = 0;
+    if ( val > 0xffff )
+        val = 0xffff;
+    return val;
+}
+
+
+void core_op_recording_dbgfill( uint32 t )
+{
+/*    int i;
+    uint32 smpl_day;
+    uint32 smpl_total;
+    uint32 elems;
+    int val;
+    uint32 ptr = 0;
+    uint8 *wbuff;
+    bool flip = false;
+    
+    smpl_total = core_op_recording_get_total_samplenr( core.nvrec.task[t].size * CORE_RECMEM_PAGESIZE, core.nvrec.task[t].task_elems );
+    smpl_day = (24 * 3600) / core_utils_timeunit2seconds( task.sample_rate );
+    elems = core.nvrec.task[t].task_elems;
+    wbuff = ( workbuff + WB_OFFS_FLIP1 );
+
+    for ( i=0; i<smpl_total; i++ )
+    {
+        if ( elems & CORE_BM_TEMP )
+        {
+            val = internal_dbgfill_calculate_points(i, smpl_day, (( 128 - 0 ) << TEMP_FP),  ( 0 << TEMP_FP ) );
+            local_recording_pushdata( t, ss_thermo, val );
+        }
+        if ( elems & CORE_BM_RH )
+        {
+            val = internal_dbgfill_calculate_points(i, smpl_day, (( 100 - 0 ) << RH_FP),  ( 0 << RH_FP ) );
+            local_recording_pushdata( t, ss_rh, val );
+        }
+        if ( elems & CORE_BM_PRESS )
+        {
+            val = internal_dbgfill_calculate_points(i, smpl_day, ( 60000 - 0 ),  0 );
+            local_recording_pushdata( t, ss_pressure, val );
+        }
+
+    }
+*/
+}
 
 
 //-------------------------------------------------
@@ -1277,6 +1430,8 @@ void core_poll( struct SEventStruct *evmask )
         }
     }
 
+    internal_DBG_dump_values();
+    
     return;
 }
 
