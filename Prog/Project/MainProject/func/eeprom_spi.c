@@ -132,18 +132,20 @@
             if ( write )
                 ee_status = eest_pwrup_in_progr_w;
             else
-                ee_status = eest_pwrup_in_progr_w;
+                ee_status = eest_pwrup_in_progr;
         }
         else
-        if ( write && (ee_status != eest_enable_wr) )
+        if ( write )
         {
             // set write enable
-            uint32 result;
-            internal_set_write_enable( true );
-            result = internal_get_status();
-            if ( (result & EE_SF_WREN) == 0 )
-                return (uint32)-1;
-            
+            if ( ee_status != eest_enable_wr )
+            {
+                uint32 result;
+                internal_set_write_enable( true );
+                result = internal_get_status();
+                if ( (result & EE_SF_WREN) == 0 )
+                    return (uint32)-1;
+            }
             ee_status = eest_enable_wr;
         }
         else

@@ -705,7 +705,9 @@ uint32 Sensor_GetPwrStatus(void)
 
 // init the eeprom module
 bool ee_enabled = false;
+bool ee_deepsleep = true;
 bool ee_wren = false;
+uint32 ee_count = 0;
 
 uint32 eeprom_init()
 {
@@ -739,18 +741,27 @@ uint32 eeprom_enable( bool write )
 {
     ee_enabled = true;
     ee_wren = write;
+    if ( ee_deepsleep )
+    {
+        ee_deepsleep = false;
+        ee_count = 10;
+    }
     return 0;
 }
 
 // disable eeprom module
 uint32 eeprom_disable()
 {
-    ee_enabled = true;
+    ee_enabled = false;
+    ee_wren = false;
     return 0;
 }
 
 uint32 eeprom_deepsleep()
 {
+    ee_deepsleep = true;
+    ee_enabled = false;
+    ee_wren = false;
     return 0;
 }
 
@@ -763,6 +774,8 @@ uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async )
         count = (EEPROM_SIZE - address);
 
     memcpy( buff, eeprom_cont + address, count );
+
+    ee_count = (10 * count + 499) / 500;
 
     return count;
 }
@@ -784,11 +797,19 @@ uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async
         return (uint32)-1;
     fwrite( eeprom_cont, 1, EEPROM_SIZE, eefile );
     fclose(eefile);
+
+    ee_count = (10 * count + 499) / 500;
+
     return count;
 }
 
 bool eeprom_is_operation_finished( void )
 {
+    if ( ee_count )
+    {
+        ee_count--;
+        return false;
+    }
     return true;
 }
 

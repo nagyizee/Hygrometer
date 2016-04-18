@@ -30,6 +30,8 @@ extern struct SCore core;
 void uist_enter_popup( uint8 cont_ok, uiel_callback call_ok, uint8 cont_cancel, uiel_callback call_cancel );
 void uist_close_popup(void);
 void uist_change_state( enum EUIStates m_state, enum EUISetupSelect set_state, bool init );
+uint32 internal_regtaskmem_maxlenght( struct SRecTaskInstance task );
+
 
 static void local_uist_display_init(void)
 {
@@ -421,6 +423,17 @@ void ui_call_setwindow_regtaskset_close( int context, void *pval )
 
 void ui_call_setwindow_regtaskset_valch( int context, void *pval )
 {
+    struct SRecTaskInstance task_ui;
+    uint32 max_len;
+
+    // take care to not to exceed max. nr. of elements in a task
+    internal_get_regtask_set_from_ui( &task_ui );
+    max_len = internal_regtaskmem_maxlenght( task_ui );
+    ui.p.swRegTaskSet.task.size = core.nvrec.task[ ui.p.swRegTaskSet.task_index ].size;
+
+    if ( ui.p.swRegTaskSet.task.size > max_len )
+        ui.p.swRegTaskSet.task.size = max_len;
+    
     ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
 }
 
@@ -1027,15 +1040,6 @@ void uist_popupwindow( struct SEventStruct *evmask )
 {
     if ( evmask->key_event )
     {
-        // operations if focus on ui elements
-        if ( ui_element_poll( ui.popup.focus ? &ui.popup.pb2 : &ui.popup.pb1, evmask ) )
-        {
-            ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
-        }
-
-        if ( uist_apply_newstate() )
-            return;
-
         if ( evmask->key_pressed & KEY_RIGHT )
         {
             if ( ui.popup.elems == 2 )
@@ -1049,6 +1053,15 @@ void uist_popupwindow( struct SEventStruct *evmask )
                 ui.popup.focus = 0;
             ui.upd_ui_disp |= RDRW_UI_CONTENT;
         }
+
+        // operations if focus on ui elements
+        if ( ui_element_poll( ui.popup.focus ? &ui.popup.pb2 : &ui.popup.pb1, evmask ) )
+        {
+            ui.upd_ui_disp  |= RDRW_DISP_UPDATE;          // mark only for dispHAL update
+        }
+
+        if ( uist_apply_newstate() )
+            return;
 
         // power button activated
         if ( evmask->key_longpressed & KEY_MODE )

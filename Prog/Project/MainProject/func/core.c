@@ -88,6 +88,15 @@ static volatile uint32 sec_ctr = 0;
 #define WB_OFFS_FLIP1       0x500   // 256 bytes transfer buffer
 #define WB_OFFS_FLIP2       0x600   // 256 bytes transfer buffer
 
+#define EEADDR_SETUP    0x00
+#define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
+#define EEADDR_RECORD   (EEADDR_OPS + sizeof(struct SCoreOperation))
+#define EEADDR_CK_SETUP (EEADDR_RECORD + sizeof(struct SCoreNonVolatileRec))
+#define EEADDR_CK_OPS   (EEADDR_CK_SETUP + 2)
+#define EEADDR_CK_REC   (EEADDR_CK_OPS + 2)
+#define EEADDR_STORAGE  CORE_RECMEM_PAGESIZE       // leave the first page for setup - the rest is for recording
+
+
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
 static uint8    workbuff[ WB_SIZE ];
@@ -255,14 +264,291 @@ static void local_tendency_restart( uint32 entry )
 }
 
 
-
 static void local_recording_pushdata( uint32 task_idx, enum ESensorSelect sensor, uint32 value )
 {
     // value is in 16bit format ( 16fp9+40* for temp, 16fp8 0-100% for RH, 16bit Pascals for pressure )
+    struct SRecTaskInternals *pfunc;
+    struct SRecTaskInstance  task;
+    uint32 smask = 1 << (sensor - 1);
 
+    task = core.nvrec.task[task_idx];
+    pfunc = &core.nvrec.func[task_idx];
 
+    if ( (task.task_elems & smask)== 0 )        // sensor not part of this task - exit, do not average for this task
+        return;
+
+    // sum for average
+    pfunc->avg_sum[sensor-1] += value;
+    pfunc->avg_cnt[sensor-1] ++;
+
+    // if time passed through the scheduled one - record the item
+    if ( RTCclock >= pfunc->shedule )
+    {
+        if ( (smask & pfunc->elem_mask) == 0 )      // parameter not recorded to elem buffer yet - can be recorded
+        {
+            // calculate the average and convert it to 12bit
+            uint32 rval = (pfunc->avg_sum[sensor-1] / pfunc->avg_cnt[sensor-1]) >> 4;
+            pfunc->avg_sum[sensor-1] = 0;
+            pfunc->avg_cnt[sensor-1] = 0;
+            pfunc->elem_mask |= smask;              // mark that item is registered in the recording element
+
+            // check if the set is collected
+            if ( pfunc->elem_mask == task.task_elems )
+            {
+                pfunc->shedule += 2 * core_utils_timeunit2seconds( task.sample_rate );      // reschedule
+                pfunc->elem_mask = CORE_ELEM_TO_RECORD;                                     // mark for non-volatile writing4
+                pfunc->last_timestamp = RTCclock;
+                core.vstatus.int_op.f.core_bsy = 1;
+                core.vstatus.int_op.f.recsave = 1;
+            }
+
+            // record the item
+            if( (task.task_elems == rtt_t) ||
+                (task.task_elems == rtt_h) || 
+                (task.task_elems == rtt_p) )    
+            {
+                // in this case sensor is for sure the one to be recorded first
+                if ( pfunc->elem_shift )
+                {
+                    pfunc->element[0] |= rval >> 8;         // [oooo xxxx]              -- leaves the old MSB at start
+                    pfunc->element[1] = rval & 0xff;        //            [xxxx xxxx]
+                }
+                else
+                {
+                    pfunc->element[0] = rval >> 4;          // [xxxx xxxx]
+                    pfunc->element[1] = (rval << 4) & 0xff; //            [xxxx 0000]   -- clears the terminating LSB
+                }
+            } 
+            else if ( ( (sensor == ss_thermo) &&                                                // thermo sensor can be at start only in 2 cases: TH, TP
+                        ((task.task_elems == rtt_th) || (task.task_elems == rtt_tp)) ) ||       
+                      ( (sensor == ss_rh) &&                                                    // hygro sensor can be at start only in 1 case: HP
+                        (task.task_elems == rtt_hp) ) )
+            {
+                pfunc->element[0] = rval >> 4;              // [tttt tttt]
+                pfunc->element[1] |= (rval << 4) & 0xff;    //            [tttt oooo]  
+            }
+            else if ( ( (sensor == ss_rh) &&                                                    // hygro sensor can be at end only in 1 case: TH
+                        (task.task_elems == rtt_th)  ) || 
+                      ( (sensor == ss_pressure) &&                                              // pressure sensor can be at end only in 2 cases: TP, HP
+                        ((task.task_elems == rtt_tp) || (task.task_elems == rtt_hp)) ) )
+            {
+                pfunc->element[1] |= rval >> 8;             //            [oooo hhhh]
+                pfunc->element[2] = rval & 0xff;            //                       [hhhh hhhh]
+            }
+            else 
+            {
+                // only THP can get here
+                if ( pfunc->elem_shift )
+                {
+                    if ( sensor == ss_thermo )
+                    {
+                        pfunc->element[0] |= rval >> 8;         // [oooo tttt]
+                        pfunc->element[1] = rval & 0xff;        //            [tttt tttt]
+                    }
+                    else if ( sensor == ss_rh )
+                    {
+                        pfunc->element[2] = rval >> 4;          //                      [hhhh hhhh]
+                        pfunc->element[3] |= (rval << 4) & 0xff;//                                 [hhhh oooo]  
+                    }
+                    else
+                    {
+                        pfunc->element[3] |= rval >> 8;         //                                 [oooo pppp]
+                        pfunc->element[4] = rval & 0xff;        //                                            [pppp pppp]
+                    }
+                }
+                else
+                {
+                    if ( sensor == ss_thermo )
+                    {
+                        pfunc->element[0] = rval >> 4;          // [tttt tttt]
+                        pfunc->element[1] |= (rval << 4) & 0xff;//            [tttt oooo]  
+                    }
+                    else if ( sensor == ss_rh )
+                    {
+                        pfunc->element[1] |= rval >> 8;         //            [oooo hhhh]
+                        pfunc->element[2] = rval & 0xff;        //                       [hhhh hhhh]
+                    }
+                    else
+                    {
+                        pfunc->element[3] = rval >> 4;          //                                  [pppp pppp]
+                        pfunc->element[4] = (rval << 4) & 0xff; //                                             [pppp 0000]  
+                    }
+                }
+            }
+        }
+    }
 }
 
+
+static uint32 internal_recording_get_address( uint32 elem_ptr, enum ERecordingTaskType elem_type, bool *shift )
+{
+    uint32 ival;
+
+    switch ( elem_type )
+    {
+        case rtt_t:
+        case rtt_h:
+        case rtt_p:
+            ival = 3;
+            break;
+        case rtt_th:
+        case rtt_tp:
+        case rtt_hp:
+            ival = 6;
+            break;
+        default:
+            ival = 9;
+            break;
+    }
+
+    ival *= elem_ptr;
+    if ( shift )
+    {
+        if ( ival & 0x01 )
+            *shift = true;
+        else
+            *shift = false;
+    }
+    return (ival >> 1);
+}
+
+// converts element pointer ( task read or write pointers ) and elem type to physical address
+//                                                            0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   16   17   18
+// for rtt_t, rtt_h, rtt_p:         [e0][e1][e2][e3][e4]:   [0 0][0 1][1 1][2 2][2 3][3 3][4 4][4 X]
+//              0 -> 0,     1 -> 1 + shift,     2 -> 3,     3 -> 4 + shift,     4 -> 6
+// 
+// for rtt_th, rtt_tp, rtt_hp:      [e0][e1][e2][e3][e4]:   [0 0][0 0][0 0][1 1][1 1][1 1][2 2][2 2][2 2][3 3][3 3][3 3][4 4][4 4][4 4]
+//              0 -> 0,     1 -> 3,     2 -> 6,     3 -> 9,     4 -> 12
+// 
+// for rtt_thp:                     [e0][e1][e2][e3][e4]:   [0 0][0 0][0 0][0 0][0 1][1 1][1 1][1 1][1 1][2 2][2 2][2 2][2 2][2 3][3 3][3 3][3 3][3 3][4 4][4 4][4 4][4 4][4 X]
+//              0 -> 0,     1 -> 4 + shift,     2 -> 9,     3 -> 13 + shift,        4 -> 18
+
+static void local_recording_savedata(void)
+{
+    int i;
+
+    // check if NVRAM is free
+    if ( eeprom_is_operation_finished() == false )
+        return;
+
+    // enable and 
+    eeprom_enable( true );
+    if ( eeprom_is_operation_finished() == false )
+        return;
+
+    for (i=0; i<STORAGE_RECTASK; i++)
+    {
+        struct SRecTaskInternals *pfunc;
+
+        pfunc = &core.nvrec.func[i];
+
+        if ( pfunc->elem_mask == CORE_ELEM_TO_RECORD )
+        {
+            // task has an element to be saved
+            uint32 ee_addr;
+            uint32 ee_len;
+
+            // calculate the nvram address and data lenght
+            switch ( core.nvrec.task[i].task_elems )
+            {
+                case rtt_t:
+                case rtt_h:
+                case rtt_p:
+                    ee_addr = (3 * (uint32)pfunc->w) >> 1;
+                    ee_len = 2;
+                    break;
+                case rtt_th:
+                case rtt_tp:
+                case rtt_hp:
+                    ee_addr = (6 * (uint32)pfunc->w) >> 1;
+                    ee_len = 3;
+                    break;
+                default:
+                    ee_addr = (9 * (uint32)pfunc->w) >> 1;
+                    ee_len = 5;
+                    break;
+            }
+            
+            // write to the storage
+            eeprom_write( ee_addr + EEADDR_STORAGE + (uint32)core.nvrec.task[i].mempage * CORE_RECMEM_PAGESIZE, pfunc->element, ee_len, false );
+            while ( eeprom_is_operation_finished() == false );
+
+            // prepare task for the next aquisition
+            if ( (ee_len != 3) &&                       // If element is a non byte complete type (1 or 3 items -> 1.5 or 4.5 bytes)
+                 (pfunc->elem_shift == 0) )             // and no shift was made at the prew. operation                     
+            {
+                // save the last half byte from the prew. write
+                if ( ee_len == 2 )
+                    pfunc->element[0] = pfunc->element[1];          // for 1.5 bytes  
+                else
+                    pfunc->element[0] = pfunc->element[4];          // for 4.5 bytes
+                // mark the shift
+                pfunc->elem_shift = 1;
+                pfunc->element[1] = 0;
+                pfunc->element[2] = 0;
+                pfunc->element[3] = 0;
+                pfunc->element[4] = 0;
+            }
+            else
+            {
+                memset( pfunc->element, 0, 5 );
+                pfunc->elem_shift = 0;
+            }
+            pfunc->elem_mask = 0;           // clear the elem mask
+
+            // advance the write pointer
+            pfunc->w++;
+            if ( pfunc->w == pfunc->wrap )
+                pfunc->w = 0;
+                
+            // delete the oldest record if needed
+            if ( pfunc->w == pfunc->r )
+            {
+                pfunc->r++;
+                if ( pfunc->r == pfunc->wrap )
+                    pfunc->r = 0;
+            }
+            else
+                pfunc->c++;
+        }
+    }
+
+    core.vstatus.int_op.f.recsave = 0;      // everythign is saved
+}
+
+static void local_recording_all_pushdata( enum ESensorSelect sensor, uint32 value )
+{
+    int i;
+    for ( i=0; i<STORAGE_RECTASK; i++ )
+    {
+        if ( core.nvrec.running & (1<<i) )
+            local_recording_pushdata( i, sensor, value );
+    }
+}
+
+
+static void local_recording_task_reset( uint32 task_idx )
+{
+    uint32 wrap;
+    memset( &core.nvrec.func[task_idx], 0, sizeof(struct SRecTaskInternals) );
+
+    // wrap arround pointer is the max. elem. count of the current task
+    wrap = core_op_recording_get_total_samplenr( core.nvrec.task[task_idx].size * CORE_RECMEM_PAGESIZE, core.nvrec.task[task_idx].task_elems );
+
+    core.nvrec.func[task_idx].shedule = CORE_SCHED_NONE;
+    core.nvrec.func[task_idx].wrap = wrap;
+}
+
+static void local_recording_task_stop( uint32 task_idx )
+{
+    // just disable the clock
+    core.nvrec.func[task_idx].shedule = CORE_SCHED_NONE;
+}
+
+static void local_recording_task_start( uint32 task_idx )
+{
+    core.nvrec.func[task_idx].shedule = RTCclock + 2 * core_utils_timeunit2seconds( core.nvrec.task[task_idx].sample_rate );
+}
 
 
 static inline void local_process_temp_sensor_result( uint32 temp )
@@ -303,6 +589,11 @@ static inline void local_process_temp_sensor_result( uint32 temp )
             core.measure.dirty.b.upd_th_tendency = 1;
         }
     }
+
+    if ( core.nv.op.op_flags.b.op_recording )
+    {
+        local_recording_all_pushdata( ss_thermo, temp );
+    }
 }
 
 
@@ -310,6 +601,11 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
 {
     uint32 dew;     // calculated dew point temperature in 16FP9+40*
     uint32 abs;     // calculated absolute humidity in g/m3*100
+
+    if ( core.nv.op.op_flags.b.op_recording )
+    {
+        local_recording_all_pushdata( ss_rh, rh );
+    }
 
     dew = local_calculate_dewpoint( core.measure.measured.temperature, rh );
     abs = local_calculate_abs_humidity( core.measure.measured.temperature, rh );
@@ -373,6 +669,11 @@ static inline void local_process_pressure_sensor_result( uint32 press )
     
     // calculate filtred value
     pr_filt = press;
+
+    if ( core.nv.op.op_flags.b.op_recording )
+    {
+        local_recording_all_pushdata( ss_pressure, (pr_filt >> 4) );
+    }
 
     // store the measurement and create max/min
     if ( pr_filt != core.measure.measured.pressure )
@@ -761,14 +1062,6 @@ void core_beep( enum EBeepSequence beep )
 //     Setup save / load
 //-------------------------------------------------
 
-#define EEADDR_SETUP    0x00
-#define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
-#define EEADDR_RECORD   (EEADDR_OPS + sizeof(struct SCoreOperation))
-#define EEADDR_CK_SETUP (EEADDR_RECORD + sizeof(struct SCoreNonVolatileRec))
-#define EEADDR_CK_OPS   (EEADDR_CK_SETUP + 2)
-#define EEADDR_CK_REC   (EEADDR_CK_OPS + 2)
-
-
 int core_setup_save( void )
 {
     uint32 i;
@@ -1142,30 +1435,84 @@ void core_op_recording_init(void)
 
 void core_op_recording_switch( bool enabled )
 {
-    //TBI
-    core.nv.op.op_flags.b.op_recording = enabled ? 1 : 0;
+    int i;
 
-    core.nvrec.dirty = true;
+    if ( core.nv.op.op_flags.b.op_recording )
+    {
+        if ( enabled == false )
+        {
+            // recording master switch - stop the currently running tasks (do not clear the run flag)
+            for ( i=0; i<STORAGE_RECTASK; i++ )
+            {
+                if ( core.nvrec.running & (1<<i) )
+                    local_recording_task_stop( i );
+            }
+            core.nv.op.op_flags.b.op_recording = 0;
+            core.nvrec.dirty = true;
+            local_sensor_reschedule_all();
+        }
+    }
+    else if ( enabled )
+    {
+        // recording master switch - reset and start the currently running tasks
+        for ( i=0; i<STORAGE_RECTASK; i++ )
+        {
+            if ( core.nvrec.running & (1<<i) )
+            {
+                local_recording_task_reset( i );
+                local_recording_task_start( i );
+            }
+        }
+        core.nv.op.op_flags.b.op_recording = 1;
+        core.nvrec.dirty = true;
+        local_sensor_reschedule_all();
+    }
 }
 
 void core_op_recording_setup_task( uint32 task_idx, struct SRecTaskInstance *task )
 {
-    core.nvrec.task[task_idx] = *task;
-    //TBI
-    //TODO: take care - if format changed during recording - clear the data and record from 0
+    bool clean_up = false;
 
-    core.nvrec.dirty = true;
+    if ( memcmp( task, &core.nvrec.task[task_idx], sizeof(struct SRecTaskInstance) ) )
+    {
+        core.nvrec.task[task_idx] = *task;
+        local_recording_task_reset( task_idx );
+
+        if ( core.nv.op.op_flags.b.op_recording && (core.nvrec.running & (1<<task_idx)) )
+            local_recording_task_start( task_idx );
+
+        local_sensor_reschedule_all();
+        core.nvrec.dirty = true;
+    }
 }
 
 void core_op_recording_task_run( uint32 task_idx, bool run )
 {
-    //TBI
-    if ( run )
-        core.nvrec.running |= (1<<task_idx);
-    else
-        core.nvrec.running &= ~(1<<task_idx);
+    if ( core.nvrec.running & (1<<task_idx) )
+    {
+        if ( run == false )
+        {
+            // stop the task
+            local_recording_task_stop( task_idx );
 
-    core.nvrec.dirty = true;
+            core.nvrec.running &= ~(1<<task_idx);
+            core.nvrec.dirty = true;
+            local_sensor_reschedule_all();
+        }
+    }
+    else if ( run )
+    {
+        // task is started
+        if ( core.nv.op.op_flags.b.op_recording )
+        {
+            local_recording_task_reset( task_idx );
+            local_recording_task_start( task_idx );
+        }
+
+        core.nvrec.running |= (1<<task_idx);
+        core.nvrec.dirty = true;
+        local_sensor_reschedule_all();
+    }
 }
 
 uint32 core_op_recording_get_total_samplenr( uint32 mem_len, enum ERecordingTaskType rectype )
@@ -1202,7 +1549,7 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
     val = (int) (  ( 1 - cos((i*PI2FP12)/(float)(smpl_day << 12)) ) *                                   // ( 1-cos(x*2pi/sday)) * 
                    (  diff  *  ( cos( (i*PI2FP12)/(float)( (smpl_day << 12) * 10 ) ) + 1 )   /  4 )  ); // (vmax - vmin) *  cos(x*2pi/sday*10)+1  / 4
 
-    val = val + minim + (int)( sin((i*PI2FP12*(uint64)24)/(float)(smpl_day << 12)) * diff / 10 );
+    val = val + minim + (int)( sin((i*PI2FP12*(uint64)24)/(float)(smpl_day << 12)) * diff / 10 );       // high frequency component
     if ( val < 0 )
         val = 0;
     if ( val > 0xffff )
@@ -1213,22 +1560,20 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
 
 void core_op_recording_dbgfill( uint32 t )
 {
-/*    int i;
+    int i;
     uint32 smpl_day;
     uint32 smpl_total;
     uint32 elems;
     int val;
-    uint32 ptr = 0;
-    uint8 *wbuff;
-    bool flip = false;
     
-    smpl_total = core_op_recording_get_total_samplenr( core.nvrec.task[t].size * CORE_RECMEM_PAGESIZE, core.nvrec.task[t].task_elems );
-    smpl_day = (24 * 3600) / core_utils_timeunit2seconds( task.sample_rate );
+    smpl_total = 3 + core_op_recording_get_total_samplenr( core.nvrec.task[t].size * CORE_RECMEM_PAGESIZE, core.nvrec.task[t].task_elems );
+    smpl_day = (24 * 3600) / core_utils_timeunit2seconds( core.nvrec.task[t].sample_rate );
     elems = core.nvrec.task[t].task_elems;
-    wbuff = ( workbuff + WB_OFFS_FLIP1 );
 
     for ( i=0; i<smpl_total; i++ )
     {
+        core.nvrec.func[t].shedule = 0;
+
         if ( elems & CORE_BM_TEMP )
         {
             val = internal_dbgfill_calculate_points(i, smpl_day, (( 128 - 0 ) << TEMP_FP),  ( 0 << TEMP_FP ) );
@@ -1245,8 +1590,9 @@ void core_op_recording_dbgfill( uint32 t )
             local_recording_pushdata( t, ss_pressure, val );
         }
 
+        local_recording_savedata();
     }
-*/
+
 }
 
 
@@ -1394,13 +1740,27 @@ void core_poll( struct SEventStruct *evmask )
                         core.vstatus.int_op.f.sens_read &= ~SENSOR_PRESS;
                     }
 
-                    if ( core.vstatus.int_op.f.sens_read == 0 )
+                    if ( (core.vstatus.int_op.f.sens_read == 0) &&
+                         (core.vstatus.int_op.f.recsave == 0 ) )
                     {
                         core.vstatus.int_op.f.core_bsy = 0;
                     }
                 }
                 break;                                  // break the busy loop
             }
+
+            if ( core.vstatus.int_op.f.recsave )
+            {
+                local_recording_savedata();
+
+                if ( (core.vstatus.int_op.f.sens_read == 0) &&
+                     (core.vstatus.int_op.f.recsave == 0 ) )
+                {
+                    core.vstatus.int_op.f.core_bsy = 0;
+                }
+                break;                                  // break the busy loop
+            }
+
         }
         else
         {
@@ -1455,8 +1815,10 @@ uint32 core_pwr_getstate(void)
 
     if ( core.vstatus.int_op.f.core_bsy )
     {
-        if ( core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP )       // in uninitted state it waits for 1ms NVram start-up
+        if ( core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP )     // in uninitted state it waits for 1ms NVram start-up
             return (pwr | SYSSTAT_CORE_RUN_FULL);
+        if ( core.vstatus.int_op.f.recsave )
+            return SYSSTAT_CORE_BULK;
     }
 
     return pwr;

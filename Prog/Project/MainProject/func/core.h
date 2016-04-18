@@ -243,24 +243,28 @@
         uint8   sample_rate;        // see enum EUpdateTimings
     };
 
+    #define CORE_ELEM_TO_RECORD     0xff
+
     struct SRecTaskInternals
     {   
                                     // Element size is dependent of taks_elem setup - see enum ERecordingTaskType
         uint16  r;                  // start pointer of the recording
         uint16  w;                  // first free element after a recording
+        uint16  wrap;               // wrap arround point - calculated at the starting of the recording
         uint16  c;                  // nr. of elements of a recording
                                     // A maximum of 64*1024 elements can be recorded in a single task -> 1.24 year of data in 10min resolution
                                                         //                                               7.5  days of data in 10sec resolution
-        uint16  avg_cnt_t;          // averaging counters for temperature
-        uint16  avg_cnt_rh;         // rh
-        uint16  avg_cnt_p;          // and pressure
-
-        uint32  avg_sum_t;          // average sum for temperature
-        uint32  avg_sum_rh;         // for rh
-        uint32  avg_sum_p;          // and pressure
+        uint16  avg_cnt[3];          // averaging counters
+        uint32  avg_sum[3];          // average sum
 
         uint32  shedule;            // RTC schedule time for the next read
         uint32  last_timestamp;     // RTC timestamp of the last recorded value
+
+        uint8   elem_shift;         // if the element to be recorded needs to be shifted
+        uint8   element[5];         // temporary elem. buffer - collects data to generate a recording packet
+        uint8   elem_mask;          // mask with the acquired data ( temp / rh / pressure ) - must be = with taks[i].task_elems to be able to write
+                                    // to storage
+
     };
 
     struct SCoreOperation           // core operations in nonvolatile space
@@ -361,6 +365,7 @@
         {
             uint32  core_bsy:1;         // core operations in progress
             uint32  sched:1;            // scheduled time triggered - must look after scheduled operation
+            uint32  recsave:1;          // a recording has to be saved to NVRAM
             uint32  sens_read:4;        // wait for sensor read - contains bitmask with the sensors
 
             uint32  first_run:1;        // first loop - reset afterward
