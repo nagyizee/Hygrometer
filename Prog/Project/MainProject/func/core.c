@@ -776,7 +776,8 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
 
                     // see if should proceed with the next point
                     dispctr += dispstep;
-                    if ( (dispctr >> 16) != dispprev)
+                    if ( ((dispctr >> 16) != dispprev) ||
+                         (last && (i==smp_proc-1) && (core.readout.raw_ptr < WB_DISPPOINT)) )
                     {
                         dispprev = (dispctr >> 16);
 
@@ -791,6 +792,7 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         core.readout.v1ctr = 0;
 
                         rawbuff++;
+                        core.readout.raw_ptr++;
                     }
                 }
             }
@@ -844,7 +846,8 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
 
                     // see if should proceed with the next point
                     dispctr += dispstep;
-                    if ( (dispctr >> 16) != dispprev)
+                    if ( ((dispctr >> 16) != dispprev) ||
+                         (last && (i==smp_proc-1) && (core.readout.raw_ptr < WB_DISPPOINT)) )
                     {
                         dispprev = (dispctr >> 16);
 
@@ -869,6 +872,7 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
 
                         rawbuff1++;
                         rawbuff2++;
+                        core.readout.raw_ptr++;
                     }
                 }
             }
@@ -930,7 +934,8 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
 
                     // see if should proceed with the next point
                     dispctr += dispstep;
-                    if ( (dispctr >> 16) != dispprev)
+                    if ( ((dispctr >> 16) != dispprev) ||
+                         (last && (i==smp_proc-1) && (core.readout.raw_ptr < WB_DISPPOINT)) )
                     {
                         dispprev = (dispctr >> 16);
 
@@ -965,6 +970,7 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         rawbuff1++;
                         rawbuff2++;
                         rawbuff3++;
+                        core.readout.raw_ptr++;
                     }
                 }
             }
