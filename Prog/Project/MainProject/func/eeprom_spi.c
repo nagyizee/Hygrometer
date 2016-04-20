@@ -171,6 +171,8 @@
 
     uint32 eeprom_deepsleep()
     {
+        if (ee_status == eest_lowpower)
+            return 0;
         eeprom_disable();
         internal_send_command( CMD_DPD );  
         ee_status = eest_lowpower;
@@ -328,6 +330,9 @@
 
     bool eeprom_is_operation_finished( void )
     {
+        if ( ee_status < eest_read_in_progr )           // for speed optimization
+            return true;
+
         if ( ee_status == eest_read_in_progr )          // if it is in read in progress state
         {
             if ( DMA_EE_RX_Channel->CNDTR == 0)         // check if DMA finished it's job
@@ -373,7 +378,7 @@
             else
                 return false;                               // signal busy since DMA didn't finished it's job
         }
-        else if ( ee_status >= eest_pwrup_in_progr )
+        else                                                // ee_status >= eest_pwrup_in_progr
         {
             if ( internal_check_ID() )                      // if device responds with ID then everything is fine
             {
@@ -394,8 +399,6 @@
             else 
                 return false;
         }
-
-        return true;                                    // by default signal finished (no write/read pending)
     }
 
 
