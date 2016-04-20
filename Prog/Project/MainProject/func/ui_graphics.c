@@ -386,6 +386,14 @@ const uint8 uibm_icon_regstat_task4[] = {
             0x87, 0x01, 0x83, 0x01, 0x11, 0x01, 0x19, 0x01, 0xff, 0x01, 0xff, 0x01 };
 // data size = 28
 
+// Graphic data for icon_wait.pbm 
+// bitmap size: 15 x 21
+const uint8 uibm_icon_wait[] = { 
+            0x02, 0x00, 0x02, 0x07, 0x00, 0x07, 0x1f, 0xc0, 0x07, 0x67, 0x30, 0x07, 0x87, 0x88, 0x07, 0x47,
+            0x45, 0x07, 0x87, 0xa2, 0x07, 0x47, 0x51, 0x07, 0x87, 0xa2, 0x07, 0x47, 0x45, 0x07, 0x87, 0x88,
+            0x07, 0x67, 0x30, 0x07, 0x1f, 0xc0, 0x07, 0x07, 0x00, 0x07, 0x02, 0x00, 0x02 };
+// data size = 45
+
 
 
 
@@ -394,21 +402,21 @@ const uint8* bitmap_list[] = { uibm_start_screen,     uibm_grf_selected,     uib
                                uibm_icon_op_reg_moni, uibm_icon_regstat_started, uibm_icon_regstat_stopped,  uibm_icon_regstat_H,
                                uibm_icon_regstat_HP,  uibm_icon_regstat_P,   uibm_icon_regstat_T,   uibm_icon_regstat_TH,
                                uibm_icon_regstat_THP, uibm_icon_regstat_TP,  uibm_icon_regstat_task1, uibm_icon_regstat_task2,
-                               uibm_icon_regstat_task3, uibm_icon_regstat_task4 };
+                               uibm_icon_regstat_task3, uibm_icon_regstat_task4, uibm_icon_wait  };
 
 const uint16 bitmap_size[] = { 68,47,  8,8,   24,22,  24,22,
                                12,33,  13,13, 13,13,  13,13,
                                13,13,  11,9,  11,9,   15,9,
                                15,9,   15,9,  15,9,   15,9,
                                15,9,   15,9,  14,9,   14,9,
-                               14,9,   14,9 
+                               14,9,   14,9,  15,21 
                          };
 const uint16 bitmap_datasz[] = { 408,  8,     72,     72,
                                  60,   26,    26,     26,
                                  26,   22,    22,     30,
                                  30,   30,    30,     30,
                                  30,   30,    28,     28,
-                                 28,   28
+                                 28,   28,    45
                          };
 
 

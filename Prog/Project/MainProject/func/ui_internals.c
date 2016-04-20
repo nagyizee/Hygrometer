@@ -803,6 +803,9 @@ static inline void uist_draw_graph( int redraw_all )
         uigrf_text( 60, 1, uitxt_small,  "1012.56" );
 
 
+        uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
+
+
         // memory position (zoom)
         Graphic_SetColor(1);
         Graphic_Rectangle( 21, 11, 97, 15 );

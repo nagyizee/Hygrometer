@@ -28,6 +28,7 @@
     #define BMP_ICO_REGST_TASK2 19
     #define BMP_ICO_REGST_TASK3 20
     #define BMP_ICO_REGST_TASK4 21
+    #define BMP_ICO_WAIT        22
 
     enum Etextstyle
     {
