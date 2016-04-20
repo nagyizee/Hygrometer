@@ -1399,7 +1399,9 @@ void uist_mainwindowgraph_entry( void )
     uist_setupview_mainwindow( true );
     uist_drawview_mainwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
-    core_op_realtime_sensor_select( (enum ESensorSelect)(ui.main_mode + 1) );
+
+    core_op_recording_read_request( ui.m_return, core.nvrec.func[ui.m_return].c, core.nvrec.func[ui.m_return].c );
+
     ui.m_substate ++;
     ui.upd_ui_disp = 0;
 }
@@ -1409,8 +1411,6 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
 {
     if ( evmask->key_event )
     {
-
-
         // power button activated
         if ( evmask->key_longpressed & KEY_MODE )
         {

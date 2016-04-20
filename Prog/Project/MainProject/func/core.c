@@ -83,10 +83,50 @@ static volatile uint32 counter = 0;
 static volatile uint32 RTCctr = 0;
 static volatile uint32 sec_ctr = 0;
 
-#define WB_SIZE             0x700   // 1792 bytes of work memory
-#define WB_OFFS_RAWDISP     0x000   // from 0x000 -> 0x4B0  - 1200 bytes display graph memory: 100 samples * 2 bps * 2 (low/high) * 3 params (T/RH/P)
-#define WB_OFFS_FLIP1       0x500   // 256 bytes transfer buffer
-#define WB_OFFS_FLIP2       0x600   // 256 bytes transfer buffer
+
+// Workbuffer usage:
+// 1. For Graph displaying: 
+//      buffer is partitionated:
+//          - RAWDISP:  - raw data for display. Display contains 100points on horizontal
+//                      - there are 3 sections:         [TEMP] [RH] [PRESS]
+//                      - each section has 3 sets:      [MIN][MAX][AVG]             ->  RAWDISP: [  [Tm][TM][Ta] [Hm][HM][Ha] [Pm][PM][Pa] ]
+//                      - memory size = 3 sections * 3 sets * 100 points * 2bytes = 1800bytes -> 0x708 
+//                      we will use 4bit aligned ending (16 byte packs): 0x710
+//          - OFFS_FLIP1:
+//          - OFFS_FLIP2:   - 256 bytes of flip buffers. One is read from NVram, the other is processed to fill the RAWDISP
+// 
+// 2. For Serial data transfer:
+//          - OFFS_FLIP1:
+//          - OFFS_FLIP2:   - 256 bytes of flip buffers. One is read from NVram, the other is transmitted on UART
+
+
+#define WB_DISPPOINT        100
+#define WB_FLIPB_SIZE       0x200
+
+#define WB_OFFS_FLIP1       0x000                               // 512 bytes transfer buffer F1
+#define WB_OFFS_FLIP2       WB_FLIPB_SIZE                       // 512 bytes transfer buffer F2
+#define WB_OFFS_RAWDISP     (WB_OFFS_FLIP2 + WB_FLIPB_SIZE)     // from 0x200 -> 0x910  - 710 bytes display graph memory: 100 samples * 2 bps * 3 (low/high/avg) * 3 params (T/RH/P)
+
+#define WB_OFFS_TEMP        (WB_OFFS_RAWDISP)
+#define WB_OFFS_TEMP_MIN    (WB_OFFS_TEMP)
+#define WB_OFFS_TEMP_MAX    (WB_OFFS_TEMP_MIN + 200)
+#define WB_OFFS_TEMP_AVG    (WB_OFFS_TEMP_MAX + 200)
+
+#define WB_OFFS_RH          (WB_OFFS_TEMP_AVG + 200)
+#define WB_OFFS_RH_MIN      (WB_OFFS_RH)
+#define WB_OFFS_RH_MAX      (WB_OFFS_RH_MIN + 200)
+#define WB_OFFS_RH_AVG      (WB_OFFS_RH_MAX + 200)
+
+#define WB_OFFS_P           (WB_OFFS_RH_AVG + 200)
+#define WB_OFFS_P_MIN       (WB_OFFS_P)
+#define WB_OFFS_P_MAX       (WB_OFFS_P_MIN + 200)
+#define WB_OFFS_P_AVG       (WB_OFFS_P_MAX + 200)
+
+#define WB_SIZE             (WB_OFFS_P_AVG + 200)               // 
+
+
+static uint8    workbuff[ WB_SIZE ];
+
 
 #define EEADDR_SETUP    0x00
 #define EEADDR_OPS      (EEADDR_SETUP + sizeof(struct SCoreSetup))
@@ -96,10 +136,8 @@ static volatile uint32 sec_ctr = 0;
 #define EEADDR_CK_REC   (EEADDR_CK_OPS + 2)
 #define EEADDR_STORAGE  CORE_RECMEM_PAGESIZE       // leave the first page for setup - the rest is for recording
 
-
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
-static uint8    workbuff[ WB_SIZE ];
 
 extern void DispHAL_ISR_Poll(void);
 
@@ -164,6 +202,12 @@ void internal_DBG_dump_values()
     #endif
 }
 
+void internal_DBG_simu_1_cycle()
+{
+    #ifdef ON_QT_PLATFORM
+        HW_DBG_SIMUSKIP();
+    #endif
+}
 
 
 static void internal_clear_monitoring(void)
@@ -299,7 +343,7 @@ static void local_recording_pushdata( uint32 task_idx, enum ESensorSelect sensor
                 pfunc->elem_mask = CORE_ELEM_TO_RECORD;                                     // mark for non-volatile writing4
                 pfunc->last_timestamp = RTCclock;
                 core.vstatus.int_op.f.core_bsy = 1;
-                core.vstatus.int_op.f.recsave = 1;
+                core.vstatus.int_op.f.op_recsave = 1;
             }
 
             // record the item
@@ -448,7 +492,7 @@ static void local_recording_savedata(void)
             uint32 ee_addr;
             uint32 ee_len;
 
-            // calculate the nvram address and data lenght
+            // calculate the nvram address and data length
             switch ( core.nvrec.task[i].task_elems )
             {
                 case rtt_t:
@@ -510,10 +554,12 @@ static void local_recording_savedata(void)
             }
             else
                 pfunc->c++;
+
+            core.nvrec.dirty = true;
         }
     }
 
-    core.vstatus.int_op.f.recsave = 0;      // everythign is saved
+    core.vstatus.int_op.f.op_recsave = 0;      // everythign is saved
 }
 
 static void local_recording_all_pushdata( enum ESensorSelect sensor, uint32 value )
@@ -548,6 +594,477 @@ static void local_recording_task_stop( uint32 task_idx )
 static void local_recording_task_start( uint32 task_idx )
 {
     core.nvrec.func[task_idx].shedule = RTCclock + 2 * core_utils_timeunit2seconds( core.nvrec.task[task_idx].sample_rate );
+}
+
+
+static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 smp_proc, bool shifted )
+{
+    // Do not try to optimize this - it should work as quick as possible
+    int i;
+    uint32 disp_ptr;
+
+    disp_ptr = core.readout.raw_ptr << 1;
+
+    switch ( core.readout.taks_elem )
+    {
+        case rtt_t:
+        case rtt_p:
+        case rtt_h:
+            {
+                uint16 *rawbuff;
+                uint32 val;
+
+                if ( core.readout.taks_elem == rtt_t )
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_TEMP_AVG + disp_ptr);
+                else if ( core.readout.taks_elem == rtt_h )
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_RH_AVG + disp_ptr);
+                else
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_P_AVG + disp_ptr);
+
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value
+                    if ( shifted )
+                    {   
+                        val = ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff;    // [xxxx tttt][tttt tttt]
+                        shifted = false;
+                        wbuff += 2;
+                    }
+                    else
+                    {
+                        val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );      // [tttt tttt][tttt xxxx]
+                        shifted = true;
+                        wbuff += 1;
+                    }
+                    // convert to 16bit and save
+                    *rawbuff = (val << 4);
+                    rawbuff++;
+                }
+            }
+            break;
+        case rtt_th:
+        case rtt_tp:
+        case rtt_hp:
+            {
+                uint16 *rawbuff1;
+                uint16 *rawbuff2;
+                uint32 val1;
+                uint32 val2;
+
+                if ( core.readout.taks_elem == rtt_th )
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP_AVG + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_RH_AVG + disp_ptr);
+                }
+                else if ( core.readout.taks_elem == rtt_tp )
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP_AVG + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_P_AVG + disp_ptr);
+                }
+                else
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_RH_AVG + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_P_AVG + disp_ptr);
+                }
+
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value - no shift in this case
+                    val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );     // [tttt tttt][tttt hhhh][hhhh hhhh]
+                    val2 = ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff;
+                    wbuff += 3;
+
+                    // convert to 16bit and save
+                    *rawbuff1 = (val1 << 4);
+                    *rawbuff2 = (val2 << 4);
+                    rawbuff1++;
+                    rawbuff2++;
+                }
+            }
+            break;
+        default:
+            {
+                uint16 *rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP_AVG + disp_ptr);
+                uint16 *rawbuff2 = (uint16*)(workbuff + WB_OFFS_RH_AVG + disp_ptr);
+                uint16 *rawbuff3 = (uint16*)(workbuff + WB_OFFS_P_AVG + disp_ptr);
+                uint32 val1;
+                uint32 val2;
+                uint32 val3;
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value
+                    if ( shifted )
+                    {                                                               //      0          1          2          3          4
+                        val1 = ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
+                        val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) );
+                        val3 = ( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff;
+                        shifted = false;
+                        wbuff += 5;
+                    }
+                    else
+                    {
+                        val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );     // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
+                        val2 = ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff;
+                        val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ); 
+                        shifted = true;
+                        wbuff += 4;
+                    }
+                    // convert to 16bit and save
+                    *rawbuff1 = (val1 << 4);
+                    *rawbuff2 = (val2 << 4);
+                    *rawbuff3 = (val3 << 4);
+                    rawbuff1++;
+                    rawbuff2++;
+                    rawbuff3++;
+                }
+            }
+            break;
+    }
+    core.readout.raw_ptr += smp_proc;
+}
+
+static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint32 smp_proc, bool shifted, bool last )
+{
+    int i;
+    uint32 disp_ptr;
+
+    register uint32 dispctr  = core.readout.dispctr;
+    register uint32 dispprev = core.readout.dispprev;
+    register uint32 dispstep = core.readout.dispstep;
+
+    disp_ptr = (dispctr >> 15) & (~0x01);       // use the disp counter's integer part, but x2
+
+    switch ( core.readout.taks_elem )
+    {
+        case rtt_t:
+        case rtt_p:
+        case rtt_h:
+            {
+                uint16 *rawbuff;
+                register uint32 val;
+
+                if ( core.readout.taks_elem == rtt_t )
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_TEMP + disp_ptr);
+                else if ( core.readout.taks_elem == rtt_h )
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_RH + disp_ptr);
+                else
+                    rawbuff = (uint16*)(workbuff + WB_OFFS_P + disp_ptr);
+
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value
+                    if ( shifted )
+                    {   
+                        val = (( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;    // [xxxx tttt][tttt tttt]
+                        shifted = false;
+                        wbuff += 2;
+                    }
+                    else
+                    {
+                        val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;      // [tttt tttt][tttt xxxx]
+                        shifted = true;
+                        wbuff += 1;
+                    }
+
+                    // check min/max and sum for average
+                    if ( core.readout.v1min > val )
+                        core.readout.v1min = val;
+                    if ( core.readout.v1max < val )
+                        core.readout.v1max = val;
+                    core.readout.v1ctr++;
+                    core.readout.v1sum += val;
+
+                    // see if should proceed with the next point
+                    dispctr += dispstep;
+                    if ( (dispctr >> 16) != dispprev)
+                    {
+                        dispprev = (dispctr >> 16);
+
+                        val = core.readout.v1sum / core.readout.v1ctr;
+                        *rawbuff        = core.readout.v1min;
+                        *(rawbuff+100)  = core.readout.v1max;
+                        *(rawbuff+200)  = val;
+
+                        core.readout.v1min = 0xffff;
+                        core.readout.v1max = 0;
+                        core.readout.v1sum = 0;
+                        core.readout.v1ctr = 0;
+
+                        rawbuff++;
+                    }
+                }
+            }
+            break;
+        case rtt_th:
+        case rtt_tp:
+        case rtt_hp:
+            {
+                uint16 *rawbuff1;
+                uint16 *rawbuff2;
+                register uint32 val1;
+                register uint32 val2;
+
+                if ( core.readout.taks_elem == rtt_th )
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_RH + disp_ptr);
+                }
+                else if ( core.readout.taks_elem == rtt_tp )
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_P + disp_ptr);
+                }
+                else
+                {
+                    rawbuff1 = (uint16*)(workbuff + WB_OFFS_RH + disp_ptr);
+                    rawbuff2 = (uint16*)(workbuff + WB_OFFS_P + disp_ptr);
+                }
+
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value - no shift in this case
+                    val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;        // [tttt tttt][tttt hhhh][hhhh hhhh]
+                    val2 = ( ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff) << 4;
+                    wbuff += 3;
+
+                    // check min/max and sum for average
+                    if ( core.readout.v1min > val1 )
+                        core.readout.v1min = val1;
+                    if ( core.readout.v1max < val1 )
+                        core.readout.v1max = val1;
+                    core.readout.v1ctr++;
+                    core.readout.v1sum += val1;
+
+                    if ( core.readout.v2min > val2 )
+                        core.readout.v2min = val2;
+                    if ( core.readout.v2max < val2 )
+                        core.readout.v2max = val2;
+                    core.readout.v2ctr++;
+                    core.readout.v2sum += val2;
+
+                    // see if should proceed with the next point
+                    dispctr += dispstep;
+                    if ( (dispctr >> 16) != dispprev)
+                    {
+                        dispprev = (dispctr >> 16);
+
+                        val1 = core.readout.v1sum / core.readout.v1ctr;
+                        val2 = core.readout.v2sum / core.readout.v2ctr;
+                        *rawbuff1        = core.readout.v1min;
+                        *(rawbuff1+100)  = core.readout.v1max;
+                        *(rawbuff1+200)  = val1;
+
+                        *rawbuff2        = core.readout.v2min;
+                        *(rawbuff2+100)  = core.readout.v2max;
+                        *(rawbuff2+200)  = val2;
+
+                        core.readout.v1min = 0xffff;
+                        core.readout.v1max = 0;
+                        core.readout.v1sum = 0;
+                        core.readout.v1ctr = 0;
+                        core.readout.v2min = 0xffff;
+                        core.readout.v2max = 0;
+                        core.readout.v2sum = 0;
+                        core.readout.v2ctr = 0;
+
+                        rawbuff1++;
+                        rawbuff2++;
+                    }
+                }
+            }
+            break;
+        case rtt_thp:
+            {
+                uint16 *rawbuff1;
+                uint16 *rawbuff2;
+                uint16 *rawbuff3;
+                register uint32 val1;
+                register uint32 val2;
+                register uint32 val3;
+
+                rawbuff1 = (uint16*)(workbuff + WB_OFFS_TEMP + disp_ptr);
+                rawbuff2 = (uint16*)(workbuff + WB_OFFS_RH + disp_ptr);
+                rawbuff3 = (uint16*)(workbuff + WB_OFFS_P + disp_ptr);
+
+                for ( i=0; i<smp_proc; i++ )
+                {
+                    // get the 12bit value - no shift in this case
+                    if ( shifted )
+                    {                                                               //      0          1          2          3          4
+                        val1 = (( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
+                        val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) ) << 4;
+                        val3 = (( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff) << 4;
+                        shifted = false;
+                        wbuff += 5;
+                    }
+                    else
+                    {
+                        val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;       // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
+                        val2 = (( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff) << 4;
+                        val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ) << 4; 
+                        shifted = true;
+                        wbuff += 4;
+                    }
+
+                    // check min/max and sum for average
+                    if ( core.readout.v1min > val1 )
+                        core.readout.v1min = val1;
+                    if ( core.readout.v1max < val1 )
+                        core.readout.v1max = val1;
+                    core.readout.v1ctr++;
+                    core.readout.v1sum += val1;
+
+                    if ( core.readout.v2min > val2 )
+                        core.readout.v2min = val2;
+                    if ( core.readout.v2max < val2 )
+                        core.readout.v2max = val2;
+                    core.readout.v2ctr++;
+                    core.readout.v2sum += val2;
+
+                    if ( core.readout.v3min > val3 )
+                        core.readout.v3min = val3;
+                    if ( core.readout.v3max < val3 )
+                        core.readout.v3max = val3;
+                    core.readout.v3ctr++;
+                    core.readout.v3sum += val3;
+
+                    // see if should proceed with the next point
+                    dispctr += dispstep;
+                    if ( (dispctr >> 16) != dispprev)
+                    {
+                        dispprev = (dispctr >> 16);
+
+                        val1 = core.readout.v1sum / core.readout.v1ctr;
+                        val2 = core.readout.v2sum / core.readout.v2ctr;
+                        val3 = core.readout.v3sum / core.readout.v3ctr;
+                        *rawbuff1        = core.readout.v1min;
+                        *(rawbuff1+100)  = core.readout.v1max;
+                        *(rawbuff1+200)  = val1;
+
+                        *rawbuff2        = core.readout.v2min;
+                        *(rawbuff2+100)  = core.readout.v2max;
+                        *(rawbuff2+200)  = val2;
+
+                        *rawbuff3        = core.readout.v3min;
+                        *(rawbuff3+100)  = core.readout.v3max;
+                        *(rawbuff3+200)  = val3;
+
+                        core.readout.v1min = 0xffff;
+                        core.readout.v1max = 0;
+                        core.readout.v1sum = 0;
+                        core.readout.v1ctr = 0;
+                        core.readout.v2min = 0xffff;
+                        core.readout.v2max = 0;
+                        core.readout.v2sum = 0;
+                        core.readout.v2ctr = 0;
+                        core.readout.v3min = 0xffff;
+                        core.readout.v3max = 0;
+                        core.readout.v3sum = 0;
+                        core.readout.v3ctr = 0;
+
+                        rawbuff1++;
+                        rawbuff2++;
+                        rawbuff3++;
+                    }
+                }
+            }
+            break;
+    }
+
+    core.readout.dispctr  = dispctr;
+    core.readout.dispprev = dispprev;
+    core.readout.dispstep = dispstep;
+}
+
+
+uint32 internal_recording_read_calculate_next_step( uint32 length, uint32 *ee_size )
+{
+    uint32 ee_addr;
+
+    ee_addr = core.readout.task_elsizeX2 * core.readout.to_ptr;
+    if ( ee_addr & 0x01 )
+        core.readout.shifted = true;
+    else
+        core.readout.shifted = false;
+    ee_addr = ( ee_addr >> 1 ) + core.readout.task_offs;
+
+    // calculate the length to be read - it should be the minimum bw. start_smpl -> wrap point  and  F1/F2 buffer size (256 bytes)
+    if ( (core.readout.to_ptr + length) > core.readout.wrap )
+        length = core.readout.wrap - core.readout.to_ptr;                   // limit the read length to the wrap point
+    if ( (length * core.readout.task_elsizeX2) > ((WB_FLIPB_SIZE - 1)*2) ) 
+        length = ((WB_FLIPB_SIZE - 1)*2) / core.readout.task_elsizeX2;      // limit the read length to the max flip buffer size with 1 byte reserve
+
+    *ee_size = ((length * core.readout.task_elsizeX2) >> 1) + 1;            // always compensate for the half byte
+
+    // save the next read position and decrease the read length
+    core.readout.to_process = length;
+    core.readout.to_read -= length;
+    core.readout.to_ptr += length; 
+    if ( core.readout.to_ptr >= core.readout.wrap )
+        core.readout.to_ptr = 0;
+
+    return ee_addr;
+}
+
+static inline void local_recording_readout( void )
+{
+    if ( (core.vstatus.int_op.f.op_recread == 0) ||     // bulky call - exit
+         core.vstatus.int_op.f.graph_ok )
+        return;
+
+    if ( eeprom_is_operation_finished() == false )      // if still busy reading from NVRAM - exit
+        return;
+
+    // NVRAM read finished - set up the next read and process the data from the current one
+    {
+        uint8 *wbuff;
+        uint32 smp_proc;
+        bool finished = false;
+        bool shifted;
+
+        // prerequisites for data processing
+        smp_proc = core.readout.to_process;         // sample points read from memory
+        shifted = core.readout.shifted;
+        if ( core.readout.flipbuff == 0 )
+            wbuff = workbuff + WB_OFFS_FLIP1;
+        else
+            wbuff = workbuff + WB_OFFS_FLIP2;
+
+        // put the DMA to work if there is more data to be read from NVRAM
+        if ( core.readout.to_read )
+        {
+            uint32 ee_addr;
+            uint32 ee_len;
+            ee_addr = internal_recording_read_calculate_next_step( core.readout.to_read, &ee_len );
+
+            if ( core.readout.flipbuff == 0 )
+            {
+                eeprom_read( ee_addr, ee_len, workbuff + WB_OFFS_FLIP2, true );        // read to F2, F1 will be processed below
+                core.readout.flipbuff = 1;
+            }
+            else
+            {
+                eeprom_read( ee_addr, ee_len, workbuff + WB_OFFS_FLIP1, true );        // read to F1, F2 will be processed below
+                core.readout.flipbuff = 0;
+            }
+        }
+        else
+            finished = true;
+
+        // process the display points
+        if ( core.readout.total_read <= WB_DISPPOINT )
+            internal_recording_read_process_simple( wbuff, smp_proc, shifted );         // points fit to display - no min/max registering, just push them in the raw buffer
+        else
+            internal_recording_read_process_minmaxavg( wbuff, smp_proc, shifted, finished );      // points doesn't fit - min/max should be calculated, 
+
+        internal_DBG_simu_1_cycle();
+
+        if ( finished )
+        {
+            core.vstatus.int_op.f.graph_ok = 1;
+            core.vstatus.int_op.f.op_recread = 0;
+        }
+    }
 }
 
 
@@ -851,19 +1368,19 @@ static inline void local_check_sensor_read_schedules(void)
     if ( core.nv.op.sched.sch_thermo <= RTCclock )
     {
         Sensor_Acquire( SENSOR_TEMP );
-        core.vstatus.int_op.f.sens_read |= SENSOR_TEMP; 
+        core.vstatus.int_op.f.op_sread |= SENSOR_TEMP; 
         internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_thermo ), &core.nv.op.sched.sch_thermo );
     }
     if ( core.nv.op.sched.sch_hygro <= RTCclock )
     {
         Sensor_Acquire( SENSOR_RH );
-        core.vstatus.int_op.f.sens_read |= SENSOR_RH; 
+        core.vstatus.int_op.f.op_sread |= SENSOR_RH; 
         internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_rh ), &core.nv.op.sched.sch_hygro );
     }
     if ( core.nv.op.sched.sch_press <= RTCclock )
     {
         Sensor_Acquire( SENSOR_PRESS );
-        core.vstatus.int_op.f.sens_read |= SENSOR_PRESS; 
+        core.vstatus.int_op.f.op_sread |= SENSOR_PRESS; 
         internal_sensor_shedule_setval( internal_sensor_shedule_increment( ss_pressure ), &core.nv.op.sched.sch_press );
     }
 
@@ -1431,6 +1948,7 @@ void core_op_recording_init(void)
         core.vstatus.ui_cmd |= CORE_UISTATE_EECORRUPTED;
         // TODO the rest
     }
+    eeprom_deepsleep();
 }
 
 void core_op_recording_switch( bool enabled )
@@ -1538,6 +2056,102 @@ uint32 core_op_recording_get_total_samplenr( uint32 mem_len, enum ERecordingTask
     return ( (mem_len * 2) / factor ); 
 }
 
+int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 length )
+{
+    struct SRecTaskInternals *pfunc;
+
+    pfunc = &core.nvrec.func[task_idx];
+
+    if ( (smpl_depth > pfunc->c) || ( length > smpl_depth ) )      // prevent faulty values
+        return -1;
+    if ( core.vstatus.int_op.f.op_recread )                         // if read in progress - do not allow a new one
+        return -2;
+
+    core.vstatus.int_op.f.graph_ok = 0;                             // data is being processed - clear the graph ok flag
+
+    {
+        uint32 ee_addr;
+        uint32 ee_size;
+        uint32 start_smpl;
+        uint32 to_read;
+
+        // enable eeprom
+        eeprom_enable(false);
+
+        memset( &core.readout, 0, sizeof(core.readout) );
+
+        // find out the start pointer
+        if ( pfunc->w >= smpl_depth )
+            start_smpl = pfunc->w - smpl_depth;
+        else
+            start_smpl = (pfunc->w + pfunc->wrap) - smpl_depth;
+
+        // set up readout state variables
+        core.readout.task_offs = EEADDR_STORAGE + (uint32)core.nvrec.task[task_idx].mempage * CORE_RECMEM_PAGESIZE; // save the Task memory offset
+        core.readout.taks_elem = core.nvrec.task[task_idx].task_elems;                                              // save the task elem type
+        core.readout.total_read = length;                                                                           // how many samples should be read in total
+        core.readout.to_read = length; 
+        core.readout.wrap = pfunc->wrap;
+        core.readout.to_ptr = start_smpl;
+        switch ( core.readout.taks_elem )
+        {
+            case rtt_t:
+            case rtt_h:
+            case rtt_p: core.readout.task_elsizeX2 = 3; break;
+            case rtt_th:
+            case rtt_tp:
+            case rtt_hp: core.readout.task_elsizeX2 = 6; break;
+            default:     core.readout.task_elsizeX2 = 9; break;
+        }
+
+        core.readout.v1min = 0xffff;
+        core.readout.v2min = 0xffff;
+        core.readout.v3min = 0xffff;
+
+        if ( length > WB_DISPPOINT )
+        {
+            // case when there are more elements than display points
+            core.readout.dispstep = (100 << 16) / length;
+        }
+
+        // calculate the memory address and size and advance the read pointers
+        ee_addr = internal_recording_read_calculate_next_step( length, &ee_size );
+
+        // start the read operation
+        while ( eeprom_is_operation_finished() == false );      // check if wake-up is done (if was the case)
+        eeprom_read( ee_addr, ee_size, workbuff + WB_OFFS_FLIP1, true );
+
+        internal_DBG_simu_1_cycle();
+    }
+
+    core.vstatus.int_op.f.op_recread = 1;
+    core.vstatus.int_op.f.core_bsy = 1;
+}
+
+void core_op_recording_read_cancel( uint32 task_idx )
+{
+    if ( core.vstatus.int_op.f.op_recread == 0 )
+        return;
+
+    while ( eeprom_is_operation_finished() == false );
+
+    core.vstatus.int_op.f.op_recread = 0;
+    core.vstatus.int_op.f.graph_ok = 0;
+
+    if ( core.vstatus.int_op.f.op_recsave == 0 )
+    {
+        if ( core.vstatus.int_op.f.op_sread == 0 )
+            core.vstatus.int_op.f.core_bsy = 0;
+        eeprom_deepsleep();  
+    }
+}
+
+int core_op_recording_read_busy(void)
+{
+
+}
+
+
 // for calculations and formulas see reg_generator.mcdx
 // 2*PI = 6.28 - integer part on 3 bytes, max X = 2^16 - 16bytes -> 13  ==> use FP12 for safety and sign
 #define PI2FP12 25736           // 2*pi in FP12                         
@@ -1570,6 +2184,8 @@ void core_op_recording_dbgfill( uint32 t )
     smpl_day = (24 * 3600) / core_utils_timeunit2seconds( core.nvrec.task[t].sample_rate );
     elems = core.nvrec.task[t].task_elems;
 
+    local_recording_task_reset(t);
+
     for ( i=0; i<smpl_total; i++ )
     {
         core.nvrec.func[t].shedule = 0;
@@ -1593,6 +2209,13 @@ void core_op_recording_dbgfill( uint32 t )
         local_recording_savedata();
     }
 
+    if ( (core.vstatus.int_op.f.op_recsave == 0 ) &&
+         (core.vstatus.int_op.f.op_recread == 0 )   )
+    {
+        if ( core.vstatus.int_op.f.op_sread == 0 )
+            core.vstatus.int_op.f.core_bsy = 0;
+        eeprom_deepsleep();  
+    }
 }
 
 
@@ -1711,7 +2334,7 @@ void core_poll( struct SEventStruct *evmask )
                 }
             }
 
-            if ( core.vstatus.int_op.f.sens_read )
+            if ( core.vstatus.int_op.f.op_sread )
             {
                 uint32 result;
 
@@ -1727,21 +2350,22 @@ void core_poll( struct SEventStruct *evmask )
                     if ( result & SENSOR_TEMP )
                     {
                         local_process_temp_sensor_result( Sensor_Get_Value(SENSOR_TEMP) );
-                        core.vstatus.int_op.f.sens_read &= ~SENSOR_TEMP;
+                        core.vstatus.int_op.f.op_sread &= ~SENSOR_TEMP;
                     }
                     if ( result & SENSOR_RH )
                     {
                         local_process_hygro_sensor_result( Sensor_Get_Value(SENSOR_RH) );
-                        core.vstatus.int_op.f.sens_read &= ~SENSOR_RH;
+                        core.vstatus.int_op.f.op_sread &= ~SENSOR_RH;
                     }
                     if ( result & SENSOR_PRESS )
                     {
                         local_process_pressure_sensor_result( Sensor_Get_Value(SENSOR_PRESS) );
-                        core.vstatus.int_op.f.sens_read &= ~SENSOR_PRESS;
+                        core.vstatus.int_op.f.op_sread &= ~SENSOR_PRESS;
                     }
 
-                    if ( (core.vstatus.int_op.f.sens_read == 0) &&
-                         (core.vstatus.int_op.f.recsave == 0 ) )
+                    if ( (core.vstatus.int_op.f.op_sread == 0) &&
+                         (core.vstatus.int_op.f.op_recsave == 0 ) &&
+                         (core.vstatus.int_op.f.op_recread == 0 )   )
                     {
                         core.vstatus.int_op.f.core_bsy = 0;
                     }
@@ -1749,14 +2373,30 @@ void core_poll( struct SEventStruct *evmask )
                 break;                                  // break the busy loop
             }
 
-            if ( core.vstatus.int_op.f.recsave )
+            if ( core.vstatus.int_op.f.op_recsave )
             {
                 local_recording_savedata();
 
-                if ( (core.vstatus.int_op.f.sens_read == 0) &&
-                     (core.vstatus.int_op.f.recsave == 0 ) )
+                if ( (core.vstatus.int_op.f.op_recsave == 0 ) &&
+                     (core.vstatus.int_op.f.op_recread == 0 )   )
                 {
-                    core.vstatus.int_op.f.core_bsy = 0;
+                    if ( core.vstatus.int_op.f.op_sread == 0 )
+                        core.vstatus.int_op.f.core_bsy = 0;
+                    eeprom_deepsleep();  
+                }
+                break;                                  // break the busy loop
+            }
+
+            if ( core.vstatus.int_op.f.op_recread )
+            {
+                local_recording_readout();
+
+                if ( (core.vstatus.int_op.f.op_recsave == 0 ) &&
+                     (core.vstatus.int_op.f.op_recread == 0 )   )
+                {
+                    if ( core.vstatus.int_op.f.op_sread == 0 )
+                        core.vstatus.int_op.f.core_bsy = 0;
+                    eeprom_deepsleep();  
                 }
                 break;                                  // break the busy loop
             }
@@ -1817,7 +2457,7 @@ uint32 core_pwr_getstate(void)
     {
         if ( core.vstatus.int_op.f.nv_state == CORE_NVSTATE_PWR_RUNUP )     // in uninitted state it waits for 1ms NVram start-up
             return (pwr | SYSSTAT_CORE_RUN_FULL);
-        if ( core.vstatus.int_op.f.recsave )
+        if ( core.vstatus.int_op.f.op_recsave || core.vstatus.int_op.f.op_recread )
             return SYSSTAT_CORE_BULK;
     }
 

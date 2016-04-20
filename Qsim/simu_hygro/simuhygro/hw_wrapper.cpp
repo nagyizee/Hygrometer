@@ -44,6 +44,11 @@ void HW_DBG_DUMP(struct SCore *core)
     pClass->dbg_shed_sens_press = core->nv.op.sched.sch_press;
 }
 
+void HW_DBG_SIMUSKIP(void)
+{
+    pClass->simu_1cycle = true;
+}
+
 
 bool BtnGet_OK()
 {

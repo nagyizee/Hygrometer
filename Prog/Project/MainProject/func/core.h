@@ -313,6 +313,46 @@
     };
 
 
+    struct SCoreNVreadout
+    {
+        uint8   taks_elem;                  // Task element
+        uint8   task_elsizeX2;              // Task element size in bytes X2
+        uint8   shifted;                    // If data in the read buffer begins shifted
+        uint8   flipbuff;                   // 0 - F1 is in read, F2 - not used yet
+                                            // 1 - F2 is in read, F1 - in processing
+                                            // 2 - F1 is in read, F2 - in processing
+        uint32  task_offs;                  // NVRAM offset for the task under processing
+        uint16  wrap;                       // wrap point
+        uint16  total_read;                 // total points read from memory
+                                            // 
+        uint16  to_read;                    // samples to read in total
+        uint16  to_ptr;                     // pointer from which to read (from start pointer and advancing)
+        uint16  to_process;                 // samples to be processed when read is finished
+
+        uint16  v1min;
+        uint16  v1max;
+        uint16  v1ctr;
+        uint16  v2min;
+        uint16  v2max;
+        uint16  v2ctr;
+        uint16  v3min;
+        uint16  v3max;
+        uint16  v3ctr;
+
+        uint32  v1sum;
+        uint32  v2sum;
+        uint32  v3sum;
+
+        uint32  dispctr;                    // dipsplay position increment in fp16
+        uint16  dispstep;                   // fractional part of the display step increment
+        uint16  dispprev;                   // integer part of the prev. display counter
+        uint16  raw_ptr;                    // pointer in the raw data buffer, incremented after each push
+
+        
+
+    };
+    
+
     struct SCoreNonVolatileData
     {
         bool                    dirty;      // set if nonvolatile structure is read out for use (no fast on/off)
@@ -365,8 +405,9 @@
         {
             uint32  core_bsy:1;         // core operations in progress
             uint32  sched:1;            // scheduled time triggered - must look after scheduled operation
-            uint32  recsave:1;          // a recording has to be saved to NVRAM
-            uint32  sens_read:4;        // wait for sensor read - contains bitmask with the sensors
+            uint32  op_recsave:1;       // a recording has to be saved to NVRAM
+            uint32  op_recread:1;       // read a recording
+            uint32  op_sread:4;         // wait for sensor read - contains bitmask with the sensors
 
             uint32  first_run:1;        // first loop - reset afterward
             uint32  first_pwrup:1;      // first power-up - do not load NV operations from FRAM
@@ -374,7 +415,9 @@
             uint32  nv_initted:1;       // nonvolatile structure content initted
             uint32  nv_state:2;         // state of nonvolatile memory init
             uint32  nv_rec_initted:1;   // set when recording structure initted
-    
+
+            uint32  graph_ok:1;         // if the raw garph data is available
+
             uint32  sens_real_time:2;   // sensor in real time - see enum ESensorSelect
 
         } f;
@@ -399,6 +442,7 @@
         struct SCoreVolatileStatus  vstatus;    // operational status in volatile domain (means - can be discarded when power is down)
 
         struct SCoreMeasure     measure;
+        struct SCoreNVreadout   readout;        // readout related parameters/status 
     };
 
 
@@ -450,6 +494,14 @@
     void core_op_recording_task_run( uint32 task_idx, bool run );
     // calculates the maximum sample nr which can be held in an amount of memory
     uint32 core_op_recording_get_total_samplenr( uint32 mem_len, enum ERecordingTaskType rectype );
+    // do a readout and averaging in the temporary buffer. Operation is asynchronous
+    // smpl_depth is from the last write, max value is count. lenght is the lenght in samples of the read operation
+    int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 lenght );
+    // cancel recording request and cleanup
+    void core_op_recording_read_cancel( uint32 task_idx );
+    // check if read is finished and buffer is ready. Returns a value from 10->0 for progress bar displaying. 0 means finished
+    int core_op_recording_read_busy(void);
+
 
     // debug fill feature
     void core_op_recording_dbgfill( uint32 t );

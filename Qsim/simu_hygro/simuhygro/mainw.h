@@ -154,6 +154,8 @@ public:
     uint32  dbg_shed_sens_rh;
     uint32  dbg_shed_sens_press;
 
+    bool simu_1cycle;
+
 private:
     void Application_MainLoop( bool tick );
     void CPULoopSimulation( bool tick );

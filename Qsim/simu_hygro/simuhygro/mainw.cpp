@@ -189,6 +189,9 @@ void mainw::CPULoopSimulation( bool tick )
                 Application_MainLoop( send_tick );
                 pwr_main_executed = true;
 
+                if ( simu_1cycle )
+                    break;
+
                 if ( PwrMode >= pm_sleep )
                     break;                   // break the multi-main-loop if power mode changed to anything but spleep or full
 
@@ -253,10 +256,15 @@ void mainw::CPULoopSimulation( bool tick )
                 {
                     pwrdisp_add_pwr_state( pm_disp_update );
                 }
+                else if ( (PwrModeToDisp == pm_sleep) && (simu_1cycle) )
+                {
+                    pwrdisp_add_pwr_state( pm_full );
+                }
                 else
                     pwrdisp_add_pwr_state( PwrModeToDisp );
             }
 
+            simu_1cycle = false;
             pwr_main_executed = false;
             pwr_exti = false;
         }
