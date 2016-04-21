@@ -759,11 +759,21 @@ uint32 eeprom_disable()
 {
     ee_enabled = false;
     ee_wren = false;
+
+    FILE *eefile;
+    eefile = fopen( "eeprom.dat", "wb" );
+    if ( eefile == NULL )
+        return (uint32)-1;
+    fwrite( eeprom_cont, 1, EEPROM_SIZE, eefile );
+    fclose(eefile);
+
+
     return 0;
 }
 
 uint32 eeprom_deepsleep()
 {
+    eeprom_disable();
     ee_deepsleep = true;
     ee_enabled = false;
     ee_wren = false;
@@ -788,7 +798,6 @@ uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async )
 // write count quantity of data to address from buff, returns the nr. of successfull written bytes
 uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async )
 {
-    FILE *eefile;
     if ( (ee_enabled == false) || (ee_wren == false) )
         return (uint32)-1;
 
@@ -796,12 +805,6 @@ uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async
         count = (EEPROM_SIZE - address);
 
     memcpy( eeprom_cont + address, buff, count );
-
-    eefile = fopen( "eeprom.dat", "wb" );
-    if ( eefile == NULL )
-        return (uint32)-1;
-    fwrite( eeprom_cont, 1, EEPROM_SIZE, eefile );
-    fclose(eefile);
 
     ee_count = (10 * count + 499) / 500;
 

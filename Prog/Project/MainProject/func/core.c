@@ -543,7 +543,11 @@ static void local_recording_savedata(void)
             // advance the write pointer
             pfunc->w++;
             if ( pfunc->w == pfunc->wrap )
+            {
+                pfunc->elem_shift = 0;      // after wrap arround do not shift
+                pfunc->element[0] = 0;
                 pfunc->w = 0;
+            }
                 
             // delete the oldest record if needed
             if ( pfunc->w == pfunc->r )
@@ -2059,7 +2063,11 @@ uint32 core_op_recording_get_total_samplenr( uint32 mem_len, enum ERecordingTask
             break;
     }
 
-    return ( (mem_len * 2) / factor ); 
+    factor = (mem_len * 2) / factor;
+    if ( factor > 0xffff )
+        factor = 0xffff;        // do not exceed 16 bit spaces
+
+    return factor;
 }
 
 int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 length )
@@ -2212,7 +2220,8 @@ void core_op_recording_dbgfill( uint32 t )
             local_recording_pushdata( t, ss_pressure, val );
         }
 
-        local_recording_savedata();
+        while ( core.vstatus.int_op.f.op_recsave )
+            local_recording_savedata();
     }
 
     if ( (core.vstatus.int_op.f.op_recsave == 0 ) &&

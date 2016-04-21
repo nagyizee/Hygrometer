@@ -78,7 +78,7 @@ struct SBeep
             if ( keys_on & poz )    // newly pressed key
             {
                 if ( pctr < 4 )
-                    keys_strokepause[pctr]  = 25;      // - for <,>,^,v keys use 250ms timeout for 1st repeat key
+                    keys_strokepause[pctr]  = 18;      // - for <,>,^,v keys use 180ms timeout for 1st repeat key
                 else
                     keys_strokepause[pctr]  = 100;     // - for the others generate long_press after 1sec
 
