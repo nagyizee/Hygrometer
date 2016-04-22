@@ -49,7 +49,7 @@ static inline void System_Poll( void )
     enum EPowerMode pwr_mode = pm_down;
 
     CheckStack();
-
+/*dev
     sys_pwr |= core_pwr_getstate();
     sys_pwr |= DispHAL_App_Poll();
     if ( BeepIsRunning() )
@@ -78,12 +78,17 @@ static inline void System_Poll( void )
 
     wake_up = HW_Sleep( pwr_mode );     // enter in the selected power mode
     sys_pwr = 0;                        // when exit - recreate the power scenario
+    */
+///dev
+    DispHAL_App_Poll();
+    
 }
 
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
+/*dev
     core_poll( evmask );
 
     if ( wake_up & WUR_USR )            // wake-up from stop state by keypress
@@ -94,6 +99,12 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
         ui_st = ui_poll( evmask );
     }
     sys_pwr |= ui_st;
+*/
+
+/////// dev
+
+
+
 }
 
 // Main application entry
@@ -101,6 +112,8 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
+/*dev    
+    
     if ( core_init( NULL ) )
     {
         failure = true;
@@ -108,6 +121,43 @@ void main_entry( uint32 *stack_top )
     }
 
     ui_st = ui_init( NULL );
+    */
+    
+    Graphics_Init( NULL, NULL );
+    DispHAL_Display_On( );
+    DispHAL_SetContrast( 40 );
+
+    int i,j;
+
+    // draw the grey background
+    for (j=16;j<64;j++)
+    {
+        for (i=0;i<110;i++)
+        {
+            Graphic_PutPixel(i, j, 1);
+        }
+    }
+
+    DispHal_ToFlipBuffer();
+
+    // draw the 
+    for (j=16;j<50;j++)
+    {
+        for (i=0;i<110;i++)
+        {
+            Graphic_PutPixel(i, j, 0);
+        }
+    }
+
+    for (j=30;j<40;j++)
+    {
+        for (i=10;i<100;i++)
+        {
+            Graphic_PutPixel(i, j, 1);
+        }
+    }
+
+    DispHAL_UpdateScreen();
 }
 
 

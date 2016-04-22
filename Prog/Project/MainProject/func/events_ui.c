@@ -203,8 +203,8 @@ struct SBeep
 
         if ( events.timer_tick_10ms )
         {
-            local_process_button( &evtemp );
-            local_process_beep( );
+//dev            local_process_button( &evtemp );
+//dev            local_process_beep( );
         }
 
         __disable_interrupt();
