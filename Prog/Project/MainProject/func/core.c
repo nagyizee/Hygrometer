@@ -87,10 +87,10 @@ static volatile uint32 sec_ctr = 0;
 // Workbuffer usage:
 // 1. For Graph displaying: 
 //      buffer is partitionated:
-//          - RAWDISP:  - raw data for display. Display contains 100points on horizontal
+//          - RAWDISP:  - raw data for display. Display contains 110points on horizontal
 //                      - there are 3 sections:         [TEMP] [RH] [PRESS]
 //                      - each section has 3 sets:      [MIN][MAX][AVG]             ->  RAWDISP: [  [Tm][TM][Ta] [Hm][HM][Ha] [Pm][PM][Pa] ]
-//                      - memory size = 3 sections * 3 sets * 100 points * 2bytes = 1800bytes -> 0x708 
+//                      - memory size = 3 sections * 3 sets * 110 points * 2bytes = 1800bytes -> 0x708 
 //                      we will use 4bit aligned ending (16 byte packs): 0x710
 //          - OFFS_FLIP1:
 //          - OFFS_FLIP2:   - 256 bytes of flip buffers. One is read from NVram, the other is processed to fill the RAWDISP
@@ -100,29 +100,28 @@ static volatile uint32 sec_ctr = 0;
 //          - OFFS_FLIP2:   - 256 bytes of flip buffers. One is read from NVram, the other is transmitted on UART
 
 
-#define WB_DISPPOINT        100
 #define WB_FLIPB_SIZE       0x200
 
 #define WB_OFFS_FLIP1       0x000                               // 512 bytes transfer buffer F1
 #define WB_OFFS_FLIP2       WB_FLIPB_SIZE                       // 512 bytes transfer buffer F2
-#define WB_OFFS_RAWDISP     (WB_OFFS_FLIP2 + WB_FLIPB_SIZE)     // from 0x200 -> 0x910  - 710 bytes display graph memory: 100 samples * 2 bps * 3 (low/high/avg) * 3 params (T/RH/P)
+#define WB_OFFS_RAWDISP     (WB_OFFS_FLIP2 + WB_FLIPB_SIZE)     // from 0x200 -> 0x910  - 710 bytes display graph memory: 110 samples * 2 bps * 3 (low/high/avg) * 3 params (T/RH/P)
 
 #define WB_OFFS_TEMP        (WB_OFFS_RAWDISP)
 #define WB_OFFS_TEMP_MIN    (WB_OFFS_TEMP)
-#define WB_OFFS_TEMP_MAX    (WB_OFFS_TEMP_MIN + 200)
-#define WB_OFFS_TEMP_AVG    (WB_OFFS_TEMP_MAX + 200)
+#define WB_OFFS_TEMP_MAX    (WB_OFFS_TEMP_MIN + WB_DISPPOINT*2)
+#define WB_OFFS_TEMP_AVG    (WB_OFFS_TEMP_MAX + WB_DISPPOINT*2)
 
-#define WB_OFFS_RH          (WB_OFFS_TEMP_AVG + 200)
+#define WB_OFFS_RH          (WB_OFFS_TEMP_AVG + WB_DISPPOINT*2)
 #define WB_OFFS_RH_MIN      (WB_OFFS_RH)
-#define WB_OFFS_RH_MAX      (WB_OFFS_RH_MIN + 200)
-#define WB_OFFS_RH_AVG      (WB_OFFS_RH_MAX + 200)
+#define WB_OFFS_RH_MAX      (WB_OFFS_RH_MIN + WB_DISPPOINT*2)
+#define WB_OFFS_RH_AVG      (WB_OFFS_RH_MAX + WB_DISPPOINT*2)
 
-#define WB_OFFS_P           (WB_OFFS_RH_AVG + 200)
+#define WB_OFFS_P           (WB_OFFS_RH_AVG + WB_DISPPOINT*2)
 #define WB_OFFS_P_MIN       (WB_OFFS_P)
-#define WB_OFFS_P_MAX       (WB_OFFS_P_MIN + 200)
-#define WB_OFFS_P_AVG       (WB_OFFS_P_MAX + 200)
+#define WB_OFFS_P_MAX       (WB_OFFS_P_MIN + WB_DISPPOINT*2)
+#define WB_OFFS_P_AVG       (WB_OFFS_P_MAX + WB_DISPPOINT*2)
 
-#define WB_SIZE             (WB_OFFS_P_AVG + 200)               // 
+#define WB_SIZE             (WB_OFFS_P_AVG + WB_DISPPOINT*2)               // 
 
 
 static uint8    workbuff[ WB_SIZE ];
@@ -305,6 +304,53 @@ static void local_tendency_restart( uint32 entry )
 {
     core.nv.op.sens_rd.tendency[entry].c = 0;
     core.nv.op.sens_rd.tendency[entry].w = 0;
+}
+
+inline static void internal_recording_get_minmax_from_raw( uint32 taks_elem, enum ESensorSelect param, uint32 *valmin, uint32 *valmax )
+{
+    uint8* rbuff;
+    switch ( core.readout.taks_elem )
+    {
+        case rtt_t:
+        case rtt_h:
+        case rtt_p:
+            *valmin = core.readout.v1min_total;
+            *valmax = core.readout.v1max_total;
+            break;
+        case rtt_th:
+        case rtt_tp:
+        case rtt_hp:
+            if ( ( (core.readout.taks_elem == rtt_th) && (param == ss_thermo) ) ||
+                 ( (core.readout.taks_elem == rtt_tp) && (param == ss_thermo) ) ||
+                 ( (core.readout.taks_elem == rtt_hp) && (param == ss_rh) )         )
+            {
+                *valmin = core.readout.v1min_total;
+                *valmax = core.readout.v1max_total;
+            }
+            else
+            {
+                *valmin = core.readout.v2min_total;
+                *valmax = core.readout.v2max_total;
+            }
+            break;
+        default:
+            if ( param == ss_thermo )
+            {
+                *valmin = core.readout.v1min_total;
+                *valmax = core.readout.v1max_total;
+            }
+            else if ( param == ss_rh )
+            {
+                *valmin = core.readout.v2min_total;
+                *valmax = core.readout.v2max_total;
+            }
+            else
+            {
+                *valmin = core.readout.v3min_total;
+                *valmax = core.readout.v3max_total;
+            }
+            break;
+    }
 }
 
 
@@ -630,18 +676,25 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                     // get the 12bit value
                     if ( shifted )
                     {   
-                        val = ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff;    // [xxxx tttt][tttt tttt]
+                        val = ( ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;    // [xxxx tttt][tttt tttt]
                         shifted = false;
                         wbuff += 2;
                     }
                     else
                     {
-                        val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );      // [tttt tttt][tttt xxxx]
+                        val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;      // [tttt tttt][tttt xxxx]
                         shifted = true;
                         wbuff += 1;
                     }
-                    // convert to 16bit and save
-                    *rawbuff = (val << 4);
+                    // save
+                    *rawbuff = val;
+
+                    // save the global min/max values
+                    if ( core.readout.v1max_total < val )
+                        core.readout.v1max_total = val;
+                    if ( core.readout.v1min_total > val )
+                        core.readout.v1min_total = val;
+
                     rawbuff++;
                 }
             }
@@ -674,15 +727,26 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                 for ( i=0; i<smp_proc; i++ )
                 {
                     // get the 12bit value - no shift in this case
-                    val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );     // [tttt tttt][tttt hhhh][hhhh hhhh]
-                    val2 = ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff;
+                    val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;        // [tttt tttt][tttt hhhh][hhhh hhhh]
+                    val2 = ( ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff ) << 4;
                     wbuff += 3;
 
-                    // convert to 16bit and save
-                    *rawbuff1 = (val1 << 4);
-                    *rawbuff2 = (val2 << 4);
+                    // save
+                    *rawbuff1 = val1;
+                    *rawbuff2 = val2;
                     rawbuff1++;
                     rawbuff2++;
+
+                    // save the global min/max values
+                    if ( core.readout.v1max_total < val1 )
+                        core.readout.v1max_total = val1;
+                    if ( core.readout.v1min_total > val1 )
+                        core.readout.v1min_total = val1;
+
+                    if ( core.readout.v2max_total < val2 )
+                        core.readout.v2max_total = val2;
+                    if ( core.readout.v2min_total > val2 )
+                        core.readout.v2min_total = val2;
                 }
             }
             break;
@@ -698,28 +762,44 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                 {
                     // get the 12bit value
                     if ( shifted )
-                    {                                                               //      0          1          2          3          4
-                        val1 = ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
-                        val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) );
-                        val3 = ( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff;
+                    {                                                                       //      0          1          2          3          4
+                        val1 = ( ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
+                        val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) ) << 4;
+                        val3 = ( ( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff) << 4;
                         shifted = false;
                         wbuff += 5;
                     }
                     else
                     {
-                        val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) );     // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
-                        val2 = ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff;
-                        val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ); 
+                        val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;        // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
+                        val2 = ( ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff) << 4;
+                        val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ) << 4; 
                         shifted = true;
                         wbuff += 4;
                     }
                     // convert to 16bit and save
-                    *rawbuff1 = (val1 << 4);
-                    *rawbuff2 = (val2 << 4);
-                    *rawbuff3 = (val3 << 4);
+                    *rawbuff1 = val1;
+                    *rawbuff2 = val2;
+                    *rawbuff3 = val3;
                     rawbuff1++;
                     rawbuff2++;
                     rawbuff3++;
+
+                    // save the global min/max values
+                    if ( core.readout.v1max_total < val1 )
+                        core.readout.v1max_total = val1;
+                    if ( core.readout.v1min_total > val1 )
+                        core.readout.v1min_total = val1;
+
+                    if ( core.readout.v2max_total < val2 )
+                        core.readout.v2max_total = val2;
+                    if ( core.readout.v2min_total > val2 )
+                        core.readout.v2min_total = val2;
+
+                    if ( core.readout.v3max_total < val3 )
+                        core.readout.v3max_total = val3;
+                    if ( core.readout.v3min_total > val3 )
+                        core.readout.v3min_total = val3;
                 }
             }
             break;
@@ -787,8 +867,14 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
 
                         val = core.readout.v1sum / core.readout.v1ctr;
                         *rawbuff        = core.readout.v1min;
-                        *(rawbuff+100)  = core.readout.v1max;
-                        *(rawbuff+200)  = val;
+                        *(rawbuff+WB_DISPPOINT)  = core.readout.v1max;
+                        *(rawbuff+WB_DISPPOINT*2)  = val;
+
+                        // save the global min/max values
+                        if ( core.readout.v1max_total < core.readout.v1max )
+                            core.readout.v1max_total = core.readout.v1max;
+                        if ( core.readout.v1min_total > core.readout.v1min )
+                            core.readout.v1min_total = core.readout.v1min;
 
                         core.readout.v1min = 0xffff;
                         core.readout.v1max = 0;
@@ -858,12 +944,23 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         val1 = core.readout.v1sum / core.readout.v1ctr;
                         val2 = core.readout.v2sum / core.readout.v2ctr;
                         *rawbuff1        = core.readout.v1min;
-                        *(rawbuff1+100)  = core.readout.v1max;
-                        *(rawbuff1+200)  = val1;
+                        *(rawbuff1+WB_DISPPOINT)  = core.readout.v1max;
+                        *(rawbuff1+WB_DISPPOINT*2)  = val1;
 
                         *rawbuff2        = core.readout.v2min;
-                        *(rawbuff2+100)  = core.readout.v2max;
-                        *(rawbuff2+200)  = val2;
+                        *(rawbuff2+WB_DISPPOINT)  = core.readout.v2max;
+                        *(rawbuff2+WB_DISPPOINT*2)  = val2;
+
+                        // save the global min/max values
+                        if ( core.readout.v1max_total < core.readout.v1max )
+                            core.readout.v1max_total = core.readout.v1max;
+                        if ( core.readout.v1min_total > core.readout.v1min )
+                            core.readout.v1min_total = core.readout.v1min;
+
+                        if ( core.readout.v2max_total < core.readout.v2max )
+                            core.readout.v2max_total = core.readout.v2max;
+                        if ( core.readout.v2min_total > core.readout.v2min )
+                            core.readout.v2min_total = core.readout.v2min;
 
                         core.readout.v1min = 0xffff;
                         core.readout.v1max = 0;
@@ -947,16 +1044,32 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         val2 = core.readout.v2sum / core.readout.v2ctr;
                         val3 = core.readout.v3sum / core.readout.v3ctr;
                         *rawbuff1        = core.readout.v1min;
-                        *(rawbuff1+100)  = core.readout.v1max;
-                        *(rawbuff1+200)  = val1;
+                        *(rawbuff1+WB_DISPPOINT)  = core.readout.v1max;
+                        *(rawbuff1+WB_DISPPOINT*2)  = val1;
 
                         *rawbuff2        = core.readout.v2min;
-                        *(rawbuff2+100)  = core.readout.v2max;
-                        *(rawbuff2+200)  = val2;
+                        *(rawbuff2+WB_DISPPOINT)  = core.readout.v2max;
+                        *(rawbuff2+WB_DISPPOINT*2)  = val2;
 
                         *rawbuff3        = core.readout.v3min;
-                        *(rawbuff3+100)  = core.readout.v3max;
-                        *(rawbuff3+200)  = val3;
+                        *(rawbuff3+WB_DISPPOINT)  = core.readout.v3max;
+                        *(rawbuff3+WB_DISPPOINT*2)  = val3;
+
+                        // save the global min/max values
+                        if ( core.readout.v1max_total < core.readout.v1max )
+                            core.readout.v1max_total = core.readout.v1max;
+                        if ( core.readout.v1min_total > core.readout.v1min )
+                            core.readout.v1min_total = core.readout.v1min;
+
+                        if ( core.readout.v2max_total < core.readout.v2max )
+                            core.readout.v2max_total = core.readout.v2max;
+                        if ( core.readout.v2min_total > core.readout.v2min )
+                            core.readout.v2min_total = core.readout.v2min;
+
+                        if ( core.readout.v3max_total < core.readout.v3max )
+                            core.readout.v3max_total = core.readout.v3max;
+                        if ( core.readout.v3min_total > core.readout.v3min )
+                            core.readout.v3min_total = core.readout.v3min;
 
                         core.readout.v1min = 0xffff;
                         core.readout.v1max = 0;
@@ -2122,10 +2235,14 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
         core.readout.v2min = 0xffff;
         core.readout.v3min = 0xffff;
 
+        core.readout.v1min_total = 0xffff;
+        core.readout.v2min_total = 0xffff;
+        core.readout.v3min_total = 0xffff;
+
         if ( length > WB_DISPPOINT )
         {
             // case when there are more elements than display points
-            core.readout.dispstep = (100 << 16) / length;
+            core.readout.dispstep = (WB_DISPPOINT << 16) / length;
         }
 
         // calculate the memory address and size and advance the read pointers
@@ -2142,7 +2259,7 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
     core.vstatus.int_op.f.core_bsy = 1;
 }
 
-void core_op_recording_read_cancel( uint32 task_idx )
+void core_op_recording_read_cancel(void)
 {
     if ( core.vstatus.int_op.f.op_recread == 0 )
         return;
@@ -2162,8 +2279,153 @@ void core_op_recording_read_cancel( uint32 task_idx )
 
 int core_op_recording_read_busy(void)
 {
+    uint32 retval;
+    if ( core.vstatus.int_op.f.op_recread == 0 )
+        return 0;
 
+    retval = ((uint32)core.readout.to_read * 16) / core.readout.total_read;
+    // do not report 0 if operation isn't finished
+    if ( (retval == 0) && core.vstatus.int_op.f.op_recread )
+        return 1;
+
+    return retval;
 }
+
+
+bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuff, int *phigh, int *plow )
+{
+    // pixel buffer contain height info from minimum = 63 -> maximum = 16 - center line at 40
+    // return true - if pixel buffer contains min/max values also
+    // high and low values are integer values in converted units
+    uint32 valmin;
+    uint32 valmax;
+    uint16 *rbuff;
+
+    int high;
+    int low;
+
+    int i;
+
+    if ( (core.vstatus.int_op.f.graph_ok == 0) ||               // if no raw graph data is read 
+         ( ((1<<(param-1)) & core.readout.taks_elem) == 0)  )   // or current param is not part of raw data set
+    {
+        memset( pixbuff, 40, 3 * WB_DISPPOINT );                // return 0 line
+        *phigh = 1;
+        *plow = -1;
+        return false;
+    }
+
+    // calculate the high and low values
+    internal_recording_get_minmax_from_raw( core.readout.taks_elem, param, &valmin, &valmax );
+
+    // normalize the upper and lower limits
+    switch ( param )
+    {
+        case ss_thermo:
+            {
+                int val;
+                val = core_utils_temperature2unit( valmin, core.nv.setup.show_unit_temp );
+                if (val < 0)
+                    low = val / 100 - 1;
+                else
+                    low = val / 100;
+                val = core_utils_temperature2unit( valmax, core.nv.setup.show_unit_temp );
+                if (val < 0)
+                    high = val / 100;
+                else
+                    high = val / 100 + 1;
+
+                valmin = core_utils_unit2temperature( low*100, core.nv.setup.show_unit_temp );
+                valmax = core_utils_unit2temperature( high*100, core.nv.setup.show_unit_temp );
+
+                rbuff  = (uint16*)(workbuff + WB_OFFS_TEMP);
+            }
+            break;
+        case ss_rh:
+            {   
+                low = ((valmin * 100) >> RH_FP) / 100;
+                high = ((valmax * 100) >> RH_FP) / 100 + 1;
+
+                valmin = (low << RH_FP);        // low*100*2^RH_FP / 100
+                valmax = (high << RH_FP);
+
+                rbuff  = (uint16*)(workbuff + WB_OFFS_RH);
+            }
+            break;
+        case ss_pressure:
+            {
+                low = (valmin+50000) / 100;     // raw value is in Pa-50000
+                high = (valmax+50000) / 100 + 1;
+
+                valmin = (low * 100) - 50000;
+                valmax = (high * 100) - 50000;
+
+                rbuff  = (uint16*)(workbuff + WB_OFFS_P);
+            }
+            break;
+    }
+
+    *phigh = high;
+    *plow = low;
+
+    if ( valmin == valmax )
+        valmax++;                           // should not happen, but never knows ...
+
+    if ( core.readout.total_read <= WB_DISPPOINT )
+    {
+        // single display graph - just values
+        uint8 *pbuff;
+        register uint32 diff;
+        register uint32 vmin;
+
+        vmin = valmin;
+        pbuff = pixbuff + WB_DISPPOINT*2;   // fill only the averages
+        diff = valmax - valmin;
+
+        rbuff += (2 * WB_DISPPOINT);        // move the raw buffer pointer to the averages only ( note the rbuff is *uint16)
+
+        if ( core.readout.total_read < WB_DISPPOINT )
+        {
+            // fill constant line for undefined data
+            for ( i=0; i<(WB_DISPPOINT-core.readout.total_read); i++ )
+            {
+                *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+                pbuff++;
+            }
+        }
+        // fill the graph points
+        for ( i=0; i<core.readout.total_read; i++ )
+        {
+            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+            rbuff++;
+            pbuff++;
+        }
+        
+        return false;
+    }
+    else
+    {
+        // double display graph - avg values + min/max set
+        uint8 *pbuff;
+        register uint32 diff;
+        register uint32 vmin;
+
+        vmin = valmin;
+        diff = valmax - valmin;
+
+        // fill minimums/maximums/averages - just go through all the raw data memory
+        pbuff = pixbuff;
+        for ( i=0; i<(WB_DISPPOINT*3); i++ )
+        {
+            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+            rbuff++;
+            pbuff++;
+        }
+        
+        return true;
+    }
+}
+
 
 
 // for calculations and formulas see reg_generator.mcdx

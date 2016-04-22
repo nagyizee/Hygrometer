@@ -44,7 +44,7 @@ const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min
 int grf_up_lim;
 int grf_dn_lim;
 uint32 grf_decpts;
-uint8 grf_values[256];   // 128 pixels max - doubled for min/max registration
+uint8 grf_values[330];   // 110 pixels max for graphs - min/max/average
 
 
 static int uist_internal_setup_menu( void *handle, const char *list )
@@ -174,6 +174,38 @@ void uist_internal_tendencyval2pixels( struct STendencyBuffer *tend )
     }
 }
 
+
+static void internal_graphdisp_render( bool minmax )
+{
+    int i;
+    Graphic_SetColor(1);
+    if ( minmax )
+    {
+        uint8 *mins;
+        uint8 *maxs;
+
+        mins = grf_values;
+        maxs = grf_values + WB_DISPPOINT;
+
+        for (i=0; i<WB_DISPPOINT; i++)
+        {
+            Graphic_Line( i, *maxs, i, *mins );
+            maxs++;
+            mins++;
+        }
+    }
+    else
+    {
+        uint8 *val;
+        val = grf_values + 2*WB_DISPPOINT;
+
+        for (i=0; i<(WB_DISPPOINT-1); i++)
+        {
+            Graphic_Line( i, *val, i+1, *(val+1) );
+            val++;
+        }
+    }
+}
 
 
 static void uist_mainwindow_statusbar( int rdrw )
@@ -782,6 +814,10 @@ static inline void uist_draw_graph( int redraw_all )
 {
     if ( redraw_all & RDRW_UI_CONTENT )
     {
+        // clear the graph underneath
+        Graphic_SetColor(0);
+        Graphic_FillRectangle(0, 16, 110, 63, 0);
+
         Graphic_SetColor(1);
         Graphic_Line(0,15,127,15);
         Graphic_Line(111,16,111,63);
@@ -802,21 +838,15 @@ static inline void uist_draw_graph( int redraw_all )
         // current value display
         uigrf_text( 60, 1, uitxt_small,  "1012.56" );
 
-
-        uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
-
-
         // memory position (zoom)
         Graphic_SetColor(1);
         Graphic_Rectangle( 21, 11, 97, 15 );
         Graphic_FillRectangle( 21, 12, 45, 14, 1 );
         Graphic_FillRectangle( 53, 12, 97, 14, 1 );
 
-        // Y scale
-        uigrf_text( 113, 16, uitxt_micro, "1001" );
-        uigrf_text( 113, 58, uitxt_micro, "1013" );
         uigrf_text( 113, 22, uitxt_micro, "hpa" );
 
+        if ( ui.p.grDisp.state != GRSTATE_FILL )
         {
             int i,j;
             for (i=0; i<11; i++)
@@ -827,11 +857,49 @@ static inline void uist_draw_graph( int redraw_all )
                 }
             }
 
+            if ( ui.p.grDisp.upd_graph )
+            {
+                ui.p.grDisp.has_minmax = core_op_recording_calculate_pixels( ss_rh, &grf_values, &grf_up_lim, &grf_dn_lim );
+                ui.p.grDisp.upd_graph = 0;
+            }
 
+            internal_graphdisp_render( ui.p.grDisp.has_minmax );
+
+            // Y scale
+            uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
+            uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
         }
-
-
+        else
+        {
+            uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
+        }
     }
+
+
+    if ( redraw_all & RDRW_UI_DYNAMIC )
+    {
+        switch ( ui.p.grDisp.state )
+        {
+            case GRSTATE_MULTI:
+                // clear the graph underneath
+                Graphic_SetColor(0);
+                Graphic_FillRectangle(0, 16, 110, 63, 0);
+
+                internal_graphdisp_render( ui.p.grDisp.has_minmax * ui.p.grDisp.disp_flip );
+
+                break;
+            case GRSTATE_FILL:
+                Graphic_SetColor(0);
+                Graphic_Rectangle( 49, 49, 63, 50 );
+                Graphic_SetColor(1);
+                Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.progr * 14) >> 4), 50 );
+                break;
+        }
+    }
+    
+
+
+
 }
 
 
@@ -1289,6 +1357,9 @@ void uist_drawview_mainwindow( int redraw_type )
     {
         switch ( ui.m_state )
         {
+            case UI_STATE_MAIN_GRAPH:
+                uist_draw_graph(redraw_type);
+                break;
             case UI_STATE_MAIN_GAUGE:
                 switch ( ui.main_mode )
                 {
@@ -1297,9 +1368,6 @@ void uist_drawview_mainwindow( int redraw_type )
                     case UImm_gauge_pressure: uist_draw_gauge_pressure(redraw_type); break;
                     break;
                 }
-                break;
-            case UI_STATE_MAIN_GRAPH:
-                uist_draw_graph(redraw_type);
                 break;
         }
     }

@@ -30,6 +30,8 @@
 
     #define CORE_RECMEM_PAGESIZE 1024
     #define CORE_RECMEM_MAXPAGE  255        // 255*1024 bytes. The first 1024 byte is for setup/etc.
+            
+    #define WB_DISPPOINT        110         // graph display point
 
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
@@ -329,15 +331,22 @@
         uint16  to_ptr;                     // pointer from which to read (from start pointer and advancing)
         uint16  to_process;                 // samples to be processed when read is finished
 
-        uint16  v1min;
-        uint16  v1max;
-        uint16  v1ctr;
-        uint16  v2min;
-        uint16  v2max;
-        uint16  v2ctr;
-        uint16  v3min;
-        uint16  v3max;
+        uint16  v1ctr;                      // local min/max values and averaging counters
+        uint16  v2ctr;                      // do not use arrays because of performance issues
         uint16  v3ctr;
+        uint16  v1max;
+        uint16  v2max;
+        uint16  v3max;
+        uint16  v1min;
+        uint16  v2min;
+        uint16  v3min;
+
+        uint16  v1max_total;                // used for global min/max value storage
+        uint16  v2max_total;
+        uint16  v3max_total;
+        uint16  v1min_total;
+        uint16  v2min_total;
+        uint16  v3min_total;
 
         uint32  v1sum;
         uint32  v2sum;
@@ -346,10 +355,8 @@
         uint32  dispctr;                    // dipsplay position increment in fp16
         uint16  dispstep;                   // fractional part of the display step increment
         uint16  dispprev;                   // integer part of the prev. display counter
+
         uint16  raw_ptr;                    // pointer in the raw data buffer, incremented after each push
-
-        
-
     };
     
 
@@ -498,9 +505,11 @@
     // smpl_depth is from the last write, max value is count. lenght is the lenght in samples of the read operation
     int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 lenght );
     // cancel recording request and cleanup
-    void core_op_recording_read_cancel( uint32 task_idx );
-    // check if read is finished and buffer is ready. Returns a value from 10->0 for progress bar displaying. 0 means finished
+    void core_op_recording_read_cancel(void);
+    // check if read is finished and buffer is ready. Returns a value from 16->0 for progress bar displaying. 0 means finished
     int core_op_recording_read_busy(void);
+    // calculate display pixels from display raw points
+    bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuff, int *phigh, int *plow );
 
 
     // debug fill feature

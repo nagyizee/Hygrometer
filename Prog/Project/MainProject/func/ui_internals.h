@@ -63,6 +63,11 @@
 
     #define RDRW_DISP_UPDATE        0x80        // just a dummy value to enter to the display update routine
 
+    #define GRSTATE_FILL            0x00        // filling display memory from NVRAM
+    #define GRSTATE_SINGLE_AVG      0x01        // single graph mode
+    #define GRSTATE_SINGLE_MINMAX   0x02        // single graph mode
+    #define GRSTATE_MULTI           0x04        // MinMax in grayscale, Average in white
+
 
     struct SUIMainGaugeThermo
     {
@@ -92,6 +97,17 @@
     {
         uint32  task_idx;
         struct Suiel_control_pushbutton taskbutton[4];
+    };
+
+    struct SUIGraphDisplay
+    {
+        uint8   state;                              // see GRSTATE_xxxx defines
+        uint8   progr;                              // progress bar in filling state
+        uint8   cursor;                             // display cursor
+        uint8   upd_ctr;                            // display update counter
+        uint8   upd_graph;                          // update the diplay precalculated points
+        uint8   has_minmax;                         // set when graph points has min/max set
+        uint8   disp_flip;                          // display the avg / minmax set
     };
 
 
@@ -131,6 +147,7 @@
         struct SUIMainGaugePress   mgPress;
 
         struct SUIGraphSelect      grSelect;
+        struct SUIGraphDisplay     grDisp;
 
         struct SUISetQuickSwitch    swQuickSw;      // params for quick switch
         struct SUISetRegTaskSet     swRegTaskSet;

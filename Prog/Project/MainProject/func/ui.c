@@ -672,6 +672,10 @@ void ui_call_graphselect_action( int context, void *pval )
     }
     // graph display selected
     context--;
+
+    if ( core.nvrec.func[context].c == 0 )      // do not enter in empty recordings
+        return;
+
     ui.m_return = context;
     uist_change_state( UI_STATE_MAIN_GRAPH, UI_SET_NONE, true );
 }
@@ -730,6 +734,7 @@ static void uist_update_display( int disp_update )
         {
             switch ( ui.m_state )
             {
+                case UI_STATE_MAIN_GRAPH:
                 case UI_STATE_MAIN_GAUGE: uist_drawview_mainwindow( disp_update & RDRW_ALL ); break;
                 case UI_STATE_SETWINDOW:  uist_drawview_setwindow( disp_update & RDRW_ALL ); break;
                 case UI_STATE_POPUP:      uist_drawview_popup( disp_update & RDRW_ALL ); break;
@@ -1396,11 +1401,16 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 
 void uist_mainwindowgraph_entry( void )
 {
+    memset( &ui.p.grDisp, 0, sizeof(ui.p.grDisp) );
+    // m_return holds the task index
+    core_op_recording_read_request( ui.m_return, core.nvrec.func[ui.m_return].c, core.nvrec.func[ui.m_return].c );
+    ui.p.grDisp.progr = 16;     // means maximum wait state
+    ui.p.grDisp.cursor = 50;    // cursor to middle
+    ui.p.grDisp.upd_graph = 1;  // update display points from grahp data
+
     uist_setupview_mainwindow( true );
     uist_drawview_mainwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
-
-    core_op_recording_read_request( ui.m_return, core.nvrec.func[ui.m_return].c, core.nvrec.func[ui.m_return].c );
 
     ui.m_substate ++;
     ui.upd_ui_disp = 0;
@@ -1414,15 +1424,54 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
         // power button activated
         if ( evmask->key_longpressed & KEY_MODE )
         {
+            if (core_op_recording_read_busy())
+                core_op_recording_read_cancel();        
+
             uist_goto_shutdown();
             return;
         }
         if ( evmask->key_released & KEY_MODE )
         {
+            if (core_op_recording_read_busy())
+                core_op_recording_read_cancel();        
+
             core_op_realtime_sensor_select( ss_none );
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
             return;
+        }
+    }
+
+    // tim
+    if ( evmask->timer_tick_10ms )
+    {
+        ui.p.grDisp.upd_ctr ++;                 // Update should be done at 50Hz -> 20ms
+        if ( ui.p.grDisp.upd_ctr & 0x02 )
+        {
+            ui.p.grDisp.upd_ctr = 0;
+
+            switch ( ui.p.grDisp.state )
+            {
+                case GRSTATE_MULTI:             // highest priority - we need to do display switching
+                    if ( ui.p.grDisp.has_minmax )
+                    {
+                        ui.p.grDisp.disp_flip ^= 1;
+                        ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
+                    }
+                    break;
+                case GRSTATE_FILL:              // check for data ready
+                    ui.p.grDisp.progr = core_op_recording_read_busy();
+                    if ( ui.p.grDisp.progr == 0 )
+                    {
+                        ui.p.grDisp.state = GRSTATE_MULTI;
+                        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+                    }
+                    else
+                        ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
