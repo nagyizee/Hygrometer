@@ -10,6 +10,8 @@
 #define DISPSIM_MAX_W      256
 #define DISPSIM_MAX_H      132
 
+#define DISPPWR_MAX_W      600
+#define DISPPWR_MAX_H      50
 
 namespace Ui {
 class mainw;
@@ -58,6 +60,30 @@ private slots:
 
 
 private:
+    enum EColorMap
+    {
+        cm_backgnd = 0,
+        cm_grid_dark,
+        cm_grid_bright,
+        cm_pwr_full,
+        cm_pwr_sleep,
+        cm_pwr_slpdisp,
+        cm_pwr_hold_btn,
+        cm_pwr_hold,
+        cm_pwr_down,
+        cm_pwr_exti,
+        cm_pwr_br_full,
+        cm_pwr_br_sleep,
+        cm_pwr_br_slpdisp,
+        cm_pwr_br_hold_btn,
+        cm_pwr_br_hold,
+        cm_pwr_drk_full,
+        cm_pwr_drk_sleep,
+        cm_pwr_drk_slpdisp,
+        cm_pwr_drk_hold_btn,
+        cm_pwr_drk_hold
+    };
+
     Ui::mainw *ui;
     QTimer *ticktimer;
     graph_disp *graph;
@@ -71,7 +97,18 @@ private:
     QGraphicsPixmapItem *G_item;
     uchar *gmem;                    // graphic memory for display simulator
 
+    QGraphicsScene *pwr_scene;
+    QGraphicsPixmapItem *pwr_G_item;
+    uchar *pwr_gmem;                // graphic memory for power management indicator
+    QVector<QRgb> pwr_colors;
+
+    int pwr_ptr;
+    int pwr_xptr;
+
+
+
     void dispsim_mem_clean();
+    void disppwr_mem_clean();
 
     void HW_wrapper_setup( int interval );            // set up the this pointer in the hardware wrapper (simulation module)
     void HW_wrapper_update_display();
@@ -85,11 +122,14 @@ public:
     int HW_wrapper_get_pressure();
 
     void HW_wrapper_Beep( int op );
-
+    void HW_wrapper_show_sensor_read( uint32 sensor, bool on );
 
     void dispsim_redraw_content();
+    void disppwr_redraw_content();
+
     void HW_assertion(const char *reason);
     bool HW_wrapper_getButton(int index);
+    bool HW_wrapper_getChargeState(void);
     int HW_wrapper_getHit(int index);
     void HW_wrapper_set_disp_brt(int brt);
     int HW_wrapper_ADC_battery(void);
@@ -102,14 +142,25 @@ public:
 
     uint32  RTCcounter;
     uint32  RTCalarm;
+    uint32  RTCNextAlarm;
     enum EPowerMode PwrMode;
     enum EPowerMode PwrModeToDisp;
+    uint32  PwrDispUd;
+    uint32  PwrWUR;
+
+    uint16  BKPregs[10];
+
+    uint32  dbg_shed_sens_temp;
+    uint32  dbg_shed_sens_rh;
+    uint32  dbg_shed_sens_press;
+
+    bool simu_1cycle;
 
 private:
     void Application_MainLoop( bool tick );
     void CPULoopSimulation( bool tick );
     void CPUWakeUpOnEvent( bool pwrbtn );
-
+    void pwrdisp_add_pwr_state( enum EPowerMode mode );
 };
 
 #endif // MAINW_H

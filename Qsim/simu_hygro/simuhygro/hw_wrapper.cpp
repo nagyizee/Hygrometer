@@ -16,7 +16,7 @@ int tiv;
 /// display stuff /////////////
 #define MAX_LINES       2
 #define MAX_COLOUMNS    16
-#define EEPROM_SIZE     0x200
+#define EEPROM_SIZE     256*1024        // 256k FRAM
 
 char line[MAX_LINES*MAX_COLOUMNS];
 static bool disp_changed = false;
@@ -36,6 +36,19 @@ void HW_ASSERT(const char *reason)
 {
     pClass->HW_assertion(reason);
 }
+
+void HW_DBG_DUMP(struct SCore *core)
+{
+    pClass->dbg_shed_sens_temp = core->nv.op.sched.sch_thermo;
+    pClass->dbg_shed_sens_rh = core->nv.op.sched.sch_hygro;
+    pClass->dbg_shed_sens_press = core->nv.op.sched.sch_press;
+}
+
+void HW_DBG_SIMUSKIP(void)
+{
+    pClass->simu_1cycle = true;
+}
+
 
 bool BtnGet_OK()
 {
@@ -72,9 +85,9 @@ bool BtnGet_Right()
     return pClass->HW_wrapper_getButton(BTN_RIGHT);
 }
 
-bool BtnPollStick()
+bool HW_Charge_Detect()
 {
-
+    return pClass->HW_wrapper_getChargeState();
 }
 
 void HW_LED_On()
@@ -131,11 +144,21 @@ void HW_Buzzer_Off(void)
     pClass->HW_wrapper_Beep(0);
 }
 
-bool HW_Sleep( enum EPowerMode mode)
+uint32 HW_Sleep( enum EPowerMode mode)
 {
+    pClass->PwrWUR = WUR_NONE;
+
+    if ( mode >= pm_hold_btn )
+        pClass->RTCalarm = pClass->RTCNextAlarm;
+
     pClass->PwrMode = mode;
     pClass->PwrModeToDisp = mode;
-    return false;
+    return 0;
+}
+
+uint32 HW_GetWakeUpReason(void)
+{
+    return pClass->PwrWUR;
 }
 
 uint32 RTC_GetCounter(void)
@@ -151,6 +174,11 @@ void RTC_SetAlarm(uint32 value)
 void HW_SetRTC(uint32 RTCctr)
 {
     pClass->RTCcounter = RTCctr;
+}
+
+void HW_SetRTC_NextAlarm( uint32 alarm )
+{
+    pClass->RTCNextAlarm = alarm + 1;       // simulate the shift in clock ticks produced by late trigger in STM32F RTC alarm
 }
 
 uint32 HW_ADC_GetBattery(void)
@@ -191,6 +219,20 @@ int HWDBG_Get_Pressure()
 
 
 
+void BKP_WriteBackupRegister( int reg, uint16 data )
+{
+    if (reg < 10)
+        pClass->BKPregs[reg] = data;
+}
+
+uint16 BKP_ReadBackupRegister( int reg )
+{
+    if (reg < 10)
+        return pClass->BKPregs[reg];
+    return 0xffff;
+}
+
+
 ///////////////////////////////////////////////////
 
 void mainw::HW_assertion(const char *reason)
@@ -204,6 +246,10 @@ bool mainw::HW_wrapper_getButton(int index)
     return buttons[index];
 }
 
+bool mainw::HW_wrapper_getChargeState(void)
+{
+    return ui->cb_charge->isChecked();
+}
 
 void mainw::HW_wrapper_set_disp_brt(int brt)
 {
@@ -239,6 +285,10 @@ void mainw::HW_wrapper_update_display()
 {
     static uint32 OldRTC = 0;
     static uint32 OldAlarm = 0;
+
+    static uint32 old_sched_sens_temp = 0;
+    static uint32 old_sched_sens_rh = 0;
+    static uint32 old_sched_sens_press = 0;
 
     if ( disp_changed )
     {
@@ -280,6 +330,30 @@ void mainw::HW_wrapper_update_display()
                  RTCalarm                      );
         ui->tb_alarm->setText(tr(timedisp));
     }
+
+    {
+        char timedisp[256];
+        if ( old_sched_sens_temp != dbg_shed_sens_temp )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_temp );
+            ui->tb_shed_temp->setText(tr(timedisp));
+            old_sched_sens_temp = dbg_shed_sens_temp;
+        }
+        if ( old_sched_sens_rh != dbg_shed_sens_rh )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_rh );
+            ui->tb_shed_rh->setText(tr(timedisp));
+            old_sched_sens_rh = dbg_shed_sens_rh;
+        }
+        if ( old_sched_sens_press != dbg_shed_sens_press )
+        {
+            sprintf( timedisp, "0x%08X", dbg_shed_sens_press );
+            ui->tb_shed_press->setText(tr(timedisp));
+            old_sched_sens_press = dbg_shed_sens_press;
+        }
+    }
+
+    disppwr_redraw_content();
 }
 
 
@@ -310,7 +384,7 @@ int mainw::HW_wrapper_get_humidity()
 
 int mainw::HW_wrapper_get_pressure()
 {
-    return ms_press * 100;
+    return ms_press << 2;
 }
 
 void mainw::HW_wrapper_Beep( int op )
@@ -380,6 +454,22 @@ void mainw::on_tb_time_editingFinished()
 }
 
 
+void mainw::HW_wrapper_show_sensor_read( uint32 sensor, bool on )
+{
+    switch ( sensor )
+    {
+        case SENSOR_TEMP:
+            ui->cb_sensread_temp->setChecked(on);
+            break;
+        case SENSOR_RH:
+            ui->cb_sensread_hygro->setChecked(on);
+            break;
+        case SENSOR_PRESS:
+            ui->cb_sensread_baro->setChecked(on);
+            break;
+    }
+}
+
 /////////////////////////////////////////////////////
 // Sensor emulation
 /////////////////////////////////////////////////////
@@ -391,6 +481,7 @@ struct
     bool RH_up;                 // if sensor is shut down - additional time is considered
     bool Press_up;              //
 
+    uint32 ini_progress;        // sensor init in progress
     uint32 in_progress;         // measurement in progress
     uint32 ready;               // measurement is ready
 
@@ -401,6 +492,10 @@ struct
 void Sensor_Init()
 {
     memset( &sens, 0, sizeof(sens));
+
+    sens.ini_progress = SENSOR_PRESS | SENSOR_TEMP | SENSOR_RH;
+    sens.time_ctr_Press = 1;
+    sens.time_ctr_RH = 16;
 }
 
 void Sensor_Shutdown( uint32 mask )
@@ -418,38 +513,45 @@ void Sensor_Shutdown( uint32 mask )
     }
 }
 
-void Sensor_Acquire( uint32 mask )
+uint32 Sensor_Acquire( uint32 mask )
 {
     if ( (mask & SENSOR_TEMP) && ((sens.in_progress & SENSOR_TEMP) == 0) )
     {
         if ( sens.RH_up == false )
-            sens.time_ctr_RH = 15 + 70;      // 15ms start-up + 70ms read time
+            sens.time_ctr_RH = 16 + 85;      // 16ms start-up + 85ms read time
         else
-            sens.time_ctr_RH = 70;           // 70ms read time
+            sens.time_ctr_RH = 85;           // 70ms read time
         sens.RH_up = true;
+        sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_TEMP;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_TEMP, true );
         sens.ready &= ~SENSOR_TEMP;
     }
     if ( (mask & SENSOR_RH) && ((sens.in_progress & SENSOR_RH) == 0) )
     {
         if ( sens.RH_up == false )
-            sens.time_ctr_RH = 15 + 25;      // 15ms start-up + 25ms read time
+            sens.time_ctr_RH = 16 + 29;      // 16ms start-up + 29ms read time
         else
-            sens.time_ctr_RH = 25;           // 70ms read time
+            sens.time_ctr_RH = 29;           // 70ms read time
         sens.RH_up = true;
+        sens.ini_progress &= ~(SENSOR_TEMP | SENSOR_RH);
         sens.in_progress |= SENSOR_RH;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_RH, true );
         sens.ready &= ~SENSOR_RH;
     }
     if ( (mask & SENSOR_PRESS) && ((sens.in_progress & SENSOR_PRESS) == 0) )
     {
         if ( sens.Press_up == false )
-            sens.time_ctr_Press = 50 + 80;       // 50ms start-up + 80ms read time
+            sens.time_ctr_Press = 1 + 450;       // 2ms start-up + 450ms read time
         else
-            sens.time_ctr_Press = 80;            // 40ms read time for 8x oversample
+            sens.time_ctr_Press = 450;            // 450ms read time for 128x oversample
         sens.Press_up = true;
+        sens.ini_progress &= ~SENSOR_PRESS;
         sens.in_progress |= SENSOR_PRESS;
+        pClass->HW_wrapper_show_sensor_read( SENSOR_PRESS, true );
         sens.ready &= ~SENSOR_PRESS;
     }
+    return 0;
 }
 
 uint32 Sensor_Is_Ready(void)
@@ -462,6 +564,11 @@ uint32 Sensor_Is_Busy(void)
     return sens.in_progress;
 }
 
+uint32 Sensor_Is_Failed(void)
+{
+    return 0;
+}
+
 uint32 Sensor_Get_Value( uint32 sensor )
 {
     switch ( sensor )
@@ -470,16 +577,19 @@ uint32 Sensor_Get_Value( uint32 sensor )
             if ( (sens.ready & SENSOR_TEMP) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_TEMP;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_TEMP, false );
             return pClass->HW_wrapper_get_temperature();
         case SENSOR_PRESS:
             if ( (sens.ready & SENSOR_PRESS) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_PRESS;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_PRESS, false );
             return pClass->HW_wrapper_get_pressure();
         case SENSOR_RH:
             if ( (sens.ready & SENSOR_RH) == 0 )
                 return SENSOR_VALUE_FAIL;
             sens.ready &= ~SENSOR_RH;
+            pClass->HW_wrapper_show_sensor_read( SENSOR_RH, false );
             return pClass->HW_wrapper_get_humidity();
         default:
             return SENSOR_VALUE_FAIL;
@@ -487,8 +597,30 @@ uint32 Sensor_Get_Value( uint32 sensor )
     return SENSOR_VALUE_FAIL;
 }
 
-void Sensor_simu_poll()
+bool Sensor_simu_poll()
 {
+    if ( sens.ini_progress & SENSOR_TEMP )
+    {
+        if ( sens.time_ctr_RH == 0 )
+        {   
+            sens.ini_progress &= ~(SENSOR_TEMP| SENSOR_RH); 
+            sens.RH_up = true;
+        }
+        else
+            sens.time_ctr_RH --;
+    }
+    if ( sens.ini_progress & SENSOR_PRESS )
+    {
+        if ( sens.time_ctr_Press == 0 )
+        {   
+            sens.ini_progress &= ~SENSOR_PRESS; 
+            sens.Press_up = true;
+        }
+        else
+            sens.time_ctr_Press --;
+    }
+
+
     if ( sens.in_progress & SENSOR_TEMP )
     {
         if ( sens.time_ctr_RH == 0 )
@@ -515,15 +647,61 @@ void Sensor_simu_poll()
         {
             sens.in_progress &= ~SENSOR_PRESS;
             sens.ready |= SENSOR_PRESS;
+            return true;
         }
         else
             sens.time_ctr_Press--;
     }
+
+    return false;
 }
 
 void Sensor_Poll(bool tick_ms)
 {
 
+}
+
+uint32 Sensor_GetPwrStatus(void)
+{
+    uint32 pwr = PM_DOWN;
+
+    if ( sens.ini_progress & SENSOR_PRESS )
+        return PM_FULL;
+    if ( sens.ini_progress & SENSOR_RH )
+    {
+        if ( sens.time_ctr_RH > 15 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    if ( sens.in_progress & SENSOR_PRESS )
+    {
+        if ( sens.time_ctr_Press > (450-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_Press < 1 )
+            return PM_FULL;
+        pwr |= PM_HOLD;
+    }
+
+    if ( sens.in_progress & SENSOR_TEMP )
+    {
+        if ( sens.time_ctr_RH > (85-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_RH < 1 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    if ( sens.in_progress & SENSOR_RH )
+    {
+        if ( sens.time_ctr_RH > (29-1) )
+            return PM_FULL;
+        if ( sens.time_ctr_RH < 1 )
+            return PM_FULL;
+        pwr |= PM_SLEEP;
+    }
+
+    return pwr;
 }
 
 /////////////////////////////////////////////////////
@@ -532,7 +710,9 @@ void Sensor_Poll(bool tick_ms)
 
 // init the eeprom module
 bool ee_enabled = false;
+bool ee_deepsleep = true;
 bool ee_wren = false;
+uint32 ee_count = 0;
 
 uint32 eeprom_init()
 {
@@ -566,18 +746,42 @@ uint32 eeprom_enable( bool write )
 {
     ee_enabled = true;
     ee_wren = write;
+    if ( ee_deepsleep )
+    {
+        ee_deepsleep = false;
+        ee_count = 10;
+    }
     return 0;
 }
 
 // disable eeprom module
 uint32 eeprom_disable()
 {
-    ee_enabled = true;
+    ee_enabled = false;
+    ee_wren = false;
+
+    FILE *eefile;
+    eefile = fopen( "eeprom.dat", "wb" );
+    if ( eefile == NULL )
+        return (uint32)-1;
+    fwrite( eeprom_cont, 1, EEPROM_SIZE, eefile );
+    fclose(eefile);
+
+
+    return 0;
+}
+
+uint32 eeprom_deepsleep()
+{
+    eeprom_disable();
+    ee_deepsleep = true;
+    ee_enabled = false;
+    ee_wren = false;
     return 0;
 }
 
 // read count quantity of data from address in buff, returns the nr. of successfull read bytes
-uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
+uint32 eeprom_read( uint32 address, uint32 count, uint8 *buff, bool async )
 {
     if (ee_enabled == false)
         return (uint32)-1;
@@ -586,13 +790,14 @@ uint32 eeprom_read( uint32 address, int count, uint8 *buff, bool async )
 
     memcpy( buff, eeprom_cont + address, count );
 
+    ee_count = (10 * count + 499) / 500;
+
     return count;
 }
 
 // write count quantity of data to address from buff, returns the nr. of successfull written bytes
-uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async )
+uint32 eeprom_write( uint32 address, const uint8 *buff, uint32 count, bool async )
 {
-    FILE *eefile;
     if ( (ee_enabled == false) || (ee_wren == false) )
         return (uint32)-1;
 
@@ -601,16 +806,18 @@ uint32 eeprom_write( uint32 address, uint8 *buff, int count, bool async )
 
     memcpy( eeprom_cont + address, buff, count );
 
-    eefile = fopen( "eeprom.dat", "wb" );
-    if ( eefile == NULL )
-        return (uint32)-1;
-    fwrite( eeprom_cont, 1, EEPROM_SIZE, eefile );
-    fclose(eefile);
+    ee_count = (10 * count + 499) / 500;
+
     return count;
 }
 
 bool eeprom_is_operation_finished( void )
 {
+    if ( ee_count )
+    {
+        ee_count--;
+        return false;
+    }
     return true;
 }
 
@@ -621,9 +828,9 @@ bool eeprom_is_operation_finished( void )
 int brt = 0x80;
 bool dispon = false;
 
-bool DispHAL_App_Poll(void)
+uint32 DispHAL_App_Poll(void)
 {
-    return false;
+    return 0;
 }
 
 void DispHAL_ISR_Poll()
@@ -666,6 +873,7 @@ bool DispHAL_ReleaseSPI( void )
 
 void DispHAL_UpdateScreen()
 {
+    pClass->PwrDispUd = 9;                  // simulate 9 ms display update time
     pClass->dispsim_redraw_content();
 }
 
@@ -676,6 +884,12 @@ void mainw::dispsim_mem_clean()
         return;
     memset( dispmem, 0, 1024 );
 }
+
+void mainw::disppwr_mem_clean()
+{
+    memset( pwr_gmem, 0, DISPPWR_MAX_W * DISPPWR_MAX_H );
+}
+
 
 int pixh_r;
 int pixh_g;
@@ -760,5 +974,19 @@ void mainw::dispsim_redraw_content()
     delete G_item;
     G_item  = new QGraphicsPixmapItem( QPixmap::fromImage( image ));
     scene->addItem(G_item);
+}
+
+
+void mainw::disppwr_redraw_content()
+{
+    int x,y;
+
+    QImage image( pwr_gmem, DISPPWR_MAX_W, DISPPWR_MAX_H, DISPPWR_MAX_W, QImage::Format_Indexed8 );
+    image.setColorTable(pwr_colors);
+
+    pwr_scene->removeItem(pwr_G_item);
+    delete pwr_G_item;
+    pwr_G_item  = new QGraphicsPixmapItem( QPixmap::fromImage( image ));
+    pwr_scene->addItem(pwr_G_item);
 }
 

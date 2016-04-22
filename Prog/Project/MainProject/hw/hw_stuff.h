@@ -150,24 +150,11 @@
     #define DMA_COMM_TX_IRQ         DMA_SENS_RX_IRQ
     #define DMA_COMM_TX_IRQ_FLAGS   DMA_SENS_RX_IRQ_FLAGS
 
-    #define VBAT_MIN        0xB16                   // TBD
-    #define VBAT_MAX        0xD31                   // TBD
+    #define VBAT_MIN        0xB90       // 3.2V
+    #define VBAT_MAX        0xF23       // 4.2V
     #define VBAT_DIFF       ( VBAT_MAX - VBAT_MIN )
 
-    // all these modes are mutally exclussive per group
-    #define SYSSTAT_DISP_BUSY           0x0001          // flag indicating that display is busy
-
-    #define SYSSTAT_CORE_BULK           0x0002          // core needs bulk calculation, need to run main loop continuously
-    #define SYSSTAT_CORE_RUN_FULL       0x0004          // core run with high speed clock needed (1ms ticks)
-    #define SYSYTAT_CORE_MONITOR        0x0010          // core in monitoring / fast registering mode, maintain memory - no full power down possible
-    #define SYSSTAT_CORE_STOPPED        0x0020          // core stopped, no operation in progress
-
-    #define SYSSTAT_UI_ON               0x0100          // ui is fully functional, display is eventually dimmed 
-    #define SYSSTAT_UI_WAKEUP           0x0200          // ui is in wake-up state after pm_down / pm_hold power mode - if long press on power button or UI wakeup event - UI will be up and running, otherwise is considered as 
-    #define SYSSTAT_UI_STOPPED          0x0400          // ui stopped, wake up on keypress but keys are not captured
-    #define SYSSTAT_UI_STOP_W_ALLKEY    0x0800          // ui stopped, wake up with immediate key action for any key
-    #define SYSSTAT_UI_PWROFF           0x1000          // ui is in off mode, or power off requested
-
+    // power modes
     enum EPowerMode         //old: HWSLEEP_FULL
     {
         pm_full = 0,            // full cpu power
@@ -178,6 +165,28 @@
                                 //    - in simulation - app. will respond only for pwr button and RTC alarm, by starting from INIT
     };
 
+    // power mode bitmasks
+    #define PM_FULL     (1<<pm_full)
+    #define PM_SLEEP    (1<<pm_sleep)
+    #define PM_HOLD_BTN (1<<pm_hold_btn)
+    #define PM_HOLD     (1<<pm_hold)
+    #define PM_DOWN     (1<<pm_down)
+    #define PM_MASK     0xff
+
+    // power modes/component
+    // all these modes are mutally exclussive per group
+    #define SYSSTAT_DISP_BUSY           PM_SLEEP        // flag indicating that display is busy
+
+    // wake up reasons
+    #define WUR_NONE        0x00
+    #define WUR_FIRST       0x01        // first startup
+    #define WUR_USR         0x02        // user produced wake-up condition (button pressed) - from InitHW (reset state): when Power button pressed by user
+                                        //                                                  - from HW_Sleep(): when Power or other buttons are pressed by user (power mode dependent)
+    #define WUR_RTC         0x04        // timer produced wake-up condition - from InitHW or HW_Sleep(): when RTC counter = Alarm counter  - can be combined with WUR_USR if button pressed 
+    #define WUR_SENS_IRQ    0x08        // sensor IRQ line produced wake-up from HW_Sleep() - when IRQ line is toggled in stopped state
+
+
+    void SetSysClock(void);
 
     void InitHW(void);
 
@@ -185,15 +194,25 @@
     void HW_SPI_Set_Rx_mode_only( SPI_TypeDef* spi, bool on );
 
     // get button status
-    bool BtnGet_OK();
-    bool BtnGet_Up();
-    bool BtnGet_Down();
-    bool BtnGet_Left();
-    bool BtnGet_Right();
-    void BtnPollStick();
+    bool BtnGet_OK();           // NOTE: this should be called first from the sequence of OK/Up/Down/Left/Right
+    bool BtnGet_Up();           //
+    bool BtnGet_Down();         //  
+    bool BtnGet_Left();         //    reading any of these should be preceded by BtnGet_OK()
+    bool BtnGet_Right();        //   
 
-    #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) ==0 )
+    void HWDBG_print( uint32 data );
+    void HWDBG_print32( uint32 data );
+
+
+    #define BtnGet_Esc()       ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_ESC) == 0 )
     #define BtnGet_Mode()      ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_PP) )
+
+    #define BtnIs_1()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_1) == 0 )
+    #define BtnIs_3()          ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_3) == 0 )
+    #define BtnIs_4()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_4) == 0 )
+    #define BtnIs_6()          ( (IO_PORT_BTN_1_4_6->IDR & IO_IN_BTN_6) == 0 )
+
+    #define BtnIs_Center()     ( (IO_PORT_BTN_OK_ESC_PP_3->IDR & IO_IN_BTN_OK) == 0 )  
 
 #if 1       // SET THIS TO 1  - 0 for dbg purpose 
     #define HW_LED_Off()        do {  IO_PORT_LED->BRR = IO_OUT_LED;   } while (0)
@@ -203,7 +222,8 @@
     #define HW_LED_On()         do {    } while (0)
 #endif
 
-    #define HW_PSens_IRQ()       ( IO_PORT_SENS_IRQ->IDR & IO_IN_SENS_IRQ )
+    #define HW_PSens_IRQ()      ( IO_PORT_SENS_IRQ->IDR & IO_IN_SENS_IRQ )
+    #define HW_Charge_Detect()  ( IO_PORT_CHARGE->IDR & IO_IN_CHARGE )
 
     // power switches
     #define HW_PWR_Main_Off()   do {  IO_PORT_PON->BRR = IO_OUT_PON;   } while (0)
@@ -243,11 +263,10 @@
 
     uint32 HW_ADC_GetBattery(void); // NOTE!!! call this only if ADC isn't running with DMA bulk mode
 
-    void HW_pwr_off_with_alarm( uint32 alarm );
     void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment
     void HW_Seconds_Restore(void);  // restore the original interrupt interval
-    uint32 RTC_GetCounter(void);
     void HW_SetRTC(uint32 RTCctr);
+    void HW_SetRTC_NextAlarm( uint32 alarm );   // set up the next alarm point - will be effective only at stop/power off sleep modes
 
     void HW_Delay(uint32 us);
 
@@ -256,8 +275,40 @@
 
     #define HW_ASSERT()         do { /*TODO */ } while(0)       
 
-    // power management
-    bool HW_Sleep( enum EPowerMode mode );
-
+    // power management - enter in sleep or power down - returns the wake-up reason
+    uint32 HW_Sleep( enum EPowerMode mode );
+    // gets the wake-up reason in this loop (main loop or startup till HW_Sleep)
+    uint32 HW_GetWakeUpReason(void);
 
 #endif
+
+
+/*********************************************
+Power caracterizations [sw tag: PWR_01 ]:
+
+Charging:
+    - USB battery charge from 3.62V -> 322mA 
+
+Consumptions:
+    - using basic main loop without any functionality
+      circuits are powered up, everything in initial state, no measurements, display or comm.
+      power scheme at 3.65V:
+        - full CPU cycle + LED:                 9.96mA
+        - cpu SLEEP, everything powered         4.65mA
+        - cpu STOP, everything powered          1.7mA
+        - power down, RTC alarm only            13uA
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+**********************************************/

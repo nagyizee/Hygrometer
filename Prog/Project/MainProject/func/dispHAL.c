@@ -462,7 +462,7 @@ bool DispHAL_ReleaseSPI( void )
 }
 
 
-bool DispHAL_App_Poll(void)
+uint32 DispHAL_App_Poll(void)
 {
     // check 
     if ( isr_op_finished )
@@ -514,8 +514,10 @@ bool DispHAL_App_Poll(void)
     }
 
     if ( hal.status.busy )
+    {
         return SYSSTAT_DISP_BUSY;
-    return 0;
+    }
+    return PM_DOWN;
 }
 
 

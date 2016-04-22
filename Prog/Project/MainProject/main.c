@@ -17,7 +17,7 @@
 #ifdef VECT_TAB_SRAM
     #define STACK_SIZE      0x120
 #else
-    #define STACK_SIZE      0x300
+    #define STACK_SIZE      0x400
 #endif
 
 extern void main_entry( uint32 *stack_top );
