@@ -859,7 +859,7 @@ static inline void uist_draw_graph( int redraw_all )
 
             if ( ui.p.grDisp.upd_graph )
             {
-                ui.p.grDisp.has_minmax = core_op_recording_calculate_pixels( ss_rh, &grf_values, &grf_up_lim, &grf_dn_lim );
+                ui.p.grDisp.has_minmax = core_op_recording_calculate_pixels( ss_rh, grf_values, &grf_up_lim, &grf_dn_lim );
                 ui.p.grDisp.upd_graph = 0;
             }
 

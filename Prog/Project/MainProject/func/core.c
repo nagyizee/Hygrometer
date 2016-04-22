@@ -2738,6 +2738,9 @@ uint32 core_pwr_getstate(void)
             return SYSSTAT_CORE_BULK;
     }
 
+    if ( HW_Charge_Detect() )           // TODO - do this properly
+        return SYSSTAT_CORE_RUN_FULL;
+
     return pwr;
 }
 

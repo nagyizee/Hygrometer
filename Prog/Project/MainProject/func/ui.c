@@ -1445,21 +1445,34 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
     // tim
     if ( evmask->timer_tick_10ms )
     {
-        ui.p.grDisp.upd_ctr ++;                 // Update should be done at 50Hz -> 20ms
-        if ( ui.p.grDisp.upd_ctr & 0x02 )
+        switch ( ui.p.grDisp.state )
         {
-            ui.p.grDisp.upd_ctr = 0;
-
-            switch ( ui.p.grDisp.state )
-            {
-                case GRSTATE_MULTI:             // highest priority - we need to do display switching
-                    if ( ui.p.grDisp.has_minmax )
+            case GRSTATE_MULTI:             // highest priority - we need to do display switching
+                if ( ui.p.grDisp.has_minmax )
+                {
+                    if ( ui.p.grDisp.disp_flip )
                     {
-                        ui.p.grDisp.disp_flip ^= 1;
+                        ui.p.grDisp.disp_flip = 0;
                         ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
                     }
-                    break;
-                case GRSTATE_FILL:              // check for data ready
+                    else
+                    {
+                        ui.p.grDisp.upd_ctr ++;                 // Update should be done at 50Hz -> 20ms
+                        if ( ui.p.grDisp.upd_ctr & 0x02 )
+                        {
+                            ui.p.grDisp.upd_ctr = 0;
+                            ui.p.grDisp.disp_flip = 1;
+                            ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
+                        }
+                    }
+                }
+                break;
+            case GRSTATE_FILL:              // check for data ready
+                ui.p.grDisp.upd_ctr ++;                         // Update should be done at 50Hz -> 20ms
+                if ( ui.p.grDisp.upd_ctr & 0x02 )
+                {
+                    ui.p.grDisp.upd_ctr = 0;
+
                     ui.p.grDisp.progr = core_op_recording_read_busy();
                     if ( ui.p.grDisp.progr == 0 )
                     {
@@ -1468,10 +1481,10 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
                     }
                     else
                         ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
-                    break;
-                default:
-                    break;
-            }
+                }
+                break;
+            default:
+                break;
         }
     }
 

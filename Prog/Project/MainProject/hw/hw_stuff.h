@@ -186,6 +186,8 @@
     #define WUR_SENS_IRQ    0x08        // sensor IRQ line produced wake-up from HW_Sleep() - when IRQ line is toggled in stopped state
 
 
+    void SetSysClock(void);
+
     void InitHW(void);
 
     void HW_SPI_interface_init( SPI_TypeDef* spi, uint16 baudrate);

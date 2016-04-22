@@ -2,6 +2,7 @@
 
     
 extern void TimerRTCIntrHandler(void);
+extern void SetSysClock(void);
 
     static volatile uint32 wakeup_reason = WUR_NONE;
     static volatile uint32 rtc_next_alarm = 0;
@@ -58,7 +59,7 @@ extern void TimerRTCIntrHandler(void);
     }
 
 
-
+    
 
     void InitHW(void)
     {
@@ -833,6 +834,7 @@ extern void TimerRTCIntrHandler(void);
                 HW_LED_Off();
                 __asm("    wfi\n");       
                 // exit from low power mode
+                SetSysClock();
                 internal_HW_set_EXTI( pm_full );
                 SCB->SCR &= (uint32_t)~((uint32_t)SCB_SCR_SLEEPDEEP);  
                 break;
