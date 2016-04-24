@@ -103,6 +103,11 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
 
 /////// dev
 
+    if ( BtnGet_Esc() )
+    {
+        DispHal_ClearFlipBuffer();
+    }
+    
 
 
 }
@@ -140,8 +145,8 @@ void main_entry( uint32 *stack_top )
 
     DispHal_ToFlipBuffer();
 
-    // draw the 
-    for (j=16;j<50;j++)
+    // draw the test object
+    for (j=16;j<64;j++)
     {
         for (i=0;i<110;i++)
         {
@@ -157,6 +162,8 @@ void main_entry( uint32 *stack_top )
         }
     }
 
+    DispHAL_SetContrast( 0x30 );
+    
     DispHAL_UpdateScreen();
 }
 

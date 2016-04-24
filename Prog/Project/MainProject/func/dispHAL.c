@@ -147,14 +147,22 @@ static void disp_spi_release( void )
 ********************************************************/
 
 #define GREY_OFF            0x00
-#define GREY_REQUEST        0x80
-#define GREY_FIELD_MAIN1    0x02            // main graphic content - display is updated
-#define GREY_FIELD_MAIN2    0x03            // main graphic content (not updated, just counted)
-#define GREY_FIELD_SEC      0x04            // secondary graphic content from gflip buffer - only region is updated 
+#define GREY_FIELD_MAIN     0x01            // main graphic content - display is updated
+#define GREY_FIELD_SEC      0x02            // secondary graphic content from gflip buffer - only region is updated 
+
+#define GREY_LIM_TOFLIP     19              // 20ms - main content - 20ms 
+#define GREY_LIM_TOMAIN     28              // 30ms - grey content - 10ms  => ~30fps
+
+
+///   18 - 27:  -- small line (brighter), fast scan
+///   18 - 28:  -- large line (brighter), slow scan
+///   19 - 28:  -- small line (brighter), slow scan - most optimal till now
+///   20 - 29:  -- dirty line (br/dark), medium scan
 
 volatile bool   isr_op_finished = false;
-volatile uint32 isr_grey_on;                // 0 - not active, 1,2 - main image, 3 - grey image
-
+volatile bool   isr_busy = false;
+volatile uint32 isr_grey_on = GREY_OFF;     // 0 - not active, 1,2 - main image, 3 - grey image
+volatile uint32 isr_grey_ctr = 0;
 
 // !!!! NOTE !!!! this routine is used inside ISR, make sure to protect by interrupt disable if it is called from application !!!!
 static void disp_isr_internal_setup_display_page_command( void )
@@ -163,7 +171,11 @@ static void disp_isr_internal_setup_display_page_command( void )
     hal.send.cmd_idx = 0;
     hal.send.cmd_len = 5;
 
-    cmdlist_custom[0] = (uint8)(0xB0 + hal.send.gmem_line_start);   // page address
+    if ( isr_grey_on != GREY_FIELD_SEC )
+        cmdlist_custom[0] = (uint8)(0xB0 + hal.send.gmem_line_start);       // page address
+    else
+        cmdlist_custom[0] = (uint8)(0xB0 + hal.send.gmem_line_start + 2);   // page address for the flip buffer (shifted down by 16 pixels)
+    
     cmdlist_custom[1] = 0x02;                                       // coloumn address low
     cmdlist_custom[2] = 0x10;                                       // coloumn address hi
     cmdlist_custom[3] = 0xFF;                                       // display page line special command
@@ -177,7 +189,10 @@ static inline void disp_isr_internal_run_update_gmem( void )
     HW_Chip_Disp_Enable();           // chip select
     HW_Chip_Disp_BusData();          // assert the data signal
 
-    HW_DMA_Send( DMACH_DISP, gmem + hal.send.gmem_line_start * GDISP_MAX_MEM_W, GDISP_MAX_MEM_W );
+    if ( isr_grey_on != GREY_FIELD_SEC )
+        HW_DMA_Send( DMACH_DISP, gmem + hal.send.gmem_line_start * GDISP_MAX_MEM_W, GDISP_MAX_MEM_W );
+    else
+        HW_DMA_Send( DMACH_DISP, gflip + hal.send.gmem_line_start * 110, 110 );     // special case for Hygro project
 
     // create the command list for the next group (if existent)
     if ( hal.send.gmem_line_start < hal.send.gmem_line_end )
@@ -253,6 +268,7 @@ static bool disp_isr_internal_run_cmd_sequence( void )
 #define ISS_WAIT_TIMEOUT    0x01
 #define ISS_DMA_TRANF       0x02
 
+// Frame update rate = 100Hz    (10ms)
 
 void DispHAL_ISR_Poll(void)
 {
@@ -266,7 +282,49 @@ void DispHAL_ISR_Poll(void)
             {
                 // command sequence finished
                 isr_op_finished = true;
+                isr_busy = false;
            }
+        }
+    }
+
+    if ( isr_grey_on )  // greyscaling is on - special case for Hygro project
+    {
+        isr_grey_ctr++;
+        if ( isr_busy == false )
+        {
+            bool upd_disp = false;
+            if ( isr_grey_on == GREY_FIELD_MAIN )       // main field active
+            {
+                if ( isr_grey_ctr >= GREY_LIM_TOFLIP )  // reached the flip point
+                {
+                    isr_grey_on = GREY_FIELD_SEC;
+                    // launch partial display update with the grey data
+                    upd_disp = true;
+                }
+            }
+            else
+            {
+                if ( isr_grey_ctr >= GREY_LIM_TOMAIN )  // reached point where main display content should be displayed
+                {
+                    isr_grey_on = GREY_FIELD_MAIN;
+                    isr_grey_ctr = isr_grey_ctr % GREY_LIM_TOMAIN;
+                    // launch complete display redraw
+                    upd_disp = true;
+                }
+            }
+
+            if ( upd_disp )
+            {
+                hal.send.gmem_line_start    = 0;
+                if ( isr_grey_on == GREY_FIELD_SEC )
+                    hal.send.gmem_line_end      = 5;        // display the flip buffer - it has only 6 lines
+                else
+                    hal.send.gmem_line_end      = 7;        // display all the graphic memory
+                disp_isr_internal_setup_display_page_command();
+                disp_isr_internal_run_cmd_sequence( );  // run the command sequence
+                isr_busy = true;
+            }
+
         }
     }
 }
@@ -287,6 +345,7 @@ void DispHAL_ISR_DMA_Complete(void)
     {
         // command sequence finished
         isr_op_finished = true;
+        isr_busy = false;
     }
 }
 
@@ -298,11 +357,14 @@ void DispHAL_ISR_DMA_Complete(void)
 *
 ********************************************************/
 
-static void disp_internal_launch_onoff_sequence( bool on )
+static int disp_internal_launch_onoff_sequence( bool on )
 {
-    hal.status.busy = 1;
-
     __disable_interrupt();
+    if ( isr_busy )
+    {
+        __enable_interrupt();
+        return 1;
+    }
     hal.send.cmd_idx = 0;
     if ( on )
     {
@@ -316,33 +378,44 @@ static void disp_internal_launch_onoff_sequence( bool on )
         hal.send.cmd_ptr = cmdlist_shutdown;
         hal.send.cmd_len = CMDLIST_SIZE_SHUTDOWN;
     }
+    isr_busy = true;
     disp_isr_internal_run_cmd_sequence( );      // run the command sequence
     __enable_interrupt();
-
+    hal.status.busy = 1;
 }
 
 
-static void disp_internal_update_gmem( void )
+static int disp_internal_update_gmem( void )
 {
-    hal.status.busy = 1;
     disp_spi_take_over();   // take the spdif control
 
     __disable_interrupt();
+    if ( isr_busy )
+    {
+        __enable_interrupt();
+        return 1;
+    }
     hal.send.gmem_line_start    = 0;
     hal.send.gmem_line_end      = 7;        // display all the graphic memory
     disp_isr_internal_setup_display_page_command();
     disp_isr_internal_run_cmd_sequence( );  // run the command sequence
+    isr_busy = true;
     __enable_interrupt();
+    hal.status.busy = 1;
+    return 0;
 }
 
 
-static void disp_internal_update_contrast( void )
+static int disp_internal_update_contrast( void )
 {
-    
-    hal.status.busy = 1;
     disp_spi_take_over();   // take the spdif control
 
     __disable_interrupt();
+    if ( isr_busy )
+    {
+        __enable_interrupt();
+        return 1;
+    }
     hal.send.cmd_ptr = cmdlist_custom;
     hal.send.cmd_idx = 0;
     hal.send.cmd_len = 2;
@@ -350,7 +423,10 @@ static void disp_internal_update_contrast( void )
     cmdlist_custom[0] = 0x81;               // contrast setup
     cmdlist_custom[1] = (uint8)hal.contrast; 
     disp_isr_internal_run_cmd_sequence( );  // run the command sequence
+    isr_busy = true;
     __enable_interrupt();
+    hal.status.busy = 1;
+    return 0;
 }
 
 /********************************************************
@@ -390,31 +466,31 @@ void DispHAL_NeedUpdate(  uint32 X1, uint32 Y1, uint32 X2, uint32 Y2  )
 
 void DispHAL_UpdateScreen( void )
 {
-    if ( isr_grey_on )      // display is automatically updated on time base at timer ISR if greyscale is active
+    if ( isr_grey_on )              // display is automatically updated on time base at timer ISR if greyscale is active
         return;
 
     hal.status.gmem_dirty = 1;      // mark memory update request
     if ( (hal.status.disp_initted == 0) || ( hal.status.busy ) )     // return if memory update requested and display is busy or not initted
         return;
 
+    if (disp_internal_update_gmem())
+        return;                     // if update gmem procedure failed (ISR is busy) - leave the gmem_dirty flag
     hal.status.gmem_dirty = 0;
-    disp_internal_update_gmem();
 }
 
 void DispHal_ToFlipBuffer( void )
 {
     int i;
-    for (i=1; i<8; i++)
+    for (i=2; i<8; i++)
     {
-        memcpy( gflip, gmem + 128 * i, 110 );
+        memcpy( gflip + 110 * (i-2), gmem + 128 * i, 110 );
     }
+
+    hal.status.gmem_dirty = 0;
 
     if ( isr_grey_on == GREY_OFF )
     {
-        if ( hal.status.busy )
-            isr_grey_on = GREY_REQUEST;
-        else
-            isr_grey_on = GREY_FIELD_MAIN1;
+        isr_grey_on = GREY_FIELD_MAIN;
     }
 }
 
@@ -433,6 +509,8 @@ int DispHAL_Display_On( void )
         return -1;
     if ( hal.status.disp_initted || hal.status.disp_iniprog )   // display is allready initted or in progress
         return 0;
+
+    isr_grey_on = GREY_OFF;
     hal.status.gmem_dirty = 0;
     hal.status.disp_iniprog = 1;                                // initialization in progress
     hal.status.disp_updating = 1;                               // mark this because display content will be updated also
@@ -440,7 +518,7 @@ int DispHAL_Display_On( void )
     HW_Chip_Disp_UnReset();      // de-assert the reset signal
     disp_spi_take_over();   // take the spdif control
 
-    disp_internal_launch_onoff_sequence( true );
+    disp_internal_launch_onoff_sequence( true );                // no need for check since display off will disable greyscale
 
     return 0;
 }
@@ -456,13 +534,13 @@ int DispHAL_Display_Off( void )
     isr_grey_on = GREY_OFF;
     hal.status.gmem_dirty = 0;                  // clear any memory update request
     hal.status.cntr_dirty = 0;
-    disp_spi_take_over();   // take the SPI control
+    disp_spi_take_over();                       // take the SPI control
 
     if ( hal.status.busy == 0 )
     {
         // launch the sequence only after other display operations are finished. This will be launched automatically by the background code
-        hal.status.disp_updating = 1;   // mark that we are really uninitting
-        disp_internal_launch_onoff_sequence( false );
+        if ( disp_internal_launch_onoff_sequence( false ) == 0 )
+            hal.status.disp_updating = 1;       // mark that we are really uninitting
     }
 
     return 0;
@@ -476,12 +554,13 @@ void DispHAL_SetContrast( int cval )
     else
         hal.contrast = cval;
 
-    if ( (hal.status.disp_initted == 0) || ( hal.status.busy ) )     // return if memory update requested and display is busy or not initted
+    if ( (hal.status.disp_initted == 0) || ( hal.status.busy ) || isr_grey_on )     // return if memory update requested and display is busy or not initted
     {
         hal.status.cntr_dirty = 1;
         return;
     }
-    disp_internal_update_contrast();
+    if ( disp_internal_update_contrast() )
+        hal.status.cntr_dirty = 1;                  // if operation start failed because of ISR busy - retry later
 }
 
 
@@ -528,8 +607,8 @@ uint32 DispHAL_App_Poll(void)
                 }
                 else                                // op_finished was given for a previous command, and we need to finish the uninit
                 {
-                    hal.status.disp_updating = 1;
-                    disp_internal_launch_onoff_sequence( false );
+                    if ( disp_internal_launch_onoff_sequence( false ) == 0 )
+                        hal.status.disp_updating = 1;
                     return SYSSTAT_DISP_BUSY;
                 }
             }
@@ -544,13 +623,13 @@ uint32 DispHAL_App_Poll(void)
     // check for request to update
     if ( hal.status.gmem_dirty && (hal.status.busy == 0) )  // if memory update requested and display is not busy
     {
-        hal.status.gmem_dirty = 0;
-        disp_internal_update_gmem();
+        if ( disp_internal_update_gmem() == 0 )
+            hal.status.gmem_dirty = 0;
     }
-    if ( hal.status.cntr_dirty && (hal.status.busy == 0) )  // if memory update requested and display is not busy
+    if ( hal.status.cntr_dirty && (hal.status.busy == 0) )  // if contrast update requested and display is not busy
     {
-        hal.status.cntr_dirty = 0;
-        disp_internal_update_contrast();
+        if ( disp_internal_update_contrast() == 0 )
+            hal.status.cntr_dirty = 0;
     }
 
     if ( isr_grey_on || hal.status.busy )
