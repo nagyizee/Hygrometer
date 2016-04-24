@@ -20,6 +20,9 @@ struct SDispHALstate
     uint32  gmem_dirty:1;           // update request for display memory was made  
     uint32  cntr_dirty:1;           // update request for contrast was made
     uint32  spi_owner:1;            // if spi port is used by display
+
+    // greyscale flip buffer
+    uint32  gray_on:1;              // if grayscale displaying is on
 };
 
 

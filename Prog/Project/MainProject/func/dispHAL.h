@@ -23,6 +23,15 @@
 
     // Routines for application level (system specific)
     // 
+
+    // --- Special feature for hygro project grayscale ---  no generic implementation because of memory constraints
+    // Send the current graphic content to the grayscale flip buffer 
+    void DispHal_ToFlipBuffer( void );
+
+    // clear the flip buffer, disabling the grayscale displaying
+    void DispHal_ClearFlipBuffer( void );
+
+
     // Called by application to tell when it finished drawing and display can be updated
     void DispHAL_UpdateScreen( void );
 
