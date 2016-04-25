@@ -101,12 +101,19 @@
 
     struct SUIGraphDisplay
     {
-        uint8   state;                              // see GRSTATE_xxxx defines
-        uint8   progr;                              // progress bar in filling state
-        uint8   cursor;                             // display cursor
-        uint8   upd_ctr;                            // display update counter
-        uint8   upd_graph;                          // update the diplay precalculated points
-        bool   has_minmax;                          // set when graph points has min/max set
+        uint8   d_state;                // see GRSTATE_xxxx defines
+        uint8   d_progr;                // progress bar in filling state        uint8   d_upd_ctr;                          // display update counter
+        uint8   d_upd_ctr;
+
+        uint8   graph_updated;          // update the diplay precalculated points
+        bool    graph_has_minmax;       // set when graph points has min/max set
+
+        uint16  view_elemstart;         // starting element - in depth ( first elem is the count from the task )
+        uint16  view_elemend;           // ending element - in depth ( 0 - means the newest, last element recorded )
+        uint8   view_cursor1;           // main cursor on the graph
+        uint8   view_cursor2;           // selector cursor
+        uint8   view_elem;              // selected element - 0 based ( 0-t 1-rh 2-p )
+
     };
 
 

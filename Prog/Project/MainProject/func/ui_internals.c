@@ -14,6 +14,7 @@
 #include "ui_internals.h"
 #include "ui.h"
 #include "core.h"
+#include "sensors.h"
 #include "graphic_lib.h"
 #include "ui_graphics.h"
 #include "utilities.h"
@@ -100,6 +101,96 @@ static void internal_graphdisp_render( bool minmax )
             Graphic_Line( i, *val, i+1, *(val+1) );
             val++;
         }
+    }
+}
+
+static void internal_graphdisp_putXtime( uint32 xpoz, uint32 sample_nr )
+{
+    uint32 time;
+
+    time = sample_nr * core_utils_timeunit2seconds( core.nvrec.task[ui.m_return].sample_rate ) * 2;
+    if ( time > core.readout.last_timestamp )
+        time = 0;
+    else
+        time = core.readout.last_timestamp - time;
+
+    timestruct tm;
+    datestruct dt;
+    utils_convert_counter_2_hms( time, &tm.hour, &tm.minute, NULL );
+    utils_convert_counter_2_ymd( time, &dt.year, &dt.mounth, &dt.day );
+
+    uigrf_puttime( xpoz, 0, uitxt_micro, 1, tm, true, false );
+    uigrf_putdate( xpoz, 7, uitxt_micro, 1, dt, false, false );
+}
+
+static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smpl_total )
+{
+    uint32 x1;
+    uint32 x2;
+
+    Graphic_SetColor(1);
+    Graphic_FillRectangle( 21, 11, 97, 15, 0 );
+    
+    if ( smpl_total == 0 )
+    {
+        Graphic_FillRectangle( 21, 11, 97, 15, 1 );
+        return;
+    }
+
+    // memory position (zoom)
+    x1 = (smpl_total - smpl_1) * 75 / smpl_total;
+    x2 = smpl_2 * 75 / smpl_total;
+
+    Graphic_FillRectangle( 21+x1, 12, 21+x1, 14, 1 );
+    Graphic_FillRectangle( 97-x2, 12, 97-x2, 14, 1 );
+    if ( (97-x2) <= (21+x1) )
+    {
+        Graphic_SetColor(0);
+        Graphic_Rectangle( 97-x2, 12, 97-x2, 14 );
+    }
+}
+
+static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
+{
+    Graphic_SetColor(-1);
+    Graphic_FillRectangle( c1, 16, c2, 63, -1 );
+    Graphic_SetColor(1);
+
+    if (disp_val)
+    {
+        switch ( ui.p.grDisp.view_elem )
+        {
+            case 0:
+                uigrf_putfixpoint( 60, 1, uitxt_small, 
+                                   core_utils_temperature2unit( core_op_recording_get_buf_value( c1, ss_thermo ), core.nv.setup.show_unit_temp ),
+                                   5, 2, ' ', true ); 
+                break;
+            case 1:
+                uigrf_putfixpoint( 60, 1, uitxt_small, 
+                                   (core_op_recording_get_buf_value( c1, ss_rh ) * 100) >> RH_FP,
+                                   5, 2, ' ', false ); 
+                break;
+            case 2:
+                uigrf_putfixpoint( 60, 1, uitxt_small, 
+                                   core_op_recording_get_buf_value( c1, ss_pressure ) + 50000,
+                                   5, 2, ' ', false ); 
+                break;
+        }
+    }
+}
+
+
+static void internal_graphdisp_elemselect( uint32 selected )
+{
+    uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
+    uibm_put_bitmap( 35, 1, BMP_ICO_REGST_THP );
+    Graphic_SetColor(-1);
+
+    switch ( selected )
+    {
+        case 0: Graphic_FillRectangle(35,2,40,9,-1); break;
+        case 1: Graphic_FillRectangle(40,2,44,9,-1); break;
+        case 2: Graphic_FillRectangle(44,2,48,9,-1); break;
     }
 }
 
@@ -710,38 +801,21 @@ static inline void uist_draw_graph( int redraw_all )
     {
         // clear the graph underneath
         Graphic_SetColor(0);
-        Graphic_FillRectangle(0, 16, 110, 63, 0);
+        Graphic_FillRectangle(0, 16, 127, 63, 0);
+        Graphic_FillRectangle(0, 0, 119, 15, 0);
 
         Graphic_SetColor(1);
         Graphic_Line(0,15,127,15);
         Graphic_Line(111,16,111,63);
 
-        // left/right time domain
-        uigrf_text( 0, 0, uitxt_micro | uitxt_MONO,  "11-30" );
-        uigrf_text( 0, 7, uitxt_micro | uitxt_MONO,  "15:23" );
-
-        uigrf_text( 100, 0, uitxt_micro | uitxt_MONO,  "12-30" );
-        uigrf_text( 100, 7, uitxt_micro | uitxt_MONO,  "08:45" );
-
-        // Selected task
-        uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
-        uibm_put_bitmap( 35, 1, BMP_ICO_REGST_THP );
-        Graphic_SetColor(-1);
-        Graphic_FillRectangle(44,2,48,9,-1);
-
-        // current value display
-        uigrf_text( 60, 1, uitxt_small,  "1012.56" );
-
-        // memory position (zoom)
-        Graphic_SetColor(1);
-        Graphic_Rectangle( 21, 11, 97, 15 );
-        Graphic_FillRectangle( 21, 12, 45, 14, 1 );
-        Graphic_FillRectangle( 53, 12, 97, 14, 1 );
-
         uigrf_text( 113, 22, uitxt_micro, "hpa" );
 
-        if ( ui.p.grDisp.state != GRSTATE_FILL )
+        // element selector         
+        internal_graphdisp_elemselect( ui.p.grDisp.view_elem );
+
+        if ( ui.p.grDisp.d_state != GRSTATE_FILL )
         {
+            // grid
             int i,j;
             for (i=0; i<11; i++)
             {
@@ -751,15 +825,17 @@ static inline void uist_draw_graph( int redraw_all )
                 }
             }
 
-            if ( ui.p.grDisp.upd_graph )
+            // generate the graph display
+            if ( ui.p.grDisp.graph_updated )
             {
-                grf_values = core_op_recording_calculate_pixels( ss_rh, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.has_minmax );
-                ui.p.grDisp.upd_graph = 0;
+                grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
+                ui.p.grDisp.graph_updated = 0;
             }
 
-            if ( ui.p.grDisp.has_minmax )
+            if ( ui.p.grDisp.graph_has_minmax )
             {
                 internal_graphdisp_render( true );
+                internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, false );
                 DispHal_ToFlipBuffer();                                 // send the min/max to the flip buffer for grayscale
                 Graphic_SetColor(0);
                 Graphic_FillRectangle(0, 16, 110, 63, 0);               // erase the underlying layer
@@ -770,30 +846,38 @@ static inline void uist_draw_graph( int redraw_all )
             // Y scale
             uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
             uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
+
+            // X scale - left/right time domain
+            internal_graphdisp_putXtime( 0, ui.p.grDisp.view_elemstart );
+            internal_graphdisp_putXtime( 100, ui.p.grDisp.view_elemend );
+
+            // zoom bar
+            internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.readout.total_read );
+
+            // cursor
+            internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, true );
+
         }
         else
         {
             uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
+            internal_graphdisp_zoombar( 0, 0, 0 );
         }
-    }
 
+    }
 
     if ( redraw_all & RDRW_UI_DYNAMIC )
     {
-        switch ( ui.p.grDisp.state )
+        switch ( ui.p.grDisp.d_state )
         {
             case GRSTATE_FILL:
                 Graphic_SetColor(0);
                 Graphic_Rectangle( 49, 49, 63, 50 );
                 Graphic_SetColor(1);
-                Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.progr * 14) >> 4), 50 );
+                Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.d_progr * 14) >> 4), 50 );
                 break;
         }
     }
-    
-
-
-
 }
 
 

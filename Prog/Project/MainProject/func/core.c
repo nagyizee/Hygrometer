@@ -2314,6 +2314,7 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
         // set up readout state variables
         core.readout.task_offs = EEADDR_STORAGE + (uint32)core.nvrec.task[task_idx].mempage * CORE_RECMEM_PAGESIZE; // save the Task memory offset
         core.readout.taks_elem = core.nvrec.task[task_idx].task_elems;                                              // save the task elem type
+        core.readout.last_timestamp = pfunc->last_timestamp;                                                        // save the timestamp
         core.readout.total_read = length;                                                                           // how many samples should be read in total
         core.readout.to_read = length; 
         core.readout.wrap = pfunc->wrap;
@@ -2529,6 +2530,18 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     }
 }
 
+uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param )
+{
+    uint16 *buff;
+    switch ( param )
+    {
+        case ss_thermo:     buff = (uint16*)( workbuff + WB_OFFS_TEMP_AVG + 2 * cursor ); break;
+        case ss_rh:         buff = (uint16*)( workbuff + WB_OFFS_RH_AVG + 2 * cursor ); break;
+        case ss_pressure:   buff = (uint16*)( workbuff + WB_OFFS_P_AVG + 2 * cursor ); break;
+    }
+
+    return *buff;
+}
 
 
 // for calculations and formulas see reg_generator.mcdx

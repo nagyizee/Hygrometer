@@ -325,8 +325,9 @@
                                             // 2 - F1 is in read, F2 - in processing
         uint32  task_offs;                  // NVRAM offset for the task under processing
         uint16  wrap;                       // wrap point
-        uint16  total_read;                 // total points read from memory
-                                            // 
+        uint16  total_read;                 // total points read from memory - it will tell the UI the max samples also (depth)
+        uint32  last_timestamp;             // saved last timestamp - used for UI
+
         uint16  to_read;                    // samples to read in total
         uint16  to_ptr;                     // pointer from which to read (from start pointer and advancing)
         uint16  to_process;                 // samples to be processed when read is finished
@@ -512,6 +513,8 @@
     int core_op_recording_read_busy(void);
     // calculate display pixels from display raw points
     uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh, int *plow, bool *has_minmax );
+    // get the average value from the position of the cursor
+    uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param );
 
     // debug fill feature
     void core_op_recording_dbgfill( uint32 t );

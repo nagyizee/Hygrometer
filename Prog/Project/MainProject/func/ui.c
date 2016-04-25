@@ -76,6 +76,21 @@ void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
     task->mempage = ui.p.swRegTaskSet.task.mempage;
 }
 
+enum ESensorSelect internal_graphdisp_get_element( uint32 index )
+{
+    uint32 elem;
+
+    elem = core.nvrec.task[ui.m_return].task_elems & (1<<index);
+    switch ( elem )
+    {
+        case 0x01:  return ss_thermo;
+        case 0x02:  return ss_rh;
+        case 0x04:  return ss_pressure;
+        default:
+            return ss_none;
+    }
+    return ss_none;
+}
 
 
 ////////////////////////////////////////////////////
@@ -1401,12 +1416,22 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 
 void uist_mainwindowgraph_entry( void )
 {
+    uint32 elem = 0;
+    int i = 0;
+
     memset( &ui.p.grDisp, 0, sizeof(ui.p.grDisp) );
     // m_return holds the task index
-    core_op_recording_read_request( ui.m_return, core.nvrec.func[ui.m_return].c, core.nvrec.func[ui.m_return].c );
-    ui.p.grDisp.progr = 16;     // means maximum wait state
-    ui.p.grDisp.cursor = 50;    // cursor to middle
-    ui.p.grDisp.upd_graph = 1;  // update display points from grahp data
+    ui.p.grDisp.d_progr = 16;     // means maximum wait state
+    ui.p.grDisp.view_cursor1 = 72;    // cursor to middle
+    ui.p.grDisp.view_cursor2 = 72;    // cursor to middle
+    ui.p.grDisp.graph_updated = 1;  // update display points from grahp data
+    ui.p.grDisp.view_elemstart = core.nvrec.func[ui.m_return].c;
+    ui.p.grDisp.view_elemend = 0;
+
+    while ( internal_graphdisp_get_element(ui.p.grDisp.view_elem) == ss_none )
+        ui.p.grDisp.view_elem++;
+
+    core_op_recording_read_request( ui.m_return, ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemstart );    // get the entire recording
 
     uist_setupview_mainwindow( true );
     uist_drawview_mainwindow( RDRW_ALL );
@@ -1447,20 +1472,20 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
     // tim
     if ( evmask->timer_tick_10ms )
     {
-        switch ( ui.p.grDisp.state )
+        switch ( ui.p.grDisp.d_state )
         {
             case GRSTATE_MULTI:             // highest priority - we need to do display switching
                 break;
             case GRSTATE_FILL:              // check for data ready
-                ui.p.grDisp.upd_ctr ++;                         // Update should be done at 50Hz -> 20ms
-                if ( ui.p.grDisp.upd_ctr & 0x02 )
+                ui.p.grDisp.d_upd_ctr ++;                         // Update should be done at 50Hz -> 20ms
+                if ( ui.p.grDisp.d_upd_ctr & 0x02 )
                 {
-                    ui.p.grDisp.upd_ctr = 0;
+                    ui.p.grDisp.d_upd_ctr = 0;
 
-                    ui.p.grDisp.progr = core_op_recording_read_busy();
-                    if ( ui.p.grDisp.progr == 0 )
+                    ui.p.grDisp.d_progr = core_op_recording_read_busy();
+                    if ( ui.p.grDisp.d_progr == 0 )
                     {
-                        ui.p.grDisp.state = GRSTATE_MULTI;
+                        ui.p.grDisp.d_state = GRSTATE_MULTI;
                         ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
                     }
                     else
