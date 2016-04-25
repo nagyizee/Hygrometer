@@ -308,7 +308,6 @@ static void local_tendency_restart( uint32 entry )
 
 inline static void internal_recording_get_minmax_from_raw( uint32 taks_elem, enum ESensorSelect param, uint32 *valmin, uint32 *valmax )
 {
-    uint8* rbuff;
     switch ( core.readout.taks_elem )
     {
         case rtt_t:
@@ -2061,6 +2060,108 @@ void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset )
 }
 
 
+uint8 uist_internal_get_pixel_value( int in_val, int minval, int maxval )
+{
+    return (uint8)( 1 + ((in_val - minval) * 40) / (maxval - minval) );
+}
+
+uint8* core_op_monitoring_tendencyval2pixels( struct STendencyBuffer *tend, enum ESensorSelect param, uint32 unit, int *phigh, int *plow )
+{
+    int i,j,nr;
+    int up_lim;
+    int dn_lim;
+    int temp;
+
+    // if no tendency graph or only one value - fill with uniform values
+    if ( tend->c < 2 )
+    {
+        uint8 pix_val;
+
+        if (tend->c == 0)
+        {
+            pix_val = 20;
+            *plow = 0;
+            *phigh = 0;
+        }
+        else
+        {
+            temp = core_utils_temperature2unit( tend->value[0], unit );      // x100 units
+
+            if ( temp < 0 )
+            {
+                *phigh = (temp / 100);
+                *plow = (temp / 100) - 1;
+            }
+            else
+            {
+                *phigh = (temp / 100) + 1;
+                *plow = (temp / 100);
+            }
+            pix_val = uist_internal_get_pixel_value( tend->value[0], 
+                                                     core_utils_unit2temperature( (*plow)*100, unit ),
+                                                     core_utils_unit2temperature( (*phigh)*100, unit ) );
+        }
+
+        for( i=0; i<STORAGE_TENDENCY; i++)
+            workbuff[i] = pix_val;
+
+        return workbuff;
+    }
+
+    // else - find out the min/max values
+    dn_lim = tend->value[0];
+    up_lim = tend->value[0];
+    for ( i=0; i<tend->c; i++ )
+    {
+        if ( dn_lim > tend->value[i] )
+            dn_lim = tend->value[i];
+        if ( up_lim < tend->value[i] )
+            up_lim = tend->value[i];
+    }
+
+    // normalize them to integer
+    temp = core_utils_temperature2unit( dn_lim, unit );
+    if (temp < 0)
+        *plow = temp / 100 - 1;
+    else
+        *plow = temp / 100;
+    temp = core_utils_temperature2unit( up_lim, unit );
+    if (temp < 0)
+        *phigh = temp / 100;
+    else
+        *phigh = temp / 100 + 1;
+
+    dn_lim = core_utils_unit2temperature( (*plow)*100, unit );
+    up_lim = core_utils_unit2temperature( (*phigh)*100, unit );
+
+    // calculate the pixel values
+    if ( (tend->c < STORAGE_TENDENCY) || (tend->w == 0) )       // tendency buffer is not filled or is filled exactly with it's size
+        i = 0;
+    else
+        i = tend->w;
+    j = 0;
+    nr = 0;
+    if ( tend->c < STORAGE_TENDENCY )
+    {
+        uint8 fillval;
+        fillval = uist_internal_get_pixel_value( tend->value[0], dn_lim, up_lim );
+        for ( j=0; j<( STORAGE_TENDENCY - tend->c); j++ )           // first fill the
+            workbuff[j] = fillval;
+    }
+    while ( nr < tend->c )
+    {
+        workbuff[j] = uist_internal_get_pixel_value( tend->value[i], dn_lim, up_lim );
+        j++;
+        i++;
+        nr++;
+        if ( i == STORAGE_TENDENCY )
+            i = 0;
+    }
+
+    return workbuff;
+}
+
+
 void core_op_recording_init(void)
 {
     if ( core.vstatus.int_op.f.nv_rec_initted )
@@ -2112,8 +2213,6 @@ void core_op_recording_switch( bool enabled )
 
 void core_op_recording_setup_task( uint32 task_idx, struct SRecTaskInstance *task )
 {
-    bool clean_up = false;
-
     if ( memcmp( task, &core.nvrec.task[task_idx], sizeof(struct SRecTaskInstance) ) )
     {
         core.nvrec.task[task_idx] = *task;
@@ -2200,7 +2299,6 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
         uint32 ee_addr;
         uint32 ee_size;
         uint32 start_smpl;
-        uint32 to_read;
 
         // enable eeprom
         eeprom_enable(false);
@@ -2257,6 +2355,8 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
 
     core.vstatus.int_op.f.op_recread = 1;
     core.vstatus.int_op.f.core_bsy = 1;
+    
+    return 0;
 }
 
 void core_op_recording_read_cancel(void)
@@ -2292,7 +2392,7 @@ int core_op_recording_read_busy(void)
 }
 
 
-bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuff, int *phigh, int *plow )
+uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh, int *plow, bool *has_minmax )
 {
     // pixel buffer contain height info from minimum = 63 -> maximum = 16 - center line at 40
     // return true - if pixel buffer contains min/max values also
@@ -2309,10 +2409,11 @@ bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuf
     if ( (core.vstatus.int_op.f.graph_ok == 0) ||               // if no raw graph data is read 
          ( ((1<<(param-1)) & core.readout.taks_elem) == 0)  )   // or current param is not part of raw data set
     {
-        memset( pixbuff, 40, 3 * WB_DISPPOINT );                // return 0 line
+        memset( workbuff, 40, 3 * WB_DISPPOINT );                // return 0 line
         *phigh = 1;
         *plow = -1;
-        return false;
+        *has_minmax = false;
+        return workbuff;
     }
 
     // calculate the high and low values
@@ -2379,7 +2480,7 @@ bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuf
         register uint32 vmin;
 
         vmin = valmin;
-        pbuff = pixbuff + WB_DISPPOINT*2;   // fill only the averages
+        pbuff = workbuff + WB_DISPPOINT*2;   // fill only the averages
         diff = valmax - valmin;
 
         rbuff += (2 * WB_DISPPOINT);        // move the raw buffer pointer to the averages only ( note the rbuff is *uint16)
@@ -2400,8 +2501,9 @@ bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuf
             rbuff++;
             pbuff++;
         }
-        
-        return false;
+
+        *has_minmax = false;
+        return workbuff;
     }
     else
     {
@@ -2414,15 +2516,16 @@ bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuf
         diff = valmax - valmin;
 
         // fill minimums/maximums/averages - just go through all the raw data memory
-        pbuff = pixbuff;
+        pbuff = workbuff;
         for ( i=0; i<(WB_DISPPOINT*3); i++ )
         {
             *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
             rbuff++;
             pbuff++;
         }
-        
-        return true;
+
+        *has_minmax = true;
+        return workbuff;
     }
 }
 

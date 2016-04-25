@@ -118,6 +118,8 @@ void main_loop(void);
 
 void DispHAL_UpdateScreen();
 void DispHAL_ISR_Poll();
+void DispHal_ToFlipBuffer();
+void DispHal_ClearFlipBuffer();
 void CoreADC_ISR_Complete();
 void Core_ISR_PretriggerCompleted();
 

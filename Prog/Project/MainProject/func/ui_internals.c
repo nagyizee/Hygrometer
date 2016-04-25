@@ -43,8 +43,7 @@ const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min
 // local general purpose buffers for graph and tendency
 int grf_up_lim;
 int grf_dn_lim;
-uint32 grf_decpts;
-uint8 grf_values[330];   // 110 pixels max for graphs - min/max/average
+uint8 *grf_values;   // 110 pixels max for graphs - min/max/average
 
 
 static int uist_internal_setup_menu( void *handle, const char *list )
@@ -68,109 +67,6 @@ static int uist_internal_setup_menu( void *handle, const char *list )
             if ( res || (*ptr == 0x00) )
                 return res;
         }
-    }
-}
-
-
-uint8 uist_internal_get_pixel_value( int in_val, int minval, int maxval )
-{
-    return (uint8)( 1 + ((in_val - minval) * 40) / (maxval - minval) );
-}
-
-
-void uist_internal_tendencyval2pixels( struct STendencyBuffer *tend )
-{
-    int i,j,nr;
-    int up_lim;
-    int dn_lim;
-    int temp;
-
-    // if no tendency graph or only one value - fill with uniform values
-    if ( tend->c < 2 )
-    {
-        uint8 pix_val;
-
-        if (tend->c == 0)
-        {
-            pix_val = 20;
-            grf_dn_lim = 0;
-            grf_up_lim = 0;
-            grf_decpts = 0;
-        }
-        else
-        {
-            temp = core_utils_temperature2unit( tend->value[0], ui.p.mgThermo.unitT );      // x100 units
-
-            if ( temp < 0 )
-            {
-                grf_up_lim = (temp / 100);
-                grf_dn_lim = (temp / 100) - 1;
-            }
-            else
-            {
-                grf_up_lim = (temp / 100) + 1;
-                grf_dn_lim = (temp / 100);
-            }
-            pix_val = uist_internal_get_pixel_value( tend->value[0], 
-                                                     core_utils_unit2temperature( grf_dn_lim*100, ui.p.mgThermo.unitT ),
-                                                     core_utils_unit2temperature( grf_up_lim*100, ui.p.mgThermo.unitT ) );
-        }
-
-        for( i=0; i<STORAGE_TENDENCY; i++)
-            grf_values[i] = pix_val;
-
-        return;
-    }
-
-    // else - find out the min/max values
-    dn_lim = tend->value[0];
-    up_lim = tend->value[0];
-    for ( i=0; i<tend->c; i++ )
-    {
-        if ( dn_lim > tend->value[i] )
-            dn_lim = tend->value[i];
-        if ( up_lim < tend->value[i] )
-            up_lim = tend->value[i];
-    }
-
-    // normalize them to integer
-    temp = core_utils_temperature2unit( dn_lim, ui.p.mgThermo.unitT );
-    if (temp < 0)
-        grf_dn_lim = temp / 100 - 1;
-    else
-        grf_dn_lim = temp / 100;
-    temp = core_utils_temperature2unit( up_lim, ui.p.mgThermo.unitT );
-    if (temp < 0)
-        grf_up_lim = temp / 100;
-    else
-        grf_up_lim = temp / 100 + 1;
-
-    dn_lim = core_utils_unit2temperature( grf_dn_lim*100, ui.p.mgThermo.unitT );
-    up_lim = core_utils_unit2temperature( grf_up_lim*100, ui.p.mgThermo.unitT );
-    grf_decpts = 0;
-
-    // calculate the pixel values
-    if ( (tend->c < STORAGE_TENDENCY) || (tend->w == 0) )       // tendency buffer is not filled or is filled exactly with it's size
-        i = 0;
-    else
-        i = tend->w;
-    j = 0;
-    nr = 0;
-    if ( tend->c < STORAGE_TENDENCY )
-    {
-        uint8 fillval;
-        fillval = uist_internal_get_pixel_value( tend->value[0], dn_lim, up_lim );
-        for ( j=0; j<( STORAGE_TENDENCY - tend->c); j++ )           // first fill the
-            grf_values[j] = fillval;
-    }
-    while ( nr < tend->c )
-    {
-        grf_values[j] = uist_internal_get_pixel_value( tend->value[i], dn_lim, up_lim );
-        j++;
-        i++;
-        nr++;
-        if ( i == STORAGE_TENDENCY )
-            i = 0;
     }
 }
 
@@ -617,11 +513,11 @@ static inline void uist_draw_gauge_thermo( int redraw_all )
         // tendency graph
         {
             if ( core.measure.dirty.b.upd_th_tendency )
-                uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_TEMP] );
+                grf_values = core_op_monitoring_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_TEMP], ss_thermo, ui.p.mgThermo.unitT, &grf_up_lim, &grf_dn_lim );
 
             uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
                                    core.nv.op.sens_rd.tendency[CORE_MMP_TEMP].w,
-                                   grf_up_lim, grf_dn_lim, 3, grf_decpts );
+                                   grf_up_lim, grf_dn_lim, 3, 0 );
 
         }
 
@@ -717,20 +613,20 @@ static inline void uist_draw_gauge_hygro( int redraw_all )
             if ( ui.p.mgHygro.unitH == hu_dew )
             {
                 // display empty graph since we don't measure this
-                uigrf_put_graph_small( 77, 16, grf_values, 0, 0, grf_up_lim, grf_dn_lim, 3, grf_decpts );
+                uigrf_put_graph_small( 77, 16, grf_values, 0, 0, grf_up_lim, grf_dn_lim, 3, 0 );
             }
             else
             {
                 if ( core.measure.dirty.b.upd_th_tendency )
                 {
                     if ( ui.p.mgHygro.unitH == hu_rh )
-                        uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_RH] );
+                        grf_values = core_op_monitoring_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_RH], ss_rh, ui.p.mgHygro.unitH, &grf_up_lim, &grf_dn_lim );
                     else
-                        uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_ABSH] );
+                        grf_values = core_op_monitoring_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_ABSH], ss_rh, ui.p.mgHygro.unitH, &grf_up_lim, &grf_dn_lim );
                 }
                 uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
                                        core.nv.op.sens_rd.tendency[CORE_MMP_RH].w,                  // should be the same for RH and abs hum.
-                                       grf_up_lim, grf_dn_lim, 3, grf_decpts );
+                                       grf_up_lim, grf_dn_lim, 3, 0 );
             }
             core.measure.dirty.b.upd_th_tendency = 0;
         }
@@ -794,14 +690,12 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
         // tendency graph
         {
             if ( core.measure.dirty.b.upd_press_tendency )
-                uist_internal_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_PRESS] );
+                grf_values = core_op_monitoring_tendencyval2pixels( &core.nv.op.sens_rd.tendency[CORE_MMP_PRESS], ss_rh, ui.p.mgHygro.unitH, &grf_up_lim, &grf_dn_lim );
 
             uigrf_put_graph_small( 77, 16, grf_values, STORAGE_TENDENCY,
                                    core.nv.op.sens_rd.tendency[CORE_MMP_PRESS].w,
-                                   grf_up_lim, grf_dn_lim, 3, grf_decpts );
-
+                                   grf_up_lim, grf_dn_lim, 3, 0 );
         }
-
 
         core.measure.dirty.b.upd_press_tendency = 0;
         core.measure.dirty.b.upd_press_minmax = 0;
@@ -859,11 +753,19 @@ static inline void uist_draw_graph( int redraw_all )
 
             if ( ui.p.grDisp.upd_graph )
             {
-                ui.p.grDisp.has_minmax = core_op_recording_calculate_pixels( ss_rh, grf_values, &grf_up_lim, &grf_dn_lim );
+                grf_values = core_op_recording_calculate_pixels( ss_rh, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.has_minmax );
                 ui.p.grDisp.upd_graph = 0;
             }
 
-            internal_graphdisp_render( ui.p.grDisp.has_minmax );
+            if ( ui.p.grDisp.has_minmax )
+            {
+                internal_graphdisp_render( true );
+                DispHal_ToFlipBuffer();                                 // send the min/max to the flip buffer for grayscale
+                Graphic_SetColor(0);
+                Graphic_FillRectangle(0, 16, 110, 63, 0);               // erase the underlying layer
+            }
+
+            internal_graphdisp_render( false );                         // draw the averages
 
             // Y scale
             uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
@@ -880,14 +782,6 @@ static inline void uist_draw_graph( int redraw_all )
     {
         switch ( ui.p.grDisp.state )
         {
-            case GRSTATE_MULTI:
-                // clear the graph underneath
-                Graphic_SetColor(0);
-                Graphic_FillRectangle(0, 16, 110, 63, 0);
-
-                internal_graphdisp_render( ui.p.grDisp.has_minmax * ui.p.grDisp.disp_flip );
-
-                break;
             case GRSTATE_FILL:
                 Graphic_SetColor(0);
                 Graphic_Rectangle( 49, 49, 63, 50 );

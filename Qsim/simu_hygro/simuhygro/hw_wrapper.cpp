@@ -827,6 +827,8 @@ bool eeprom_is_operation_finished( void )
 /////////////////////////////////////////////////////
 int brt = 0x80;
 bool dispon = false;
+bool dispgrey = false;
+uint8 grey_disp[660];
 
 uint32 DispHAL_App_Poll(void)
 {
@@ -835,6 +837,22 @@ uint32 DispHAL_App_Poll(void)
 
 void DispHAL_ISR_Poll()
 {
+}
+
+
+void DispHal_ToFlipBuffer()
+{
+    int i;
+    for (i=2; i<8; i++)
+    {
+        memcpy( grey_disp + 110 * (i-2), dispmem + 128 * i, 110 );
+    }
+    dispgrey = true;
+}
+
+void DispHal_ClearFlipBuffer()
+{
+    dispgrey = false;
 }
 
 int  DispHAL_Display_On( void )
@@ -899,7 +917,7 @@ int pixl_g;
 int pixl_b;
 
 
-static void internal_dispsim_putpixel( uchar *gmem, int x, int y, bool color )
+static void internal_dispsim_putpixel( uchar *gmem, int x, int y, bool color, bool grey_img )
 {
     int poz;
 
@@ -913,6 +931,13 @@ static void internal_dispsim_putpixel( uchar *gmem, int x, int y, bool color )
         g = pixl_g;
         b = pixl_b;
         y+=2;
+    }
+
+    if ( grey_img )
+    {
+        r = r*2/3;
+        g = g*2/3;
+        b = b*2/3;
     }
 
     poz = x*2*3 + y*DISPSIM_MAX_W*3*2;
@@ -945,7 +970,6 @@ void mainw::dispsim_redraw_content()
 
     memset( gmem, 0, DISPSIM_MAX_W * DISPSIM_MAX_H *3 );
 
-
     pixh_r = 0xff * hw_disp_brt / 0x40;
     pixh_g = 0xe0 * hw_disp_brt / 0x40;
     pixh_b = 0x10 * hw_disp_brt / 0x40;
@@ -953,18 +977,36 @@ void mainw::dispsim_redraw_content()
     pixl_g = 0x80 * hw_disp_brt / 0x40;
     pixl_b = 0xff * hw_disp_brt / 0x40;
 
+    if ( dispgrey )
+    {
+        for (x=0; x<110; x++)
+        {
+            for (y=0; y<6; y++)
+            {
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+0, grey_disp[x+y*110] & 0x01, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+1, grey_disp[x+y*110] & 0x02, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+2, grey_disp[x+y*110] & 0x04, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+3, grey_disp[x+y*110] & 0x08, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+4, grey_disp[x+y*110] & 0x10, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+5, grey_disp[x+y*110] & 0x20, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+6, grey_disp[x+y*110] & 0x40, true );
+                internal_dispsim_putpixel( gmem, x, (y+2)*8+7, grey_disp[x+y*110] & 0x80, true );
+            }
+        }
+    }
+
     for (x=0; x<GDISP_WIDTH; x++)
     {
         for (y=0; y<GDISP_MAX_MEM_H; y++)
         {
-            internal_dispsim_putpixel( gmem, x, y*8+0, dispmem[x+y*GDISP_WIDTH] & 0x01 );
-            internal_dispsim_putpixel( gmem, x, y*8+1, dispmem[x+y*GDISP_WIDTH] & 0x02 );
-            internal_dispsim_putpixel( gmem, x, y*8+2, dispmem[x+y*GDISP_WIDTH] & 0x04 );
-            internal_dispsim_putpixel( gmem, x, y*8+3, dispmem[x+y*GDISP_WIDTH] & 0x08 );
-            internal_dispsim_putpixel( gmem, x, y*8+4, dispmem[x+y*GDISP_WIDTH] & 0x10 );
-            internal_dispsim_putpixel( gmem, x, y*8+5, dispmem[x+y*GDISP_WIDTH] & 0x20 );
-            internal_dispsim_putpixel( gmem, x, y*8+6, dispmem[x+y*GDISP_WIDTH] & 0x40 );
-            internal_dispsim_putpixel( gmem, x, y*8+7, dispmem[x+y*GDISP_WIDTH] & 0x80 );
+            internal_dispsim_putpixel( gmem, x, y*8+0, dispmem[x+y*GDISP_WIDTH] & 0x01, false );
+            internal_dispsim_putpixel( gmem, x, y*8+1, dispmem[x+y*GDISP_WIDTH] & 0x02, false );
+            internal_dispsim_putpixel( gmem, x, y*8+2, dispmem[x+y*GDISP_WIDTH] & 0x04, false );
+            internal_dispsim_putpixel( gmem, x, y*8+3, dispmem[x+y*GDISP_WIDTH] & 0x08, false );
+            internal_dispsim_putpixel( gmem, x, y*8+4, dispmem[x+y*GDISP_WIDTH] & 0x10, false );
+            internal_dispsim_putpixel( gmem, x, y*8+5, dispmem[x+y*GDISP_WIDTH] & 0x20, false );
+            internal_dispsim_putpixel( gmem, x, y*8+6, dispmem[x+y*GDISP_WIDTH] & 0x40, false );
+            internal_dispsim_putpixel( gmem, x, y*8+7, dispmem[x+y*GDISP_WIDTH] & 0x80, false );
         }
     }
 

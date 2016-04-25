@@ -490,6 +490,8 @@
     void core_op_monitoring_rate( enum ESensorSelect sensor, enum EUpdateTimings timing );
     // reset min/max value set for a specified sensor
     void core_op_monitoring_reset_minmax( enum ESensorSelect sensor, int mmset );
+    // return the pixel buffer for the selected tendency graph
+    uint8* core_op_monitoring_tendencyval2pixels( struct STendencyBuffer *tend, enum ESensorSelect param, uint32 unit, int *phigh, int *plow );
 
     // init recording structure from nonvolatile ram (if needed)
     void core_op_recording_init(void);
@@ -509,8 +511,7 @@
     // check if read is finished and buffer is ready. Returns a value from 16->0 for progress bar displaying. 0 means finished
     int core_op_recording_read_busy(void);
     // calculate display pixels from display raw points
-    bool core_op_recording_calculate_pixels( enum ESensorSelect param, uint8 *pixbuff, int *phigh, int *plow );
-
+    uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh, int *plow, bool *has_minmax );
 
     // debug fill feature
     void core_op_recording_dbgfill( uint32 t );

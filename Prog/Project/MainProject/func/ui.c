@@ -1427,6 +1427,7 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
             if (core_op_recording_read_busy())
                 core_op_recording_read_cancel();        
 
+            DispHal_ClearFlipBuffer();
             uist_goto_shutdown();
             return;
         }
@@ -1438,6 +1439,7 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
             core_op_realtime_sensor_select( ss_none );
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
+            DispHal_ClearFlipBuffer();
             return;
         }
     }
@@ -1448,24 +1450,6 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
         switch ( ui.p.grDisp.state )
         {
             case GRSTATE_MULTI:             // highest priority - we need to do display switching
-                if ( ui.p.grDisp.has_minmax )
-                {
-                    if ( ui.p.grDisp.disp_flip )
-                    {
-                        ui.p.grDisp.disp_flip = 0;
-                        ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
-                    }
-                    else
-                    {
-                        ui.p.grDisp.upd_ctr ++;                 // Update should be done at 50Hz -> 20ms
-                        if ( ui.p.grDisp.upd_ctr & 0x02 )
-                        {
-                            ui.p.grDisp.upd_ctr = 0;
-                            ui.p.grDisp.disp_flip = 1;
-                            ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
-                        }
-                    }
-                }
                 break;
             case GRSTATE_FILL:              // check for data ready
                 ui.p.grDisp.upd_ctr ++;                         // Update should be done at 50Hz -> 20ms

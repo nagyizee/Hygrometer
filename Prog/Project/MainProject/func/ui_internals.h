@@ -106,8 +106,7 @@
         uint8   cursor;                             // display cursor
         uint8   upd_ctr;                            // display update counter
         uint8   upd_graph;                          // update the diplay precalculated points
-        uint8   has_minmax;                         // set when graph points has min/max set
-        uint8   disp_flip;                          // display the avg / minmax set
+        bool   has_minmax;                          // set when graph points has min/max set
     };
 
 

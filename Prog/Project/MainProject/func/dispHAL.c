@@ -382,6 +382,7 @@ static int disp_internal_launch_onoff_sequence( bool on )
     disp_isr_internal_run_cmd_sequence( );      // run the command sequence
     __enable_interrupt();
     hal.status.busy = 1;
+    return 0;
 }
 
 
