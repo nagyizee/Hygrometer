@@ -2425,7 +2425,7 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     {
         case ss_thermo:
             {
-                int val;
+                int val;                    // TODO: optimize this with the one from internal_graphdisp_putcursor()
 
                 if ( valmin == 0 )
                     valmin = 1;

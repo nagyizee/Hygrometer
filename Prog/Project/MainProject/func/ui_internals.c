@@ -104,23 +104,34 @@ static void internal_graphdisp_render( bool minmax )
     }
 }
 
+
+static uint32 internal_graphdisp_convert_cursor2time( uint32 cursor, uint32 sample_nr, timestruct *time, datestruct *date )
+{
+    uint32 rtime;
+
+    rtime = sample_nr * core_utils_timeunit2seconds( core.nvrec.task[ui.m_return].sample_rate ) * 2;
+    if ( rtime > core.readout.last_timestamp )
+        rtime = 0;
+    else
+        rtime = core.readout.last_timestamp - rtime;
+
+    if ( time )
+        utils_convert_counter_2_hms( rtime, &time->hour, &time->minute, &time->second );
+    if ( date )
+        utils_convert_counter_2_ymd( rtime, &date->year, &date->mounth, &date->day );
+
+    return rtime;
+}
+
 static void internal_graphdisp_putXtime( uint32 xpoz, uint32 sample_nr )
 {
-    uint32 time;
-
-    time = sample_nr * core_utils_timeunit2seconds( core.nvrec.task[ui.m_return].sample_rate ) * 2;
-    if ( time > core.readout.last_timestamp )
-        time = 0;
-    else
-        time = core.readout.last_timestamp - time;
-
     timestruct tm;
     datestruct dt;
-    utils_convert_counter_2_hms( time, &tm.hour, &tm.minute, NULL );
-    utils_convert_counter_2_ymd( time, &dt.year, &dt.mounth, &dt.day );
 
-    uigrf_puttime( xpoz, 0, uitxt_micro, 1, tm, true, false );
-    uigrf_putdate( xpoz, 7, uitxt_micro, 1, dt, false, false );
+    internal_graphdisp_convert_cursor2time( 110, sample_nr, &tm, &dt );
+    
+    uigrf_puttime( xpoz, 1, uitxt_micro, 1, tm, true, false );
+    uigrf_putdate( xpoz, 8, uitxt_micro, 1, dt, false, false );
 }
 
 static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smpl_total )
@@ -841,6 +852,14 @@ static inline void uist_draw_graph( int redraw_all )
 
         if ( ui.p.grDisp.d_state != GRSTATE_FILL )
         {
+            // generate the graph display
+            if ( ui.p.grDisp.graph_dirty )
+            {
+                grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
+                ui.p.grDisp.graph_dirty = 0;
+            }
+
+            // - Draw the greyscale image
             // grid
             int i,j;
             for (i=0; i<11; i++)
@@ -851,21 +870,25 @@ static inline void uist_draw_graph( int redraw_all )
                 }
             }
 
-            // generate the graph display
-            if ( ui.p.grDisp.graph_dirty )
+            // draw the 0 line
+            if ( (grf_up_lim > 0) && (grf_dn_lim < 0) )
             {
-                grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
-                ui.p.grDisp.graph_dirty = 0;
+                uint32 y;
+                y = ( 64 - ( 1 + ((0 - grf_dn_lim) * 48) / (grf_up_lim - grf_dn_lim) ));
+                Graphic_SetColor(1);
+                Graphic_Rectangle( 0, y, 109, y );
             }
 
             if ( ui.p.grDisp.graph_has_minmax )
             {
                 internal_graphdisp_render( true );
-                internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, false );
-                DispHal_ToFlipBuffer();                                 // send the min/max to the flip buffer for grayscale
-                Graphic_SetColor(0);
-                Graphic_FillRectangle(0, 16, 110, 63, 0);               // erase the underlying layer
+                internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, false );      // just to solve the negative effect of the cursor
             }
+
+            // - Draw the white image
+            DispHal_ToFlipBuffer();                                 // send the min/max to the flip buffer for grayscale
+            Graphic_SetColor(0);
+            Graphic_FillRectangle(0, 16, 110, 63, 0);               // erase the underlying layer
 
             internal_graphdisp_render( false );                         // draw the averages
 
@@ -874,7 +897,7 @@ static inline void uist_draw_graph( int redraw_all )
             uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
 
             // X scale - left/right time domain
-            internal_graphdisp_putXtime( 0, ui.p.grDisp.view_elemstart );
+            internal_graphdisp_putXtime( 1, ui.p.grDisp.view_elemstart );
             internal_graphdisp_putXtime( 100, ui.p.grDisp.view_elemend );
 
             // zoom bar
