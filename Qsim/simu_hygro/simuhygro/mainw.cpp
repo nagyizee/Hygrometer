@@ -11,6 +11,117 @@
 #define TIMER_INTERVAL          20       // 20ms
 #define TICKS_TO_SIMULATE       30       // to obtain 0.5sec simulated time ( 500cycles of 1ms timer )
 
+static bool internal_is_mounth_over( datestruct date )
+{
+    uint32 last_day = 0;
+    switch ( date.mounth )
+    {
+        case 1: last_day = 31; break;
+        case 2:
+            if ( (date.year % 4) == 0 ) // leap year
+                last_day = 29;
+            else
+                last_day = 28;
+            break;
+        case 3: last_day = 31; break;
+        case 4: last_day = 30; break;
+        case 5: last_day = 31; break;
+        case 6: last_day = 30; break;
+        case 7: last_day = 31; break;
+        case 8: last_day = 31; break;
+        case 9: last_day = 30; break;
+        case 10: last_day = 31; break;
+        case 11: last_day = 30; break;
+        case 12: last_day = 31; break;
+    }
+
+    if ( date.day > last_day )
+        return true;
+    return false;
+}
+
+void test_date(void)
+{
+    // unit test for date converter
+    uint32 date_ctr;
+    uint8 mounth, day, hour, minute, second;
+    uint16 year;
+    datestruct date = {0, };
+    timestruct time = {0, };
+
+    datestruct c_date = {0, };
+    timestruct c_time = {0, };
+
+    c_date.day = 1;
+    c_date.mounth = 1;
+    c_date.year = 2013;
+
+    for ( date_ctr=0; date_ctr<=0xffffffff; date_ctr++ )
+    {
+        if ( date_ctr == 0x0f099c00 )       // value which creates problems
+        {
+            printf("breakpoint here\n");
+        }
+
+        utils_convert_counter_2_hms( date_ctr, &hour, &minute, &second );
+        utils_convert_counter_2_ymd( date_ctr, &year, &mounth, &day );
+        
+        date.day = day;
+        date.mounth = mounth;
+        date.year = year;
+        time.hour = hour;
+        time.minute = minute;
+        time.second = second;
+
+        // calculate the local
+        if ( ((date_ctr & 0x01) == 0) && date_ctr )
+        {
+            c_time.second++;
+            if ( c_time.second == 60 )
+            {
+                c_time.second = 0;
+                c_time.minute++;
+                if ( c_time.minute == 60 )
+                {
+                    c_time.minute = 0;
+                    c_time.hour++;
+                    if ( c_time.hour == 24 )
+                    {
+                        c_time.hour = 0;
+                        c_date.day++;
+                        if ( internal_is_mounth_over( c_date ) )
+                        {
+                            c_date.day = 1;
+                            c_date.mounth++;
+                            if ( c_date.mounth == 13 )
+                            {
+                                c_date.mounth = 1;
+                                c_date.year++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ( (c_time.hour != time.hour) ||
+             (c_time.minute != time.minute) ||
+             (c_time.second != time.second) ||
+             (c_date.day != date.day) ||
+             (c_date.mounth != date.mounth) ||
+             (c_date.year != date.year)   )
+        {
+            printf("Consistency fail at %d", date_ctr );
+        }
+
+        if ( (date_ctr & 0xfffffffe) != utils_convert_date_2_counter( &date, &time ) )
+        {
+            printf("Error at %d", date_ctr );
+        }
+    }
+}
+
+
 
 mainw::mainw(QWidget *parent) :
     QMainWindow(parent),
@@ -113,6 +224,9 @@ mainw::mainw(QWidget *parent) :
 
     //--- test phase
     qsrand(0x64892354);
+
+
+    //test_date();
 }
 
 mainw::~mainw()

@@ -4,10 +4,6 @@ const int mounthLUTny[] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 33
 const int mounthLUTly[] = { 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 };   // days in leap year
 
 
-// BUG with 2016-12-30 23:59:55
-
-
-
 void utils_convert_counter_2_hms( uint32 counter, uint8 *phour, uint8 *pminute, uint8 *psecond)
 {
     counter = (counter>>1) % (3600*24);    // get the hour of day
@@ -30,7 +26,7 @@ void utils_convert_counter_2_ymd( uint32 counter, uint16 *pyear, uint8 *pmounth,
     int i;
     counter = (counter>>1) / (3600*24);     // get the day nr from 2013
 
-    year = ((counter + 1) * 100) / 36525;   // calculate the year
+    year = (counter * 100 + 99) / 36525;   // calculate the year
     counter -= ((year * 36525) / 100);      // leave only the days from year
 
     // find the mouth
