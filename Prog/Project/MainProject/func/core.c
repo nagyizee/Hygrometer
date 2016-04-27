@@ -2426,6 +2426,12 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
         case ss_thermo:
             {
                 int val;
+
+                if ( valmin == 0 )
+                    valmin = 1;
+                if ( valmax == 0xffff )
+                    valmax = 0xfffe;
+
                 val = core_utils_temperature2unit( valmin, core.nv.setup.show_unit_temp );
                 if (val < 0)
                     low = val / 100 - 1;
@@ -2533,13 +2539,15 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
 uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param )
 {
     uint16 *buff;
+    uint32 ptr;
     switch ( param )
     {
-        case ss_thermo:     buff = (uint16*)( workbuff + WB_OFFS_TEMP_AVG + 2 * cursor ); break;
-        case ss_rh:         buff = (uint16*)( workbuff + WB_OFFS_RH_AVG + 2 * cursor ); break;
-        case ss_pressure:   buff = (uint16*)( workbuff + WB_OFFS_P_AVG + 2 * cursor ); break;
+        case ss_thermo:     ptr = WB_OFFS_TEMP_AVG + 2 * cursor; break;
+        case ss_rh:         ptr = WB_OFFS_RH_AVG + 2 * cursor; break;
+        case ss_pressure:   ptr = WB_OFFS_P_AVG + 2 * cursor; break;
     }
 
+    buff = (uint16*)( workbuff + ptr );
     return *buff;
 }
 
@@ -2552,7 +2560,7 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
 {
     int val;
 
-    val = (int) (  ( 1 - cos((i*PI2FP12)/(float)(smpl_day << 12)) ) *                                   // ( 1-cos(x*2pi/sday)) * 
+  val = (int) (  ( 1 - cos((i*PI2FP12)/(float)(smpl_day << 12)) ) *                                   // ( 1-cos(x*2pi/sday)) *
                    (  diff  *  ( cos( (i*PI2FP12)/(float)( (smpl_day << 12) * 10 ) ) + 1 )   /  4 )  ); // (vmax - vmin) *  cos(x*2pi/sday*10)+1  / 4
 
     val = val + minim + (int)( sin((i*PI2FP12*(uint64)24)/(float)(smpl_day << 12)) * diff / 10 );       // high frequency component
@@ -2560,6 +2568,23 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
         val = 0;
     if ( val > 0xffff )
         val = 0xffff;
+
+/*
+    if ( diff == (( 128 - 0 ) << TEMP_FP) )
+    {
+        val = ( i & 0xFF );
+    }
+    else if ( diff == (60000 - 0) )
+    {
+        val = 0x0F | ((i << 1) & 0xFF);
+    }
+    else
+    {
+        val = 0x0C00 | ( 0xff - (i & 0xFF) );
+    }
+
+    val = val << 4;
+*/
     return val;
 }
 

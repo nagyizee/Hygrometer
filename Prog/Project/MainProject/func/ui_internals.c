@@ -152,17 +152,26 @@ static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smp
 
 static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 {
-    Graphic_SetColor(-1);
-    Graphic_FillRectangle( c1, 16, c2, 63, -1 );
-    Graphic_SetColor(1);
+    uint32 raw_val;
+    if ( ui.focus == 1 )
+    {
+        Graphic_SetColor(-1);
+        Graphic_FillRectangle( c1, 16, c2, 63, -1 );
+        Graphic_SetColor(1);
+    }
 
     if (disp_val)
     {
         switch ( ui.p.grDisp.view_elem )
         {
             case 0:
+                raw_val = core_op_recording_get_buf_value( c1, ss_thermo );
+                if ( raw_val == 0 )
+                    raw_val = 1;
+                if ( raw_val == 0xffff )
+                    raw_val = 0xfffe;
                 uigrf_putfixpoint( 60, 1, uitxt_small, 
-                                   core_utils_temperature2unit( core_op_recording_get_buf_value( c1, ss_thermo ), core.nv.setup.show_unit_temp ),
+                                   core_utils_temperature2unit( raw_val, core.nv.setup.show_unit_temp ),
                                    5, 2, ' ', true ); 
                 break;
             case 1:
@@ -182,16 +191,32 @@ static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 
 static void internal_graphdisp_elemselect( uint32 selected )
 {
-    uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
-    uibm_put_bitmap( 35, 1, BMP_ICO_REGST_THP );
-    Graphic_SetColor(-1);
+    uint32 elements;
 
+    uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
+
+    switch (core.nvrec.task[ui.m_return].task_elems )
+    {
+        case rtt_t: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_T ); break;
+        case rtt_h: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_H ); break;
+        case rtt_p: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_P ); break;
+        case rtt_th: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_TH ); break;
+        case rtt_tp: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_TP ); break;
+        case rtt_hp: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_HP ); break;
+        case rtt_thp: uibm_put_bitmap( 35, 1, BMP_ICO_REGST_THP ); break;
+    }
+
+    Graphic_SetColor(-1);
     switch ( selected )
     {
         case 0: Graphic_FillRectangle(35,2,40,9,-1); break;
         case 1: Graphic_FillRectangle(40,2,44,9,-1); break;
         case 2: Graphic_FillRectangle(44,2,48,9,-1); break;
     }
+
+    Graphic_SetColor(1);
+    if ( ui.focus == 0 )
+        Graphic_Rectangle( 35, 1, 49, 9 );
 }
 
 
@@ -808,10 +833,11 @@ static inline void uist_draw_graph( int redraw_all )
         Graphic_Line(0,15,127,15);
         Graphic_Line(111,16,111,63);
 
-        uigrf_text( 113, 22, uitxt_micro, "hpa" );
-
         // element selector         
         internal_graphdisp_elemselect( ui.p.grDisp.view_elem );
+
+        // unit selector
+        ui_element_display( &ui.p.grDisp.unit, (ui.focus) == 2 );
 
         if ( ui.p.grDisp.d_state != GRSTATE_FILL )
         {
@@ -826,10 +852,10 @@ static inline void uist_draw_graph( int redraw_all )
             }
 
             // generate the graph display
-            if ( ui.p.grDisp.graph_updated )
+            if ( ui.p.grDisp.graph_dirty )
             {
                 grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
-                ui.p.grDisp.graph_updated = 0;
+                ui.p.grDisp.graph_dirty = 0;
             }
 
             if ( ui.p.grDisp.graph_has_minmax )
@@ -856,7 +882,6 @@ static inline void uist_draw_graph( int redraw_all )
 
             // cursor
             internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, true );
-
         }
         else
         {
@@ -1114,11 +1139,32 @@ static inline void uist_setview_mainwindowgauge_pressure( void )
 }
 
 
+const uint8 grunit_elnr[] = { 3, 3, 3 };
+const char grunit_txt_temp[][4]  = { "*C", "*F", "*K" };
+const char grunit_txt_rh[][4]  = { "rh%", "dew", "gm3" };
+const char grunit_txt_press[][4]  = { "hPa", "hgm", "m" };
+
 static inline void uist_setview_mainwindow_graph( void )
 {
-
-
+    int i;
     ui.ui_elem_nr = 0;
+    uint32 txtaddr;
+
+    uiel_control_list_init( &ui.p.grDisp.unit, 113, 22, 14, uitxt_micro, 1, false );
+    // fill the element specific selector list
+    for (i=0; i<grunit_elnr[ui.p.grDisp.view_elem]; i++ )
+    {
+        switch ( ui.p.grDisp.view_elem + 1 )
+        {
+            case ss_thermo:     txtaddr=(uint32)grunit_txt_temp[i];  break;
+            case ss_rh:         txtaddr=(uint32)grunit_txt_rh[i];    break;
+            case ss_pressure:   txtaddr=(uint32)grunit_txt_press[i]; break;
+        }
+        uiel_control_list_add_item( &ui.p.grDisp.unit, txtaddr, i );
+    }
+
+    uiel_control_list_set_index( &ui.p.grDisp.unit, ui.p.grDisp.units[ui.p.grDisp.view_elem] );
+    uiel_control_list_set_callback( &ui.p.grDisp.unit, UIClist_Vchange, 0, ui_call_graphdisp_unit_select );
 }
 
 
@@ -1464,7 +1510,8 @@ void uist_setupview_modeselect( bool reset )
 
 void uist_setupview_mainwindow( bool reset )
 {
-    ui.focus = 0;
+    if ( reset )
+        ui.focus = 0;
 
     // main windows
     switch ( ui.m_state )

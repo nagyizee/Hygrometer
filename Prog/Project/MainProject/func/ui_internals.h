@@ -105,7 +105,7 @@
         uint8   d_progr;                // progress bar in filling state        uint8   d_upd_ctr;                          // display update counter
         uint8   d_upd_ctr;
 
-        uint8   graph_updated;          // update the diplay precalculated points
+        uint8   graph_dirty;            // update the diplay precalculated points
         bool    graph_has_minmax;       // set when graph points has min/max set
 
         uint16  view_elemstart;         // starting element - in depth ( first elem is the count from the task )
@@ -113,6 +113,9 @@
         uint8   view_cursor1;           // main cursor on the graph
         uint8   view_cursor2;           // selector cursor
         uint8   view_elem;              // selected element - 0 based ( 0-t 1-rh 2-p )
+
+        struct Suiel_control_list   unit;
+        uint8   units[3];               // selected units for each element
 
     };
 
@@ -280,6 +283,7 @@
 
     void ui_call_graphselect_action( int context, void *pval );
 
+    void ui_call_graphdisp_unit_select( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

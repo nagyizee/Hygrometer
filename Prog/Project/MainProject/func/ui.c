@@ -76,7 +76,7 @@ void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
     task->mempage = ui.p.swRegTaskSet.task.mempage;
 }
 
-enum ESensorSelect internal_graphdisp_get_element( uint32 index )
+static enum ESensorSelect internal_graphdisp_get_element( uint32 index )
 {
     uint32 elem;
 
@@ -90,6 +90,56 @@ enum ESensorSelect internal_graphdisp_get_element( uint32 index )
             return ss_none;
     }
     return ss_none;
+}
+
+static bool internal_graphdisp_operate_elemselect( bool increase )
+{
+    uint32 elem;
+
+    elem = ui.p.grDisp.view_elem;
+    if ( increase )
+    {
+        while ( elem < 2 )
+        {
+            elem++;
+            if ( internal_graphdisp_get_element(elem) )
+                goto _okvalue;
+        }
+    }
+    else
+    {
+        while ( elem > 0 )
+        {
+            elem--;
+            if ( internal_graphdisp_get_element(elem) )
+                goto _okvalue;
+        }
+    }
+    return false;
+_okvalue:
+    if ( elem != ui.p.grDisp.view_elem )
+    {
+        ui.p.grDisp.view_elem = elem;
+        return true;
+    }
+    return false;
+}
+
+static bool internal_graphdisp_operate_cursor( bool increase )
+{
+    if ( (ui.p.grDisp.view_cursor1 < (WB_DISPPOINT-1)) && increase )
+    {
+        ui.p.grDisp.view_cursor1++;
+        ui.p.grDisp.view_cursor2++;
+        return true;
+    }
+    else if ( (ui.p.grDisp.view_cursor1 > 0) && (increase == false) )
+    {
+        ui.p.grDisp.view_cursor1--;
+        ui.p.grDisp.view_cursor2--;
+        return true;
+    }
+    return false;
 }
 
 
@@ -693,6 +743,11 @@ void ui_call_graphselect_action( int context, void *pval )
 
     ui.m_return = context;
     uist_change_state( UI_STATE_MAIN_GRAPH, UI_SET_NONE, true );
+}
+
+void ui_call_graphdisp_unit_select( int context, void *pval )
+{
+
 }
 
 
@@ -1424,9 +1479,13 @@ void uist_mainwindowgraph_entry( void )
     ui.p.grDisp.d_progr = 16;     // means maximum wait state
     ui.p.grDisp.view_cursor1 = 72;    // cursor to middle
     ui.p.grDisp.view_cursor2 = 72;    // cursor to middle
-    ui.p.grDisp.graph_updated = 1;  // update display points from grahp data
+    ui.p.grDisp.graph_dirty = 1;      // update display points from grahp data
     ui.p.grDisp.view_elemstart = core.nvrec.func[ui.m_return].c;
     ui.p.grDisp.view_elemend = 0;
+
+    ui.p.grDisp.units[0] = core.nv.setup.show_unit_temp;
+    ui.p.grDisp.units[1] = core.nv.setup.show_unit_hygro;
+    ui.p.grDisp.units[2] = core.nv.setup.show_unit_press;
 
     while ( internal_graphdisp_get_element(ui.p.grDisp.view_elem) == ss_none )
         ui.p.grDisp.view_elem++;
@@ -1437,6 +1496,7 @@ void uist_mainwindowgraph_entry( void )
     uist_drawview_mainwindow( RDRW_ALL );
     DispHAL_UpdateScreen();
 
+    ui.focus = 1;
     ui.m_substate ++;
     ui.upd_ui_disp = 0;
 }
@@ -1446,6 +1506,50 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
 {
     if ( evmask->key_event )
     {
+        // up/down button
+        if ( (evmask->key_pressed & KEY_UP) && (ui.focus > 0) )
+        {
+            ui.focus--;
+            uist_setupview_mainwindow( false );
+            ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        }
+        if ( (evmask->key_pressed & KEY_DOWN) && (ui.focus < 2) )
+        {
+            ui.focus++;
+            uist_setupview_mainwindow( false );
+            ui.upd_ui_disp |= RDRW_UI_CONTENT;
+        }
+
+        if ( ui.focus == 2 )
+        {
+            if ( ui_element_poll( &ui.p.grDisp.unit, evmask ))
+               ui.upd_ui_disp |= RDRW_DISP_UPDATE;
+        }
+        else
+        {
+            bool update = false;
+            if ( evmask->key_pressed & KEY_LEFT )
+            {
+                if ( ui.focus == 0 )
+                    update = internal_graphdisp_operate_elemselect( false );
+                else
+                    update = internal_graphdisp_operate_cursor( false );
+            }
+            if ( evmask->key_pressed & KEY_RIGHT )
+            {
+                if ( ui.focus == 0 )
+                    update = internal_graphdisp_operate_elemselect( true );
+                else
+                    update = internal_graphdisp_operate_cursor( true );
+            }
+            if ( update )
+            {
+                if ( ui.focus == 0 )
+                    ui.p.grDisp.graph_dirty = 1;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT;
+            }
+        }
+
         // power button activated
         if ( evmask->key_longpressed & KEY_MODE )
         {
