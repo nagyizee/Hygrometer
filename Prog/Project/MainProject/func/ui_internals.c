@@ -36,8 +36,9 @@ extern struct SCore core;
 //
 ////////////////////////////////////////////////////
 
-const char c_menu_main[]            = { "combine shutter setup" };
-const char c_menu_setup[]           = { "display power_save reset" };
+const char c_menu_graph_main_nozoom[]            = { "info select zoom_to" };
+const char c_menu_graph_main_zoom[]            = { "info select pan zoom_out zoom_to" };
+
 const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
 
 
@@ -68,6 +69,63 @@ static int uist_internal_setup_menu( void *handle, const char *list )
             if ( res || (*ptr == 0x00) )
                 return res;
         }
+    }
+}
+
+
+static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 time, bool spaces )
+{
+    // time is in seconds
+    if ( time >= (3600*24*365) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24*365), 1, 0, false );
+        if ( spaces )
+            Gtext_PutText( "Y " );
+        else
+            Gtext_PutChar( 'Y' );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*365))/(24*3600), 3, 0, false );
+        Gtext_PutChar( 'D' );
+    }
+    else if ( time >= (3600*24*304/10) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24*304/10), 2, 0, false );
+        if ( spaces )
+            Gtext_PutText( "M " );
+        else
+            Gtext_PutChar( 'M' );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*304/10)) / (24*3600), 2, 0, false );
+        Gtext_PutChar( 'D' );
+    }
+    else if ( time >= (3600*24) )
+    {
+        uigrf_putnr(x, y, style, time / (3600*24), 2, 0, false );
+        if ( spaces )
+            Gtext_PutText( "D " );
+        else
+            Gtext_PutChar( 'D' );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24)) / 3600, 2, 0, false );
+        Gtext_PutChar( 'h' );
+    }
+    else if ( time >= 3600 )
+    {
+        uigrf_putnr(x, y, style, time / (3600), 2, 0, false );
+        if ( spaces )
+            Gtext_PutText( "h " );
+        else
+            Gtext_PutChar( 'h' );
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600)) / 60, 2, 0, false );
+        Gtext_PutChar( 'm' );
+    } 
+    else
+    {
+        uigrf_putnr(x, y, style, time / (60), 2, 0, false );
+        if ( spaces )
+            Gtext_PutText( "M " );
+        else
+            Gtext_PutChar( 'M' );
+        
+        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (60)), 2, 0, false );
+        Gtext_PutChar( 's' );
     }
 }
 
@@ -104,8 +162,7 @@ static void internal_graphdisp_render( bool minmax )
     }
 }
 
-
-static uint32 internal_graphdisp_convert_cursor2time( uint32 cursor, uint32 sample_nr, timestruct *time, datestruct *date )
+static uint32 internal_graphdisp_convert_cursor2time( uint32 sample_nr, timestruct *time, datestruct *date )
 {
     uint32 rtime;
 
@@ -123,15 +180,93 @@ static uint32 internal_graphdisp_convert_cursor2time( uint32 cursor, uint32 samp
     return rtime;
 }
 
-static void internal_graphdisp_putXtime( uint32 xpoz, uint32 sample_nr )
+static void internal_graphdisp_putXtime( uint32 xpoz, uint32 sample_nr, bool inverted )
 {
     timestruct tm;
     datestruct dt;
 
-    internal_graphdisp_convert_cursor2time( 110, sample_nr, &tm, &dt );
+    internal_graphdisp_convert_cursor2time( sample_nr, &tm, &dt );
     
     uigrf_puttime( xpoz, 1, uitxt_micro, 1, tm, true, false );
     uigrf_putdate( xpoz, 8, uitxt_micro, 1, dt, false, false );
+
+    if (inverted)
+    {
+        Graphic_SetColor(-1);
+        Graphic_FillRectangle( xpoz-1, 0, xpoz+20, 14, -1 );
+    }
+}
+
+static void internal_graphdisp_putvalue( uint32 xpoz, uint32 ypoz, enum Etextstyle style, uint32 cursor, uint32 avgminmax )
+{
+    uint32 raw_val;
+    switch ( ui.p.grDisp.view_elem )
+    {
+        case 0:
+            raw_val = core_op_recording_get_buf_value( cursor, ss_thermo, avgminmax );
+            if ( raw_val == 0 )
+                raw_val = 1;
+            if ( raw_val == 0xffff )
+                raw_val = 0xfffe;
+            uigrf_putfixpoint( xpoz, ypoz, style, 
+                               core_utils_temperature2unit( raw_val, core.nv.setup.show_unit_temp ),
+                               5, 2, ' ', true ); 
+            break;
+        case 1:
+            uigrf_putfixpoint( xpoz, ypoz, style, 
+                               (core_op_recording_get_buf_value( cursor, ss_rh, avgminmax ) * 100) >> RH_FP,
+                               5, 2, ' ', false ); 
+            break;
+        case 2:
+            uigrf_putfixpoint( xpoz, ypoz, style, 
+                               core_op_recording_get_buf_value( cursor, ss_pressure, avgminmax ) + 50000,
+                               5, 2, ' ', false ); 
+            break;
+    }
+}
+
+static uint32 internal_graphdisp_cursor2samplenr( uint32 cursor )
+{
+    // convert local cursor display cursor position to global samplenr
+    uint32 smpl;
+    smpl = ((ui.p.grDisp.view_elemstart - ui.p.grDisp.view_elemend) * (WB_DISPPOINT - cursor)) / WB_DISPPOINT + ui.p.grDisp.view_elemend;
+    return smpl;
+}
+
+static inline void internal_graphdisp_cursor_details(void)
+{
+    uint8 *text = (grf_values + 3*WB_DISPPOINT);        // shift with 3x disp points for empty work buffer
+    timestruct tm;
+    datestruct dt;
+    uint32 smpl1;
+    uint32 smpl2;
+    uint32 tm1;
+    uint32 tm2;
+
+    Graphic_SetColor(1);
+    Graphic_FillRectangle(20, 0, 107, 63, 0); 
+
+    uigrf_text( 25, 2, uitxt_micro, "date:");
+    uigrf_text( 25, 10, uitxt_micro, "time:");
+    uigrf_text( 25, 22, uitxt_micro, "spread:");
+    uigrf_text( 25, 35, uitxt_micro, "max:");
+    uigrf_text( 25, 43, uitxt_micro, "min:");
+    uigrf_text( 25, 51, uitxt_micro, "avg:");
+
+    // get the beginning and ending sample nr.
+    smpl1 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 );
+    smpl2 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 + 1 );
+
+    internal_graphdisp_convert_cursor2time( (smpl1+smpl2) / 2 , &tm, &dt );
+    tm1 = internal_graphdisp_convert_cursor2time( smpl1, NULL, NULL );
+    tm2 = internal_graphdisp_convert_cursor2time( smpl2, NULL, NULL );
+    uigrf_putdate( 57, 2, uitxt_micro, 1, dt, true, true );
+    uigrf_puttime( 57, 10, uitxt_micro, 1, tm, false, false );
+    internal_puttime_info( 57, 22, uitxt_micro, tm2 - tm1, true );
+
+    internal_graphdisp_putvalue( 57, 33, uitxt_small, ui.p.grDisp.view_cursor1, 2 );
+    internal_graphdisp_putvalue( 57, 41, uitxt_small, ui.p.grDisp.view_cursor1, 1 );
+    internal_graphdisp_putvalue( 57, 49, uitxt_small, ui.p.grDisp.view_cursor1, 0 );
 }
 
 static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smpl_total )
@@ -163,7 +298,6 @@ static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smp
 
 static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 {
-    uint32 raw_val;
     if ( ui.focus == 1 )
     {
         Graphic_SetColor(-1);
@@ -173,29 +307,7 @@ static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 
     if (disp_val)
     {
-        switch ( ui.p.grDisp.view_elem )
-        {
-            case 0:
-                raw_val = core_op_recording_get_buf_value( c1, ss_thermo );
-                if ( raw_val == 0 )
-                    raw_val = 1;
-                if ( raw_val == 0xffff )
-                    raw_val = 0xfffe;
-                uigrf_putfixpoint( 60, 1, uitxt_small, 
-                                   core_utils_temperature2unit( raw_val, core.nv.setup.show_unit_temp ),
-                                   5, 2, ' ', true ); 
-                break;
-            case 1:
-                uigrf_putfixpoint( 60, 1, uitxt_small, 
-                                   (core_op_recording_get_buf_value( c1, ss_rh ) * 100) >> RH_FP,
-                                   5, 2, ' ', false ); 
-                break;
-            case 2:
-                uigrf_putfixpoint( 60, 1, uitxt_small, 
-                                   core_op_recording_get_buf_value( c1, ss_pressure ) + 50000,
-                                   5, 2, ' ', false ); 
-                break;
-        }
+        internal_graphdisp_putvalue( 60, 1, uitxt_small, c1, 0 );
     }
 }
 
@@ -486,63 +598,6 @@ static void internal_task_allocation_bar( struct SRecTaskInstance *tasks, uint32
         Gtext_PutChar( order[i] + '1' );
     }
 }
-
-static void internal_puttime_info( int x, int y, enum Etextstyle style, uint32 time, bool spaces )
-{
-    // time is in seconds
-    if ( time >= (3600*24*365) )
-    {
-        uigrf_putnr(x, y, style, time / (3600*24*365), 1, 0, false );
-        if ( spaces )
-            Gtext_PutText( "Y " );
-        else
-            Gtext_PutChar( 'Y' );
-        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*365))/(24*3600), 3, 0, false );
-        Gtext_PutChar( 'D' );
-    }
-    else if ( time >= (3600*24*304/10) )
-    {
-        uigrf_putnr(x, y, style, time / (3600*24*304/10), 2, 0, false );
-        if ( spaces )
-            Gtext_PutText( "M " );
-        else
-            Gtext_PutChar( 'M' );
-        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24*304/10)) / (24*3600), 2, 0, false );
-        Gtext_PutChar( 'D' );
-    }
-    else if ( time >= (3600*24) )
-    {
-        uigrf_putnr(x, y, style, time / (3600*24), 2, 0, false );
-        if ( spaces )
-            Gtext_PutText( "D " );
-        else
-            Gtext_PutChar( 'D' );
-        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600*24)) / 3600, 2, 0, false );
-        Gtext_PutChar( 'h' );
-    }
-    else if ( time >= 3600 )
-    {
-        uigrf_putnr(x, y, style, time / (3600), 2, 0, false );
-        if ( spaces )
-            Gtext_PutText( "h " );
-        else
-            Gtext_PutChar( 'h' );
-        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (3600)) / 60, 2, 0, false );
-        Gtext_PutChar( 'm' );
-    } 
-    else
-    {
-        uigrf_putnr(x, y, style, time / (60), 2, 0, false );
-        if ( spaces )
-            Gtext_PutText( "M " );
-        else
-            Gtext_PutChar( 'M' );
-        
-        uigrf_putnr(GDISP_WIDTH, 0, style, (time % (60)), 2, 0, false );
-        Gtext_PutChar( 's' );
-    }
-}
-
 
 static uint32 internal_mem_rate_2_time( struct SRecTaskInstance task )
 {
@@ -847,83 +902,116 @@ static inline void uist_draw_graph( int redraw_all )
         // element selector         
         internal_graphdisp_elemselect( ui.p.grDisp.view_elem );
 
-        // unit selector
-        ui_element_display( &ui.p.grDisp.unit, (ui.focus) == 2 );
-
-        if ( ui.p.grDisp.d_state != GRSTATE_FILL )
+        // generate the graph display
+        if ( ui.p.grDisp.graph_dirty && 
+             ((ui.p.grDisp.d_state & GRSTATE_FLAG_FILL) == 0) )             // only if graph data is loaded
         {
-            // generate the graph display
-            if ( ui.p.grDisp.graph_dirty )
-            {
-                grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
-                ui.p.grDisp.graph_dirty = 0;
-            }
+            grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
+            ui.p.grDisp.graph_dirty = 0;
+        }
 
-            // - Draw the greyscale image
-            // grid
-            int i,j;
-            for (i=0; i<11; i++)
+        // render stuff for main display
+        if ( ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM) )
+        {
+            // - Draw the greyscale image   - only for main disp and zoom select
+            if ( ui.p.grDisp.graph_dirty == 0 )     // graph data is ready
             {
-                for (j=0; j<6; j++)
+                // grid
+                int i,j;
+                for (i=0; i<11; i++)
                 {
-                    Graphic_PutPixel(i*10, j*8+16, 1);
+                    for (j=0; j<6; j++)
+                    {
+                        Graphic_PutPixel(i*10, j*8+16, 1);
+                    }
+                }
+
+                // draw the 0 line
+                if ( (grf_dn_lim < 0) && (grf_up_lim > 0) )
+                {
+                    uint32 y;
+                    y = ( 64 - ( 1 + ((0 - grf_dn_lim) * 48) / (grf_up_lim - grf_dn_lim) ));
+                    Graphic_SetColor(1);
+                    Graphic_Rectangle( 0, y, 109, y );
+                }
+
+                if ( ui.p.grDisp.graph_has_minmax )
+                {
+                    internal_graphdisp_render( true );
                 }
             }
 
-            // draw the 0 line
-            if ( (grf_up_lim > 0) && (grf_dn_lim < 0) )
-            {
-                uint32 y;
-                y = ( 64 - ( 1 + ((0 - grf_dn_lim) * 48) / (grf_up_lim - grf_dn_lim) ));
-                Graphic_SetColor(1);
-                Graphic_Rectangle( 0, y, 109, y );
-            }
-
-            if ( ui.p.grDisp.graph_has_minmax )
-            {
-                internal_graphdisp_render( true );
-                internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, false );      // just to solve the negative effect of the cursor
-            }
+            internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, false );      // just to solve the negative effect of the cursor
 
             // - Draw the white image
             DispHal_ToFlipBuffer();                                 // send the min/max to the flip buffer for grayscale
             Graphic_SetColor(0);
             Graphic_FillRectangle(0, 16, 110, 63, 0);               // erase the underlying layer
+        }
 
-            internal_graphdisp_render( false );                         // draw the averages
+        if ( ui.p.grDisp.graph_dirty == 0 )         // graph data must be ready
+        {
+            // draw the average values
+            internal_graphdisp_render( false );
 
             // Y scale
             uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
             uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
+        }
 
-            // X scale - left/right time domain
-            internal_graphdisp_putXtime( 1, ui.p.grDisp.view_elemstart );
-            internal_graphdisp_putXtime( 100, ui.p.grDisp.view_elemend );
-
-            // zoom bar
-            internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.readout.total_read );
-
-            // cursor
-            internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, true );
+        // X scale - left/right time domain
+        if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )
+        {
+            internal_graphdisp_putXtime( 1,  core.readout.total_read - ((ui.p.grDisp.view_cursor1 * core.readout.total_read ) / WB_DISPPOINT), true );
+            internal_graphdisp_putXtime( 99, core.readout.total_read - ((ui.p.grDisp.view_cursor2 * core.readout.total_read ) / WB_DISPPOINT), true );
         }
         else
         {
-            uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
-            internal_graphdisp_zoombar( 0, 0, 0 );
+            internal_graphdisp_putXtime( 1, ui.p.grDisp.view_elemstart, false );
+            internal_graphdisp_putXtime( 99, ui.p.grDisp.view_elemend, false );
         }
 
+        // zoom bar
+        internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.readout.total_read );
+
+        // cursor
+        if ( ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM) )
+        {
+            internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, ui.p.grDisp.graph_dirty ? false : true );
+        }
+
+        // put the interactive element as overlay (unit select or menu)
+        if ( ui.p.grDisp.d_state & GRSTATE_DETAIL )
+        {
+            if ( ui.p.grDisp.graph_dirty == 0 )
+            {
+                // cursor details
+                internal_graphdisp_cursor_details();
+            }
+        }
+        else
+        {
+            // menu or unit selector
+            if ( ui.p.grDisp.d_state & (GRSTATE_MENU | GRSTATE_ZOOM_MENU) )     // menu items
+                ui_element_display( &ui.p.grDisp.ctrl.menu, true );
+            else                                                                // non-menu items
+                ui_element_display( &ui.p.grDisp.ctrl.unit, (ui.focus) == 2 );
+        }
+
+        if ( ui.p.grDisp.d_state & GRSTATE_FLAG_FILL )
+        {
+            uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
+        }
     }
 
     if ( redraw_all & RDRW_UI_DYNAMIC )
     {
-        switch ( ui.p.grDisp.d_state )
+        if ( ui.p.grDisp.d_state & GRSTATE_FLAG_FILL )
         {
-            case GRSTATE_FILL:
-                Graphic_SetColor(0);
-                Graphic_Rectangle( 49, 49, 63, 50 );
-                Graphic_SetColor(1);
-                Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.d_progr * 14) >> 4), 50 );
-                break;
+            Graphic_SetColor(0);
+            Graphic_Rectangle( 49, 49, 63, 50 );
+            Graphic_SetColor(1);
+            Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.d_progr * 14) >> 4), 50 );
         }
     }
 }
@@ -1173,21 +1261,43 @@ static inline void uist_setview_mainwindow_graph( void )
     ui.ui_elem_nr = 0;
     uint32 txtaddr;
 
-    uiel_control_list_init( &ui.p.grDisp.unit, 113, 22, 14, uitxt_micro, 1, false );
-    // fill the element specific selector list
-    for (i=0; i<grunit_elnr[ui.p.grDisp.view_elem]; i++ )
+    switch ( ui.p.grDisp.d_state & GRSTATE_MASK )
     {
-        switch ( ui.p.grDisp.view_elem + 1 )
-        {
-            case ss_thermo:     txtaddr=(uint32)grunit_txt_temp[i];  break;
-            case ss_rh:         txtaddr=(uint32)grunit_txt_rh[i];    break;
-            case ss_pressure:   txtaddr=(uint32)grunit_txt_press[i]; break;
-        }
-        uiel_control_list_add_item( &ui.p.grDisp.unit, txtaddr, i );
-    }
+        case GRSTATE_MENU:
+            uiel_dropdown_menu_init(&ui.p.grDisp.ctrl.menu, 30, 97, 16, 63 );
+            if ( internal_graph_is_zoomed() )
+                uist_internal_setup_menu( &ui.p.grDisp.ctrl.menu, c_menu_graph_main_zoom );
+            else
+                uist_internal_setup_menu( &ui.p.grDisp.ctrl.menu, c_menu_graph_main_nozoom );
 
-    uiel_control_list_set_index( &ui.p.grDisp.unit, ui.p.grDisp.units[ui.p.grDisp.view_elem] );
-    uiel_control_list_set_callback( &ui.p.grDisp.unit, UIClist_Vchange, 0, ui_call_graphdisp_unit_select );
+            if ( core.nv.setup.graph_mm_global )
+                uiel_dropdown_menu_add_item( &ui.p.grDisp.ctrl.menu, "local_mm");
+            else
+                uiel_dropdown_menu_add_item( &ui.p.grDisp.ctrl.menu, "global_mm");
+
+            uiel_dropdown_menu_set_index( &ui.p.grDisp.ctrl.menu, 1 );
+            uiel_dropdown_menu_set_callback( &ui.p.grDisp.ctrl.menu, UICmenu_OK, 0, ui_call_graphdisp_menu_action );
+            uiel_dropdown_menu_set_callback( &ui.p.grDisp.ctrl.menu, UICmenu_Esc, 1, ui_call_graphdisp_menu_action );
+            uiel_dropdown_menu_set_callback( &ui.p.grDisp.ctrl.menu, UICmenu_Vchange, 2, ui_call_graphdisp_menu_action );
+            break;
+        default:
+            uiel_control_list_init( &ui.p.grDisp.ctrl.unit, 113, 22, 14, uitxt_micro, 1, false );
+            // fill the element specific selector list
+            for (i=0; i<grunit_elnr[ui.p.grDisp.view_elem]; i++ )
+            {
+                switch ( ui.p.grDisp.view_elem + 1 )
+                {
+                    case ss_thermo:     txtaddr=(uint32)grunit_txt_temp[i];  break;
+                    case ss_rh:         txtaddr=(uint32)grunit_txt_rh[i];    break;
+                    case ss_pressure:   txtaddr=(uint32)grunit_txt_press[i]; break;
+                }
+                uiel_control_list_add_item( &ui.p.grDisp.ctrl.unit, (char*)txtaddr, i );
+            }
+
+            uiel_control_list_set_index( &ui.p.grDisp.ctrl.unit, ui.p.grDisp.units[ui.p.grDisp.view_elem] );
+            uiel_control_list_set_callback( &ui.p.grDisp.ctrl.unit, UIClist_Vchange, 0, ui_call_graphdisp_unit_select );
+            break;
+    }
 }
 
 

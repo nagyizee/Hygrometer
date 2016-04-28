@@ -374,7 +374,14 @@ void uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle )
 {
     handle->elem_crt++;
     if (handle->elem_crt >= handle->elem_total )
+    {
+        int val;
+
         handle->elem_crt--;
+        val = handle->elem_crt;
+        if ( handle->call_Vchange )
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
+    }
 
     if ( (handle->elem_crt - handle->moffs) >= ( handle->melem ) )
     {
@@ -388,15 +395,17 @@ void uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle )
 {
     if (handle->elem_crt > 0 )
     {
+        int val;
         handle->elem_crt--;
 
         if ( handle->elem_crt < handle->moffs )
         {
             handle->moffs--;
         }
-
+        
+        val = handle->elem_crt;
         if ( handle->call_Vchange )
-            handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->elem_crt );
+            handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
     }
 }
 
@@ -1509,31 +1518,49 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
 
         // Up and Down are captured for any element in focus and have immediate action
         {
-            if ( evmask->key_pressed & KEY_RIGHT )
+            if ( handle_ID == ELEM_ID_DROPDOWN_MENU )
             {
-                switch ( handle_ID )
+                if ( evmask->key_pressed & KEY_UP )
                 {
-                    case ELEM_ID_NUMERIC:       uiel_control_numeric_inc( (struct Suiel_control_numeric *)handle ); break;
-                    case ELEM_ID_EDIT:          uiel_control_edit_inc( (struct Suiel_control_edit *)handle ); break;
-                    case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, true ); break;
-                    case ELEM_ID_LIST:          uiel_control_list_set_next( (struct Suiel_control_list *)handle); break;
-                    case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle ); break;
+                    uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle );
+                    changed = true;
+                    evmask->key_pressed &= ~KEY_UP;     // delete the keypress event for the upper layer as it is captured by this layer
                 }
-                changed = true;
-                evmask->key_pressed &= ~KEY_RIGHT;     // delete the keypress event for the upper layer as it is captured by this layer
+                else if ( evmask->key_pressed & KEY_DOWN )
+                {
+                    uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle );
+                    changed = true;
+                    evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
+                }
             }
-            else if ( evmask->key_pressed & KEY_LEFT )
+            else
             {
-                switch ( handle_ID )
+                if ( evmask->key_pressed & KEY_RIGHT )
                 {
-                    case ELEM_ID_NUMERIC:       uiel_control_numeric_dec( (struct Suiel_control_numeric *)handle ); break;
-                    case ELEM_ID_EDIT:          uiel_control_edit_dec( (struct Suiel_control_edit *)handle ); break;
-                    case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, false ); break;
-                    case ELEM_ID_LIST:          uiel_control_list_set_prew( (struct Suiel_control_list *)handle); break;
-                    case ELEM_ID_DROPDOWN_MENU: uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle ); break;
+                    switch ( handle_ID )
+                    {
+                        case ELEM_ID_NUMERIC:       uiel_control_numeric_inc( (struct Suiel_control_numeric *)handle ); break;
+                        case ELEM_ID_EDIT:          uiel_control_edit_inc( (struct Suiel_control_edit *)handle ); break;
+                        case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, true ); break;
+                        case ELEM_ID_LIST:          uiel_control_list_set_next( (struct Suiel_control_list *)handle); break;
+                        case ELEM_ID_DROPDOWN_MENU:  break;
+                    }
+                    changed = true;
+                    evmask->key_pressed &= ~KEY_RIGHT;     // delete the keypress event for the upper layer as it is captured by this layer
                 }
-                changed = true;
-                evmask->key_pressed &= ~KEY_LEFT;     // delete the keypress event for the upper layer as it is captured by this layer
+                else if ( evmask->key_pressed & KEY_LEFT )
+                {
+                    switch ( handle_ID )
+                    {
+                        case ELEM_ID_NUMERIC:       uiel_control_numeric_dec( (struct Suiel_control_numeric *)handle ); break;
+                        case ELEM_ID_EDIT:          uiel_control_edit_dec( (struct Suiel_control_edit *)handle ); break;
+                        case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, false ); break;
+                        case ELEM_ID_LIST:          uiel_control_list_set_prew( (struct Suiel_control_list *)handle); break;
+                        case ELEM_ID_DROPDOWN_MENU:  break;
+                    }
+                    changed = true;
+                    evmask->key_pressed &= ~KEY_LEFT;     // delete the keypress event for the upper layer as it is captured by this layer
+                }
             }
         }
 

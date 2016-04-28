@@ -76,6 +76,14 @@ void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
     task->mempage = ui.p.swRegTaskSet.task.mempage;
 }
 
+bool internal_graph_is_zoomed(void)
+{
+    if ( (ui.p.grDisp.view_elemstart < core.readout.total_read) ||
+         (ui.p.grDisp.view_elemend > 0) )
+        return true;
+    return false;
+}
+
 static enum ESensorSelect internal_graphdisp_get_element( uint32 index )
 {
     uint32 elem;
@@ -140,6 +148,35 @@ static bool internal_graphdisp_operate_cursor( bool increase )
         return true;
     }
     return false;
+}
+
+
+static inline void internal_graphdisp_btnpress_OK(void)
+{
+    bool rebuild = false;
+
+    switch ( ui.p.grDisp.d_state & GRSTATE_MASK )
+    {
+        case GRSTATE_DISP:                          // from display the OK button enters in the graph menu
+            ui.p.grDisp.d_state = GRSTATE_MENU;
+            ui.p.grDisp.d_upd_ctr = 0;
+            DispHal_ClearFlipBuffer();
+            rebuild = true;
+            break;
+        case GRSTATE_DETAIL:
+            ui.p.grDisp.d_state = GRSTATE_DISP;
+            ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
+            ui.p.grDisp.d_upd_ctr = 0;
+            rebuild = true;
+            break;
+    }
+
+    if ( rebuild )
+    {
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+        uist_setupview_mainwindow(false);
+    }
+
 }
 
 
@@ -747,6 +784,36 @@ void ui_call_graphselect_action( int context, void *pval )
 
 void ui_call_graphdisp_unit_select( int context, void *pval )
 {
+
+
+}
+
+void ui_call_graphdisp_menu_action( int context, void *pval )
+{
+    // context 0 -> OK,  1 -> Esc,  2 -> Vchange
+    int val = *((int*)pval);
+
+    switch ( context )
+    {
+        case 0:
+            
+            break;
+        case 1:
+
+            break;
+        case 2:                 // Vchange
+            if ( (val == 0) && (ui.p.grDisp.d_upd_ctr == 0) )
+            {
+                // show cursor info
+                ui.p.grDisp.d_state &= ~GRSTATE_MASK;
+                ui.p.grDisp.d_state |= GRSTATE_DETAIL;
+                ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+                uist_setupview_mainwindow(false);
+            }
+            else
+                ui.p.grDisp.d_upd_ctr = 1;
+            break;
+    }
 
 }
 
@@ -1469,6 +1536,49 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 
 /// UI MAIN GRAPHIC WINDOW
 
+/***************************************
+    GRSTATE_FLAG_FILL: - filling display buffer from NVRAM (valid in any state)
+        operations: - ESC / PWR - exit to prew. / opmode select screen  - these are valid for all the other states
+    GRSTATE_DISP:
+        operations: UP/DN: select focus bw. [element selector][graph cursor][unit selector]
+                    L/R:   change value of unit selector, element selector, or move the cursor
+                                - cursor move will display current AVG value under the cursor
+                    OK:    Quick menu with other graph operations -> GRSTATE_MENU
+    GRSTATE_MENU:
+        operations: UP - right after entry: - show detail for the point under the cursor:   - date/time, min/max, avg value - 
+                                            - any button press - exit from detail window -> GRSTATE_DISP
+                    UP/DN - if dn pressed first: - select menu point
+                    OK:    Enter menu point:
+                                - "details"     GRSTATE_DETAIL      - show detail for cursor
+                                - <"select">    GRSTATE_SELECT_ZOOM - (default) back to main window but with dual cursor
+                                - ("pan")       GRSTATE_PAN         - (if zoomed) pan the zoomed section
+                                - ("zoom out")  GRSTATE_DISP
+                                - "zoom to"     GRSTATE_ZOOM_MENU
+                                - "local mm"/"global mm"   - select if local min/max scale is used (per zoom) or global min/max (per all)  
+    GRSTATE_DETAIL: see abowe,
+        operations: UP/DN/L/R -> GRSTATE_DISP
+
+    GRSTATE_SELECT_ZOOM: operates dual cursor. X endpoints showing the start/end date of the two cursors
+        operations: L/R:    start cursor value
+                    UP/DN:  end cursor value
+                    ESC:    -> cancel zoom -> GRSTATE_DISP
+                    OK:     -> apply zoom (with constraints) -> GRSTATE_DISP
+
+    GRSTATE_PAN:    change the displaying location:
+        operations: L/R:    pan zoom window (constraints) 
+                    OK/timeout: apply pan -> GRSTATE_DISP
+
+    GRSTATE_ZOOM_MENU:   menu with special zoom options
+        operations: UP/DN: - select menu item:
+                    OK:    Enter menu item:
+                                - <"day">   - zoom the day under the cursor -> GRSTATE_DISP
+                                - "week"    - zoom the week under the cursor -> GRSTATE_DISP
+                                - "mounth"  - zoom the mounth under the cursor -> GRSTATE_DISP
+                                - "date"    -> goes to a setwindow with start and end date
+
+
+***************************************/
+
 void uist_mainwindowgraph_entry( void )
 {
     uint32 elem = 0;
@@ -1476,9 +1586,10 @@ void uist_mainwindowgraph_entry( void )
 
     memset( &ui.p.grDisp, 0, sizeof(ui.p.grDisp) );
     // m_return holds the task index
+    ui.p.grDisp.d_state = GRSTATE_DISP | GRSTATE_FLAG_FILL;
     ui.p.grDisp.d_progr = 16;     // means maximum wait state
-    ui.p.grDisp.view_cursor1 = 72;    // cursor to middle
-    ui.p.grDisp.view_cursor2 = 72;    // cursor to middle
+    ui.p.grDisp.view_cursor1 = 54;    // cursor to middle
+    ui.p.grDisp.view_cursor2 = 54;    // cursor to middle
     ui.p.grDisp.graph_dirty = 1;      // update display points from grahp data
     ui.p.grDisp.view_elemstart = core.nvrec.func[ui.m_return].c;
     ui.p.grDisp.view_elemend = 0;
@@ -1501,52 +1612,70 @@ void uist_mainwindowgraph_entry( void )
     ui.upd_ui_disp = 0;
 }
 
-
 void uist_mainwindowgraph( struct SEventStruct *evmask )
 {
     if ( evmask->key_event )
     {
-        // up/down button
-        if ( (evmask->key_pressed & KEY_UP) && (ui.focus > 0) )
+        // operations allowed only in non_filling state
+        if ( (ui.p.grDisp.d_state & GRSTATE_FLAG_FILL) == 0 )
         {
-            ui.focus--;
-            uist_setupview_mainwindow( false );
-            ui.upd_ui_disp |= RDRW_UI_CONTENT;
-        }
-        if ( (evmask->key_pressed & KEY_DOWN) && (ui.focus < 2) )
-        {
-            ui.focus++;
-            uist_setupview_mainwindow( false );
-            ui.upd_ui_disp |= RDRW_UI_CONTENT;
-        }
+            if ( (ui.p.grDisp.d_state & GRSTATE_DETAIL) == 0 )
+            {
+                if ( ui.p.grDisp.d_state & (GRSTATE_MENU | GRSTATE_ZOOM_MENU) )
+                {
+                    if ( ui_element_poll( &ui.p.grDisp.ctrl.menu, evmask ))
+                       ui.upd_ui_disp |= RDRW_DISP_UPDATE;
+                }
+                else if (ui.focus == 2 )
+                {
+                    if ( ui_element_poll( &ui.p.grDisp.ctrl.unit, evmask ))
+                       ui.upd_ui_disp |= RDRW_DISP_UPDATE;
+                }
+                else
+                {
+                    bool update = false;
+                    if ( evmask->key_pressed & KEY_LEFT )
+                    {
+                        if ( ui.focus == 0 )
+                            update = internal_graphdisp_operate_elemselect( false );
+                        else
+                            update = internal_graphdisp_operate_cursor( false );
+                    }
+                    if ( evmask->key_pressed & KEY_RIGHT )
+                    {
+                        if ( ui.focus == 0 )
+                            update = internal_graphdisp_operate_elemselect( true );
+                        else
+                            update = internal_graphdisp_operate_cursor( true );
+                    }
+                    if ( update )
+                    {
+                        if ( ui.focus == 0 )
+                            ui.p.grDisp.graph_dirty = 1;
+                        ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                    }
+                }
+    
+                // up/down button
+                if ( (evmask->key_pressed & KEY_UP) && (ui.focus > 0) )
+                {
+                    ui.focus--;
+                    uist_setupview_mainwindow( false );
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                }
+                if ( (evmask->key_pressed & KEY_DOWN) && (ui.focus < 2) )
+                {
+                    ui.focus++;
+                    uist_setupview_mainwindow( false );
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                }
+            }
 
-        if ( ui.focus == 2 )
-        {
-            if ( ui_element_poll( &ui.p.grDisp.unit, evmask ))
-               ui.upd_ui_disp |= RDRW_DISP_UPDATE;
-        }
-        else
-        {
-            bool update = false;
-            if ( evmask->key_pressed & KEY_LEFT )
+            if ( (evmask->key_pressed & KEY_OK) &&                                                              // OK button processed only for
+                 ( ((ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM)) && (ui.focus == 1)) ||         // - cursor in focus in main display screen
+                   ((ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM)) == 0) )  )                     //   or any other screen
             {
-                if ( ui.focus == 0 )
-                    update = internal_graphdisp_operate_elemselect( false );
-                else
-                    update = internal_graphdisp_operate_cursor( false );
-            }
-            if ( evmask->key_pressed & KEY_RIGHT )
-            {
-                if ( ui.focus == 0 )
-                    update = internal_graphdisp_operate_elemselect( true );
-                else
-                    update = internal_graphdisp_operate_cursor( true );
-            }
-            if ( update )
-            {
-                if ( ui.focus == 0 )
-                    ui.p.grDisp.graph_dirty = 1;
-                ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                internal_graphdisp_btnpress_OK();
             }
         }
 
@@ -1573,31 +1702,25 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
         }
     }
 
-    // tim
+    // timed stuff
     if ( evmask->timer_tick_10ms )
     {
-        switch ( ui.p.grDisp.d_state )
+        if ( ui.p.grDisp.d_state & GRSTATE_FLAG_FILL )
         {
-            case GRSTATE_MULTI:             // highest priority - we need to do display switching
-                break;
-            case GRSTATE_FILL:              // check for data ready
-                ui.p.grDisp.d_upd_ctr ++;                         // Update should be done at 50Hz -> 20ms
-                if ( ui.p.grDisp.d_upd_ctr & 0x02 )
-                {
-                    ui.p.grDisp.d_upd_ctr = 0;
+            ui.p.grDisp.d_upd_ctr ++;                         // Update should be done at 50Hz -> 20ms
+            if ( ui.p.grDisp.d_upd_ctr & 0x02 )
+            {
+                ui.p.grDisp.d_upd_ctr = 0;
 
-                    ui.p.grDisp.d_progr = core_op_recording_read_busy();
-                    if ( ui.p.grDisp.d_progr == 0 )
-                    {
-                        ui.p.grDisp.d_state = GRSTATE_MULTI;
-                        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
-                    }
-                    else
-                        ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
+                ui.p.grDisp.d_progr = core_op_recording_read_busy();
+                if ( ui.p.grDisp.d_progr == 0 )
+                {
+                    ui.p.grDisp.d_state &= ~GRSTATE_FLAG_FILL;
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
                 }
-                break;
-            default:
-                break;
+                else
+                    ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
+            }
         }
     }
 

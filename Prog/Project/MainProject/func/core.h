@@ -160,6 +160,8 @@
         uint8                   tim_tend_temp;      // tendency update rate for temperature - see enum EUpdateTimings for values
         uint8                   tim_tend_hygro;     // for hyrometer (RH / AbsH)
         uint8                   tim_tend_press;     // for pressure
+
+        uint8                   graph_mm_global;    // 1 if global min/max used for vertical scaling, 0 if local (zoomed) min/max is used for vertical scaling
     };
 
     union UCoreOperationFlags
@@ -514,7 +516,7 @@
     // calculate display pixels from display raw points
     uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh, int *plow, bool *has_minmax );
     // get the average value from the position of the cursor
-    uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param );
+    uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param, uint32 avgminmax );
 
     // debug fill feature
     void core_op_recording_dbgfill( uint32 t );

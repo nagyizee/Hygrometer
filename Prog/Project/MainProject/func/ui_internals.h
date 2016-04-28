@@ -63,11 +63,14 @@
 
     #define RDRW_DISP_UPDATE        0x80        // just a dummy value to enter to the display update routine
 
-    #define GRSTATE_FILL            0x00        // filling display memory from NVRAM
-    #define GRSTATE_SINGLE_AVG      0x01        // single graph mode
-    #define GRSTATE_SINGLE_MINMAX   0x02        // single graph mode
-    #define GRSTATE_MULTI           0x04        // MinMax in grayscale, Average in white
-
+    #define GRSTATE_FLAG_FILL       0x01        // filling display memory from NVRAM
+    #define GRSTATE_MASK            0xFE        
+    #define GRSTATE_DISP            0x02        // MinMax in grayscale, Average in white
+    #define GRSTATE_MENU            0x04
+    #define GRSTATE_DETAIL          0x08
+    #define GRSTATE_SELECT_ZOOM     0x10
+    #define GRSTATE_PAN             0x20
+    #define GRSTATE_ZOOM_MENU       0x40
 
     struct SUIMainGaugeThermo
     {
@@ -114,7 +117,11 @@
         uint8   view_cursor2;           // selector cursor
         uint8   view_elem;              // selected element - 0 based ( 0-t 1-rh 2-p )
 
-        struct Suiel_control_list   unit;
+        union
+        {
+            struct Suiel_control_list   unit;
+            struct Suiel_dropdown_menu  menu;
+        }       ctrl;
         uint8   units[3];               // selected units for each element
 
     };
@@ -284,6 +291,7 @@
     void ui_call_graphselect_action( int context, void *pval );
 
     void ui_call_graphdisp_unit_select( int context, void *pval );
+    void ui_call_graphdisp_menu_action( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );
@@ -299,7 +307,7 @@
 
     // misc
     void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task);
-
+    bool internal_graph_is_zoomed(void);
 
 #ifdef __cplusplus
     }

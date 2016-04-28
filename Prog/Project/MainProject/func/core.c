@@ -2536,15 +2536,24 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     }
 }
 
-uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param )
+uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param, uint32 avgminmax )
 {
     uint16 *buff;
     uint32 ptr;
+    uint32 offs = 0;
+
+    switch ( avgminmax )
+    {
+        case 0: offs = WB_DISPPOINT*2 * 2; break;       // average
+        case 1: offs = WB_DISPPOINT*2 * 0; break;       // min 
+        case 2: offs = WB_DISPPOINT*2 * 1; break;       // max
+    }
+
     switch ( param )
     {
-        case ss_thermo:     ptr = WB_OFFS_TEMP_AVG + 2 * cursor; break;
-        case ss_rh:         ptr = WB_OFFS_RH_AVG + 2 * cursor; break;
-        case ss_pressure:   ptr = WB_OFFS_P_AVG + 2 * cursor; break;
+        case ss_thermo:     ptr = WB_OFFS_TEMP + offs + 2 * cursor; break;
+        case ss_rh:         ptr = WB_OFFS_RH + offs + 2 * cursor; break;
+        case ss_pressure:   ptr = WB_OFFS_P + offs + 2 * cursor; break;
     }
 
     buff = (uint16*)( workbuff + ptr );
