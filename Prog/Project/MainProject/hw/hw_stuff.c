@@ -91,9 +91,9 @@ extern void SetSysClock(void);
         RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
         RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOC | RCC_APB2Periph_AFIO  |
-                               RCC_APB2Periph_TIM15 | RCC_APB2Periph_TIM16 | RCC_APB2Periph_ADC1 , ENABLE);
+                               RCC_APB2Periph_TIM15 | RCC_APB2Periph_TIM16 | RCC_APB2Periph_TIM17 | RCC_APB2Periph_ADC1 , ENABLE);
         RCC_APB2PeriphResetCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB | RCC_APB2Periph_GPIOC |
-                               RCC_APB2Periph_TIM15 | RCC_APB2Periph_TIM16 | RCC_APB2Periph_ADC1 , DISABLE);
+                               RCC_APB2Periph_TIM15 | RCC_APB2Periph_TIM16 | RCC_APB2Periph_TIM17 | RCC_APB2Periph_ADC1 , DISABLE);
 
         RCC_ADCCLKConfig(RCC_PCLK2_Div4);   // set up ADC clock
 
@@ -228,6 +228,9 @@ extern void SetSysClock(void);
         TIM_tb.TIM_Prescaler           = 0;   //10;
         TIM_tb.TIM_Period              = BUZZER_FREQ;
         TIM_TimeBaseInit(TIMER_BUZZER, &TIM_tb);
+        TIM_tb.TIM_Prescaler           = 0;   //10;
+        TIM_tb.TIM_Period              = DISPLAY_FREQ;
+        TIM_TimeBaseInit(TIMER_DISPLAY, &TIM_tb);
 
         // set up PWM for buzzer
         TIM_oc.TIM_OCMode       = TIM_OCMode_PWM1;
@@ -250,9 +253,13 @@ extern void SetSysClock(void);
         TIM_ITConfig( TIMER_SYSTEM, TIM_FLAG_Update, ENABLE );
 
         NVIC_InitStructure.NVIC_IRQChannel              = TIMER_SYSTEM_IRQ;
-        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 4;
         NVIC_InitStructure.NVIC_IRQChannelSubPriority   = 0;
         NVIC_InitStructure.NVIC_IRQChannelCmd           = ENABLE;
+        NVIC_Init( &NVIC_InitStructure );
+
+        NVIC_InitStructure.NVIC_IRQChannel              = TIMER_DISPLAY_IRQ;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
         NVIC_Init( &NVIC_InitStructure );
 
         // stop timer counter when debugging, keep core alive when debugging in stop/sleep mode

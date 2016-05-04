@@ -111,11 +111,14 @@
     // fOsc = 16MHz, - to get 1ms we need 16000 clock cycles
     #define SYSTEM_T_10MS_COUNT     10               // 10ms is 10 timer events
     #define SYSTEM_MAX_TICK         (16000 - 1)      // timer ticks for 1ms
+    #define DISPLAY_FREQ            (8000 - 1)       // timer ticks for 500us
     #define BUZZER_FREQ             1776             // obtaining 9kHz
 
     #define TIMER_SYSTEM            TIM15               // used as system timer
     #define TIMER_BUZZER            TIM16               // buzzer pwm generator
+    #define TIMER_DISPLAY           TIM17
     #define TIMER_SYSTEM_IRQ        TIM1_BRK_TIM15_IRQn
+    #define TIMER_DISPLAY_IRQ       TIM1_TRG_COM_TIM17_IRQn
     #define TIMER_RTC               RTC
     #define TIMER_RTC_PRESCALE      ( ((32 * 1024) / 2) - 1 )   // 0.5sec pulses
     #define RTC_ALARM_FLAG          ((uint16_t)0x0002)
