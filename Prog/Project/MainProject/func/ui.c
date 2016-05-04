@@ -78,11 +78,20 @@ void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
 
 bool internal_graph_is_zoomed(void)
 {
-    if ( (ui.p.grDisp.view_elemstart < core.readout.total_read) ||
+    if ( (ui.p.grDisp.view_elemstart < core.nvrec.func[ui.m_return].c) ||
          (ui.p.grDisp.view_elemend > 0) )
         return true;
     return false;
 }
+
+uint32 internal_graphdisp_cursor2samplenr( uint32 cursor )
+{
+    // convert local cursor display cursor position to global samplenr
+    uint32 smpl;
+    smpl = ((ui.p.grDisp.view_elemstart - ui.p.grDisp.view_elemend) * (WB_DISPPOINT - cursor)) / WB_DISPPOINT + ui.p.grDisp.view_elemend;
+    return smpl;
+}
+
 
 static enum ESensorSelect internal_graphdisp_get_element( uint32 index )
 {
@@ -133,21 +142,88 @@ _okvalue:
     return false;
 }
 
-static bool internal_graphdisp_operate_cursor( bool increase )
+static void internal_graphdisp_adjust_cursor( bool c1_master )
 {
-    if ( (ui.p.grDisp.view_cursor1 < (WB_DISPPOINT-1)) && increase )
+    // c1 should be <= c2. Area under c1/c2 has width
+    // - so at 1100 samples, no zoom, c1=c2 - samples under cursor: 110 samples
+    //  c2 = c1 + 1 -> 220 samples
+    uint32 smpl1;
+    uint32 smpl2;
+
+    if ( c1_master && (ui.p.grDisp.view_cursor2 < ui.p.grDisp.view_cursor1) )
+        ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
+    if ( (c1_master == false) && (ui.p.grDisp.view_cursor1 > ui.p.grDisp.view_cursor2) )
+        ui.p.grDisp.view_cursor1 = ui.p.grDisp.view_cursor2;
+
+    do
     {
-        ui.p.grDisp.view_cursor1++;
-        ui.p.grDisp.view_cursor2++;
-        return true;
-    }
-    else if ( (ui.p.grDisp.view_cursor1 > 0) && (increase == false) )
+        smpl1 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 );
+        smpl2 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor2 + 1 );
+
+        if ( (smpl1 - smpl2) >= WB_DISPPOINT )
+            break;
+
+        if ( c1_master )
+        {
+            if ( ui.p.grDisp.view_cursor2 < (WB_DISPPOINT-1) )
+                ui.p.grDisp.view_cursor2++;
+            else if ( ui.p.grDisp.view_cursor1 > 0)
+                ui.p.grDisp.view_cursor1--;
+        }
+        else
+        {
+            if ( ui.p.grDisp.view_cursor1 > 0 )
+                ui.p.grDisp.view_cursor1--;
+            else if ( ui.p.grDisp.view_cursor2 < (WB_DISPPOINT-1))
+                ui.p.grDisp.view_cursor2++;
+        }
+    } while ( 1 );
+}
+
+
+
+static bool internal_graphdisp_operate_cursor( bool increase, bool c2 )
+{
+    bool change = false;
+
+    if ( (ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM) == 0 )
+        c2 = false;
+
+    if ( c2 == false )
     {
-        ui.p.grDisp.view_cursor1--;
-        ui.p.grDisp.view_cursor2--;
-        return true;
+        if ( (ui.p.grDisp.view_cursor1 < (WB_DISPPOINT-1)) && increase )
+        {
+            ui.p.grDisp.view_cursor1++;
+            if ( (ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM) == 0 )
+                ui.p.grDisp.view_cursor2++;
+            change = true;
+        }
+        else if ( (ui.p.grDisp.view_cursor1 > 0) && (increase == false) )
+        {
+            ui.p.grDisp.view_cursor1--;
+            if ( (ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM) == 0 )
+                ui.p.grDisp.view_cursor2--;
+            change = true;
+        }
     }
-    return false;
+    else
+    {
+        if ( (ui.p.grDisp.view_cursor2 < (WB_DISPPOINT-1)) && increase )
+        {
+            ui.p.grDisp.view_cursor2++;
+            change = true;
+        }
+        else if ( (ui.p.grDisp.view_cursor2 > 0) && (increase == false) )
+        {
+            ui.p.grDisp.view_cursor2--;
+            change = true;
+        }
+    }
+
+    if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )
+        internal_graphdisp_adjust_cursor( c2 == false );
+
+    return change;
 }
 
 
@@ -164,7 +240,26 @@ static inline void internal_graphdisp_btnpress_OK(void)
             rebuild = true;
             break;
         case GRSTATE_DETAIL:
-            ui.p.grDisp.d_state = GRSTATE_DISP;
+        case GRSTATE_SELECT_ZOOM:
+            if ( (ui.p.grDisp.d_state & GRSTATE_MASK) == GRSTATE_SELECT_ZOOM )
+            {
+                uint32 smpl1;
+                uint32 smpl2;
+
+                smpl1 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 );
+                smpl2 = internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor2 + 1 );
+
+                ui.p.grDisp.view_elemstart = smpl1;
+                ui.p.grDisp.view_elemend = smpl2;
+
+                core_op_recording_read_cancel();   
+                core_op_recording_read_request( ui.m_return, ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemstart - ui.p.grDisp.view_elemend );    // get the entire recording
+                ui.p.grDisp.d_state = GRSTATE_DISP | GRSTATE_FLAG_FILL;
+                ui.p.grDisp.graph_dirty = 1;
+            }
+            else
+                ui.p.grDisp.d_state = GRSTATE_DISP;
+
             ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
             ui.p.grDisp.d_upd_ctr = 0;
             rebuild = true;
@@ -177,6 +272,30 @@ static inline void internal_graphdisp_btnpress_OK(void)
         uist_setupview_mainwindow(false);
     }
 
+}
+
+
+static inline void internal_graphdisp_btnpress_ESC(void)
+{
+    bool rebuild = false;
+
+    switch ( ui.p.grDisp.d_state & GRSTATE_MASK )
+    {
+        // GRSTATE_DISP, GRSTATE_MENU, GRSTATE_ZOOM_MENU are handled through callbacks
+        case GRSTATE_SELECT_ZOOM:
+        case GRSTATE_DETAIL:
+            ui.p.grDisp.d_state = GRSTATE_DISP;
+            ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
+            ui.p.grDisp.d_upd_ctr = 0;
+            rebuild = true;
+            break;
+    }
+
+    if ( rebuild )
+    {
+        ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+        uist_setupview_mainwindow(false);
+    }
 }
 
 
@@ -792,29 +911,69 @@ void ui_call_graphdisp_menu_action( int context, void *pval )
 {
     // context 0 -> OK,  1 -> Esc,  2 -> Vchange
     int val = *((int*)pval);
+    bool zoomed;
+
+    zoomed = internal_graph_is_zoomed();
 
     switch ( context )
     {
         case 0:
-            
+            if ( val == 0 )                             // cursor on "details"
+                goto _enter_details;
+            else if ( val == 1 )                        // "zoom select"
+            {
+                ui.p.grDisp.d_state &= ~GRSTATE_MASK;
+                ui.p.grDisp.d_state |= GRSTATE_SELECT_ZOOM;
+                ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
+                ui.focus = 1;
+                internal_graphdisp_adjust_cursor( true );
+                goto _reset_display;
+            }
+            else if ( zoomed && (val == 2)  )           // pan
+            {
+            }   
+            else if ( zoomed && (val == 3) )            // zoom out
+            {
+                ui.p.grDisp.view_elemstart = core.nvrec.func[ui.m_return].c;
+                ui.p.grDisp.view_elemend = 0;
+                core_op_recording_read_cancel();   
+                core_op_recording_read_request( ui.m_return, ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemstart );    // get the entire recording
+                ui.p.grDisp.d_state = GRSTATE_DISP | GRSTATE_FLAG_FILL;
+                ui.p.grDisp.graph_dirty = 1;
+                goto _reset_display;
+            }
+            else if ( (zoomed && (val == 4)) ||         // zoom to menu
+                      (!zoomed && (val == 2) ) )
+            {
+            }
+            else if ( (zoomed && (val == 5)) ||         // change min/max global/local
+                      (!zoomed && (val == 3) ) )
+            {
+            }
             break;
         case 1:
-
-            break;
+            ui.p.grDisp.d_state = GRSTATE_DISP;
+            ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
+            ui.p.grDisp.d_upd_ctr = 0;
+            goto _reset_display;
         case 2:                 // Vchange
             if ( (val == 0) && (ui.p.grDisp.d_upd_ctr == 0) )
             {
                 // show cursor info
+        _enter_details:
                 ui.p.grDisp.d_state &= ~GRSTATE_MASK;
                 ui.p.grDisp.d_state |= GRSTATE_DETAIL;
-                ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
-                uist_setupview_mainwindow(false);
+                goto _reset_display;
             }
             else
                 ui.p.grDisp.d_upd_ctr = 1;
             break;
     }
-
+    return;
+_reset_display:
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+    uist_setupview_mainwindow(false);
+    return;
 }
 
 
@@ -1639,14 +1798,22 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
                         if ( ui.focus == 0 )
                             update = internal_graphdisp_operate_elemselect( false );
                         else
-                            update = internal_graphdisp_operate_cursor( false );
+                            update = internal_graphdisp_operate_cursor( false, false );
                     }
                     if ( evmask->key_pressed & KEY_RIGHT )
                     {
                         if ( ui.focus == 0 )
                             update = internal_graphdisp_operate_elemselect( true );
                         else
-                            update = internal_graphdisp_operate_cursor( true );
+                            update = internal_graphdisp_operate_cursor( true, false );
+                    }
+                    if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )             // in select zoom - the up/down operates the C2
+                    {
+                        if ( evmask->key_pressed & KEY_UP )
+                            update = internal_graphdisp_operate_cursor( true, true );
+                        if ( evmask->key_pressed & KEY_DOWN )
+                            update = internal_graphdisp_operate_cursor( false, true );
+                        evmask->key_pressed &= ~(KEY_UP | KEY_DOWN);            // clear the Up/Down action because we processed here
                     }
                     if ( update )
                     {
@@ -1699,6 +1866,23 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
             ui.m_substate = UI_SUBST_ENTRY;
             DispHal_ClearFlipBuffer();
             return;
+        }
+        if ( evmask->key_released & KEY_ESC )
+        {
+            if ( ui.p.grDisp.d_state & GRSTATE_DISP )
+            {
+                if (core_op_recording_read_busy())
+                    core_op_recording_read_cancel();        
+                DispHal_ClearFlipBuffer();
+                ui.m_state = UI_STATE_SETWINDOW;
+                ui.m_setstate = UI_SET_GraphSelect;
+                ui.m_substate = UI_SUBST_ENTRY;
+                return;
+            }
+            else
+            {
+                internal_graphdisp_btnpress_ESC();
+            }
         }
     }
 

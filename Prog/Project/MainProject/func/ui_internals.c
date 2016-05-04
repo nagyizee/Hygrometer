@@ -37,7 +37,7 @@ extern struct SCore core;
 ////////////////////////////////////////////////////
 
 const char c_menu_graph_main_nozoom[]            = { "info select zoom_to" };
-const char c_menu_graph_main_zoom[]            = { "info select pan zoom_out zoom_to" };
+const char c_menu_graph_main_zoom[]              = { "info select pan zoom_out zoom_to" };
 
 const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
 
@@ -225,14 +225,6 @@ static void internal_graphdisp_putvalue( uint32 xpoz, uint32 ypoz, enum Etextsty
     }
 }
 
-static uint32 internal_graphdisp_cursor2samplenr( uint32 cursor )
-{
-    // convert local cursor display cursor position to global samplenr
-    uint32 smpl;
-    smpl = ((ui.p.grDisp.view_elemstart - ui.p.grDisp.view_elemend) * (WB_DISPPOINT - cursor)) / WB_DISPPOINT + ui.p.grDisp.view_elemend;
-    return smpl;
-}
-
 static inline void internal_graphdisp_cursor_details(void)
 {
     uint8 *text = (grf_values + 3*WB_DISPPOINT);        // shift with 3x disp points for empty work buffer
@@ -287,8 +279,8 @@ static void internal_graphdisp_zoombar( uint32 smpl_1, uint32 smpl_2, uint32 smp
     x1 = (smpl_total - smpl_1) * 75 / smpl_total;
     x2 = smpl_2 * 75 / smpl_total;
 
-    Graphic_FillRectangle( 21+x1, 12, 21+x1, 14, 1 );
-    Graphic_FillRectangle( 97-x2, 12, 97-x2, 14, 1 );
+    Graphic_FillRectangle( 21, 12, 21+x1, 14, 1 );
+    Graphic_FillRectangle( 97-x2, 12, 97, 14, 1 );
     if ( (97-x2) <= (21+x1) )
     {
         Graphic_SetColor(0);
@@ -307,7 +299,10 @@ static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 
     if (disp_val)
     {
-        internal_graphdisp_putvalue( 60, 1, uitxt_small, c1, 0 );
+        if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )
+            uigrf_text( 60, 1, uitxt_small, "select" );
+        else
+            internal_graphdisp_putvalue( 60, 1, uitxt_small, c1, 0 );
     }
 }
 
@@ -962,8 +957,8 @@ static inline void uist_draw_graph( int redraw_all )
         // X scale - left/right time domain
         if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )
         {
-            internal_graphdisp_putXtime( 1,  core.readout.total_read - ((ui.p.grDisp.view_cursor1 * core.readout.total_read ) / WB_DISPPOINT), true );
-            internal_graphdisp_putXtime( 99, core.readout.total_read - ((ui.p.grDisp.view_cursor2 * core.readout.total_read ) / WB_DISPPOINT), true );
+            internal_graphdisp_putXtime( 1, internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 ), true );
+            internal_graphdisp_putXtime( 99, internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor2 ), true );
         }
         else
         {
@@ -972,7 +967,7 @@ static inline void uist_draw_graph( int redraw_all )
         }
 
         // zoom bar
-        internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.readout.total_read );
+        internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.nvrec.func[ui.m_return].c );
 
         // cursor
         if ( ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM) )

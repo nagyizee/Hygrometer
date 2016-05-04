@@ -308,6 +308,7 @@
     // misc
     void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task);
     bool internal_graph_is_zoomed(void);
+    uint32 internal_graphdisp_cursor2samplenr( uint32 cursor );
 
 #ifdef __cplusplus
     }
