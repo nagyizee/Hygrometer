@@ -2,10 +2,14 @@
 #define MAINW_H
 
 #include <QMainWindow>
+#include <QThread>
 #include <QTimer>
+#include <QtSerialPort/QSerialPort>
+
 #include "graph_disp.h"
 #include "hw_stuff.h"
 #include "typedefs.h"
+#include "com_link.h"
 
 #define DISPSIM_MAX_W      256
 #define DISPSIM_MAX_H      132
@@ -59,6 +63,8 @@ private slots:
     void on_tb_time_editingFinished();
 
 
+    void on_pb_dump_clicked();
+
 private:
     enum EColorMap
     {
@@ -105,7 +111,9 @@ private:
     int pwr_ptr;
     int pwr_xptr;
 
-
+    bool dump_thread;
+    com_link  *comlink;
+    QThread   *comlink_thread;
 
     void dispsim_mem_clean();
     void disppwr_mem_clean();

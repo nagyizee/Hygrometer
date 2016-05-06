@@ -15,7 +15,9 @@ DEFINES += ON_QT_PLATFORM
 
 INCLUDEPATH += ../../../Prog/Project/MainProject/ \
                ../../../Prog/Project/MainProject/func/  \
-               ../../../Prog/Project/MainProject/graphic_lib/  \
+               ../../../Prog/Project/MainProject/graphic_lib/ \
+               serial_port
+
 
 SOURCES += main.cpp\
         mainw.cpp \
@@ -29,7 +31,9 @@ SOURCES += main.cpp\
     ../../../Prog/Project/MainProject/graphic_lib/graphic_lib.c \
     ../../../Prog/Project/MainProject/func/ui_graphics.c \
     ../../../Prog/Project/MainProject/func/utilities.c \
-    ../../../Prog/Project/MainProject/func/ui_internals.c
+    ../../../Prog/Project/MainProject/func/ui_internals.c \
+    serial_port/MSerialPort.cpp \
+    serial_port/com_link.cpp
 
 HEADERS  += mainw.h \
     stm32f10x.h \
@@ -46,7 +50,12 @@ HEADERS  += mainw.h \
     ../../../Prog/Project/MainProject/graphic_lib_user.h \
     ../../../Prog/Project/MainProject/func/ui_graphics.h \
     ../../../Prog/Project/MainProject/func/dispHAL.h \
-    ../../../Prog/Project/MainProject/func/utilities.h
+    ../../../Prog/Project/MainProject/func/utilities.h \
+    serial_port/MSerialPort_Global.hpp \
+    serial_port/MSerialPort.hpp \
+    serial_port/com_link.h
+
+
 
 FORMS    += mainw.ui \
             graph.ui

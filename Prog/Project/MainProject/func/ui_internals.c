@@ -193,7 +193,7 @@ static void internal_graphdisp_putXtime( uint32 xpoz, uint32 sample_nr, bool inv
     if (inverted)
     {
         Graphic_SetColor(-1);
-        Graphic_FillRectangle( xpoz-1, 0, xpoz+20, 14, -1 );
+        Graphic_FillRectangle( xpoz-1, 0, xpoz+20, 13, -1 );
     }
 }
 
@@ -883,12 +883,28 @@ static inline void uist_draw_gauge_pressure( int redraw_all )
 
 static inline void uist_draw_graph( int redraw_all )
 {
+
+    // generate the graph display
+    if ( ui.p.grDisp.graph_dirty && 
+         ((ui.p.grDisp.d_state & GRSTATE_FLAG_FILL) == 0) )             // only if graph data is loaded
+    {
+        grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
+        ui.p.grDisp.graph_dirty = 0;
+    }
+
+    Graphic_SetColor(0);
+    if ( redraw_all & RDRW_UI_CONTENT_ALL )             // both for content an dynamic - clear the are under the graph and cursor
+    {
+        Graphic_FillRectangle(0, 16, 109, 63, 0);       // under the graph
+        Graphic_FillRectangle(60, 0, 90, 10, 0);        // under the cursor
+    }
+
+    // static stuff
     if ( redraw_all & RDRW_UI_CONTENT )
     {
         // clear the graph underneath
-        Graphic_SetColor(0);
-        Graphic_FillRectangle(0, 16, 127, 63, 0);
-        Graphic_FillRectangle(0, 0, 119, 15, 0);
+        Graphic_FillRectangle(110, 16, 127, 63, 0);     // clear the remaining area beside of the graph
+        Graphic_FillRectangle(0, 0, 119, 15, 0);        // clear the status bar till the battery
 
         Graphic_SetColor(1);
         Graphic_Line(0,15,127,15);
@@ -897,14 +913,27 @@ static inline void uist_draw_graph( int redraw_all )
         // element selector         
         internal_graphdisp_elemselect( ui.p.grDisp.view_elem );
 
-        // generate the graph display
-        if ( ui.p.grDisp.graph_dirty && 
-             ((ui.p.grDisp.d_state & GRSTATE_FLAG_FILL) == 0) )             // only if graph data is loaded
-        {
-            grf_values = core_op_recording_calculate_pixels( ui.p.grDisp.view_elem + 1, &grf_up_lim, &grf_dn_lim, &ui.p.grDisp.graph_has_minmax );
-            ui.p.grDisp.graph_dirty = 0;
+        // Y scale
+        if ( ui.p.grDisp.graph_dirty == 0 )             // for Y scale - graph data must be ready
+        {   
+            uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
+            uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
         }
 
+        // static X scale
+        if ( (ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM) == 0 )     // X scale for non-zoom select mode (it is static)
+        {
+            internal_graphdisp_putXtime( 1, ui.p.grDisp.view_elemstart, false );
+            internal_graphdisp_putXtime( 99, ui.p.grDisp.view_elemend, false );
+        }
+
+        // zoom bar
+        internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.nvrec.func[ui.m_return].c );
+    }
+
+    // dynamic stuff
+    if ( redraw_all & RDRW_UI_DYNAMIC )                 // redraw the graph and things
+    {
         // render stuff for main display
         if ( ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM) )
         {
@@ -948,33 +977,28 @@ static inline void uist_draw_graph( int redraw_all )
         {
             // draw the average values
             internal_graphdisp_render( false );
-
-            // Y scale
-            uigrf_putnr( 113, 16, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_up_lim, 4, ' ', false );
-            uigrf_putnr( 113, 58, (enum Etextstyle)(uitxt_micro | uitxt_MONO), grf_dn_lim, 4, ' ', false );
         }
 
-        // X scale - left/right time domain
+        // X scale - left/right time domain (dynamic)
         if ( ui.p.grDisp.d_state & GRSTATE_SELECT_ZOOM )
         {
+            Graphic_SetColor(0);
+            Graphic_FillRectangle(0, 0, 21, 13, 0);
+            Graphic_FillRectangle(98, 0, 119, 13, 0);
             internal_graphdisp_putXtime( 1, internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor1 ), true );
             internal_graphdisp_putXtime( 99, internal_graphdisp_cursor2samplenr( ui.p.grDisp.view_cursor2 ), true );
         }
-        else
-        {
-            internal_graphdisp_putXtime( 1, ui.p.grDisp.view_elemstart, false );
-            internal_graphdisp_putXtime( 99, ui.p.grDisp.view_elemend, false );
-        }
-
-        // zoom bar
-        internal_graphdisp_zoombar( ui.p.grDisp.view_elemstart, ui.p.grDisp.view_elemend, core.nvrec.func[ui.m_return].c );
 
         // cursor
         if ( ui.p.grDisp.d_state & (GRSTATE_DISP | GRSTATE_SELECT_ZOOM) )
         {
             internal_graphdisp_putcursor( ui.p.grDisp.view_cursor1, ui.p.grDisp.view_cursor2, ui.p.grDisp.graph_dirty ? false : true );
         }
+    }
 
+    // static overlay display
+    if ( redraw_all & RDRW_UI_CONTENT )
+    {
         // put the interactive element as overlay (unit select or menu)
         if ( ui.p.grDisp.d_state & GRSTATE_DETAIL )
         {
@@ -992,22 +1016,16 @@ static inline void uist_draw_graph( int redraw_all )
             else                                                                // non-menu items
                 ui_element_display( &ui.p.grDisp.ctrl.unit, (ui.focus) == 2 );
         }
-
-        if ( ui.p.grDisp.d_state & GRSTATE_FLAG_FILL )
-        {
-            uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
-        }
     }
 
-    if ( redraw_all & RDRW_UI_DYNAMIC )
+    // wait symbol in dynamic mode
+    if ( (redraw_all & RDRW_UI_DYNAMIC) && (ui.p.grDisp.d_state & GRSTATE_FLAG_FILL) )
     {
-        if ( ui.p.grDisp.d_state & GRSTATE_FLAG_FILL )
-        {
-            Graphic_SetColor(0);
-            Graphic_Rectangle( 49, 49, 63, 50 );
-            Graphic_SetColor(1);
-            Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.d_progr * 14) >> 4), 50 );
-        }
+        uibm_put_bitmap( 49, 29, BMP_ICO_WAIT );
+        Graphic_SetColor(0);
+        Graphic_Rectangle( 49, 49, 63, 50 );
+        Graphic_SetColor(1);
+        Graphic_Rectangle( 49, 49, 63 - (( ui.p.grDisp.d_progr * 14) >> 4), 50 );
     }
 }
 

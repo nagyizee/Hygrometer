@@ -6,10 +6,12 @@
 #include "hw_stuff.h"
 #include "utilities.h"
 #include "events_ui.h"
+#include "com_link.h"
 
 
 #define TIMER_INTERVAL          20       // 20ms
 #define TICKS_TO_SIMULATE       30       // to obtain 0.5sec simulated time ( 500cycles of 1ms timer )
+
 
 static bool internal_is_mounth_over( datestruct date )
 {
@@ -133,6 +135,9 @@ mainw::mainw(QWidget *parent) :
     btn_pressed = false;
     hw_disp_brt = 0x40;
     sec_ctr = 0;
+    dump_thread = false;
+    comlink  = new com_link();
+
     memset( buttons, 0, sizeof(bool)*8 );
 
     // set up the graphic display simulator
@@ -544,3 +549,56 @@ void mainw::on_btn_esc_released() { buttons[BTN_ESC] = false; }
 void mainw::on_num_temperature_valueChanged(double arg1) { ms_temp = (arg1 * 100); }
 void mainw::on_num_humidity_valueChanged(double arg1) { ms_hum = (arg1 * 100); }
 void mainw::on_num_pressure_valueChanged(double arg1) { ms_press = (arg1 * 100); }
+
+
+uint8 dumpbuffer[ 256*1024 ];  
+
+void mainw::on_pb_dump_clicked()
+{
+    if ( ui->pb_dump->isChecked() )
+    {
+        uint32 size = 256*1024;
+
+        if ( comlink->cmd_connect() )
+            goto _error;
+
+        if ( comlink->cmd_read_data_dump( dumpbuffer, &size ) )
+            goto _error;
+
+        FILE *eefile;
+        eefile = fopen( "dump.dat", "wb" );
+        if ( eefile == NULL )
+            goto _error;
+        fwrite( dumpbuffer, 1, 256*1024, eefile );
+        fclose(eefile);
+
+        comlink->cmd_disconnect();
+    }
+    else if (dump_thread == false)
+    {
+        comlink->cmd_disconnect();
+    }
+    return;
+_error:
+    comlink->cmd_disconnect();
+    ui->pb_dump->setChecked(false);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
