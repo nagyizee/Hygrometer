@@ -137,6 +137,7 @@ _okvalue:
     if ( elem != ui.p.grDisp.view_elem )
     {
         ui.p.grDisp.view_elem = elem;
+        ui.upd_ui_disp |= RDRW_UI_CONTENT;
         return true;
     }
     return false;
@@ -1450,7 +1451,7 @@ void uist_shutdown_entry( void )
     Graphic_SetColor(1);
     Graphic_FillRectangle( 0, 0, 127, 63, 1 );
     DispHAL_UpdateScreen();
-    core_beep( beep_pwroff );
+    //core_beep( beep_pwroff );
     ui.m_substate = 100;    // 1sec. startup screen
 }
 
@@ -1740,9 +1741,6 @@ void uist_mainwindowgauge( struct SEventStruct *evmask )
 
 void uist_mainwindowgraph_entry( void )
 {
-    uint32 elem = 0;
-    int i = 0;
-
     memset( &ui.p.grDisp, 0, sizeof(ui.p.grDisp) );
     // m_return holds the task index
     ui.p.grDisp.d_state = GRSTATE_DISP | GRSTATE_FLAG_FILL;
@@ -1819,7 +1817,7 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
                     {
                         if ( ui.focus == 0 )
                             ui.p.grDisp.graph_dirty = 1;
-                        ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                        ui.upd_ui_disp |= RDRW_UI_DYNAMIC;
                     }
                 }
     
@@ -1828,13 +1826,13 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
                 {
                     ui.focus--;
                     uist_setupview_mainwindow( false );
-                    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
                 }
                 if ( (evmask->key_pressed & KEY_DOWN) && (ui.focus < 2) )
                 {
                     ui.focus++;
                     uist_setupview_mainwindow( false );
-                    ui.upd_ui_disp |= RDRW_UI_CONTENT;
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
                 }
             }
 
