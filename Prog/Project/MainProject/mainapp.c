@@ -50,6 +50,7 @@ static inline void System_Poll( void )
 
     CheckStack();
 
+/*dev
     sys_pwr |= core_pwr_getstate();
     sys_pwr |= DispHAL_App_Poll();
     if ( BeepIsRunning() )
@@ -78,12 +79,14 @@ static inline void System_Poll( void )
 
     wake_up = HW_Sleep( pwr_mode );     // enter in the selected power mode
     sys_pwr = 0;                        // when exit - recreate the power scenario
+   */
 }
 
 
 // Main application routine
 static inline void ProcessApplication( struct SEventStruct *evmask )
 {
+/*dev
     core_poll( evmask );
 
     if ( wake_up & WUR_USR )            // wake-up from stop state by keypress
@@ -94,6 +97,8 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
         ui_st = ui_poll( evmask );
     }
     sys_pwr |= ui_st;
+ */
+  
 }
 
 // Main application entry
@@ -101,13 +106,14 @@ void main_entry( uint32 *stack_top )
 {
     stack_limit = stack_top;
     InitHW();               // init hardware
-    if ( core_init( NULL ) )
+/*dev    if ( core_init( NULL ) )
     {
         failure = true;
         return;
     }
 
     ui_st = ui_init( NULL );
+    */
 }
 
 

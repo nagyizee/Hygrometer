@@ -161,7 +161,7 @@ extern void DispHAL_ISR_Poll(void);
                 events.timer_tick_10ms = 1;
                 counter = 0;
             }
-            DispHAL_ISR_Poll();
+//dev            DispHAL_ISR_Poll();
         }
 
     }//END: Timer1IntrHandler
