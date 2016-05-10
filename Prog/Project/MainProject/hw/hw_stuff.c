@@ -7,6 +7,7 @@ extern void SetSysClock(void);
     static volatile uint32 wakeup_reason = WUR_NONE;
     static volatile uint32 rtc_next_alarm = 0;
     static volatile uint32 btn_press = 0;
+    static volatile bool uart_set = false;
 
     
     static inline bool local_is_rtc_alarm( void )    
@@ -145,6 +146,7 @@ extern void SetSysClock(void);
         GPIO_EXTILineConfig( GPIO_PortSourceGPIOB, GPIO_PinSource5 );
         
         HW_LED_On();
+        HW_Set_UART_pin();      // set idle signal on the UART
 
         // RTC setup
         // -- use external 32*1024 crystal. Clock divider ck/32 -> 1024 ticks / second ( ~1ms )
@@ -410,6 +412,13 @@ extern void SetSysClock(void);
                                              DMA_Priority_VeryHigh     | DMA_M2M_Disable );
                 DMA_SENS_RX_Channel->CPAR     = (uint32_t)(&I2C_PORT_SENSOR->DR );              // base address for SPI data register
                 break;
+            case DMACH_UART:
+                DMA_SENS_TX_Channel->CCR = ( DMA_SENS_TX_Channel->CCR & 0xFFFF800F ) |          // filter.value copied from stm32f10x_dma.c - not defined anywhere
+                                           ( DMA_DIR_PeripheralDST     | DMA_Mode_Normal               | DMA_PeripheralInc_Disable |
+                                             DMA_MemoryInc_Enable      | DMA_PeripheralDataSize_Byte   | DMA_MemoryDataSize_Byte   |
+                                             DMA_Priority_Medium         | DMA_M2M_Disable );
+                DMA_SENS_TX_Channel->CPAR     = (uint32_t)(&UART_PORT_COMM->DR );              // base address for UART data register
+                break;
         }
     }
 
@@ -437,6 +446,9 @@ extern void SetSysClock(void);
                 DMAtx = DMA_SENS_TX_Channel;
                 DMArx = DMA_SENS_RX_Channel;
                 break;
+            case DMACH_UART:
+                DMAtx = DMA_COMM_TX_Channel;            // only TX
+                break;
         }
 
         while ( DMAtx )
@@ -461,6 +473,7 @@ extern void SetSysClock(void);
             case DMACH_DISP:    DMAch = DMA_DISP_TX_Channel; break;
             case DMACH_EE:      DMAch = DMA_EE_TX_Channel;   break;
             case DMACH_SENS:    DMAch = DMA_SENS_TX_Channel; break;
+            case DMACH_UART:    DMAch = DMA_COMM_TX_Channel; break;
             default:
                 return;
         }
@@ -550,6 +563,103 @@ extern void SetSysClock(void);
 
         return value;
     }
+
+
+#define CR1_UE_Set                ((uint16_t)0x2000)  /*!< USART Enable Mask */
+#define CR2_STOP_CLEAR_Mask       ((uint16_t)0xC0FF)
+#define CR1_CLEAR_Mask            ((uint16_t)0xE9F3)
+#define CR1_OVER8_Set             ((u16)0x8000)  /* USART OVER8 mode Enable Mask */
+#define CR3_CLEAR_Mask            ((uint16_t)0xFCFF)  /*!< USART CR3 Mask */
+
+    void HW_UART_Start()
+    {
+        GPIO_InitTypeDef        GPIO_InitStructure;
+
+        if ( uart_set )
+            return;
+
+        // enable UART
+        RCC_APB1PeriphClockCmd(UART_APB_COMM, ENABLE);
+        RCC_APB1PeriphResetCmd(UART_APB_COMM, DISABLE);
+
+        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+        GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_InitStructure.GPIO_Pin = IO_OUT_COMM_TX;           // both on GPIOA port, set them together
+        GPIO_Init( IO_PORT_COMM_TX, &GPIO_InitStructure );
+
+        UART_PORT_COMM->CR2 = (uint16_t)( (UART_PORT_COMM->CR2 & CR2_STOP_CLEAR_Mask) | ( USART_Clock_Disable | USART_CPOL_Low | USART_CPHA_1Edge | USART_LastBit_Disable ) );
+        UART_PORT_COMM->CR1 = (uint16_t)( (UART_PORT_COMM->CR1 & CR1_CLEAR_Mask) | USART_WordLength_8b | USART_Parity_No | USART_Mode_Rx | USART_Mode_Tx | CR1_OVER8_Set );
+        UART_PORT_COMM->CR3 = (uint16_t)( (UART_PORT_COMM->CR3 & CR3_CLEAR_Mask) | USART_HardwareFlowControl_None );
+        // set baud rate
+        // 208 - 115200bps at 24MHz, OS8=0  -> 13.021 baud                     -> 208.336  ( 16fp4 )
+        //       115200bps at 16MHz, OS8=1  -> 17.361 baud  -> 277.77:  0x116 -> 0x110 + 0x03 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
+        //       614400bps at 16MHz, OS8=1  -> 3.255 baud   -> 52.08:   0x034 -> 0x030 + 0x02 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
+        //       921600bps at 16MHz, OS8=1  -> 2.17 baud    -> 34.72:   0x023 -> 0x020 + 0x01 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
+        UART_PORT_COMM->BRR = 0x032;      // look in USART_Init() for calculation
+
+        // start the UART peripheral
+        UART_PORT_COMM->CR1 |= CR1_UE_Set;
+        uart_set = true;
+    }
+
+    void HW_UART_Stop()
+    {
+        GPIO_InitTypeDef        GPIO_InitStructure;
+        if ( uart_set == false )
+            return;
+
+        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+        GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
+        GPIO_InitStructure.GPIO_Pin = IO_OUT_COMM_TX;           // both on GPIOA port, set them together
+        GPIO_Init( IO_PORT_COMM_TX, &GPIO_InitStructure );
+        HW_Set_UART_pin();
+
+        uart_set = false;
+        UART_PORT_COMM->CR1 &= ~CR1_UE_Set;
+
+        // disable UART
+        RCC_APB1PeriphClockCmd(UART_APB_COMM, DISABLE);
+        RCC_APB1PeriphResetCmd(UART_APB_COMM, ENABLE);
+    }
+
+    static void internal_uart_sendsingle( uint8 data )
+    {
+        while ( (UART_PORT_COMM->SR & USART_FLAG_TXE) == 0 );       // wait prew. transmit
+        UART_PORT_COMM->DR = data;
+    }
+
+    uint32 HW_UART_SendSingle(uint8 data)
+    {
+        if ( uart_set == false )
+            return 1;
+        internal_uart_sendsingle(data);
+        return 0;
+    }
+
+    uint32 HW_UART_SendMulti(uint8 *data, uint32 size)
+    {
+        if ( uart_set == false )
+            return 1;
+        while ( size )
+        {
+            internal_uart_sendsingle(*data);
+            data++;
+            size--;
+        }
+        return 0;
+    }
+    
+    uint32 HW_UART_SendDMA(uint8 *data, uint32 size)
+    {
+
+        return 0;
+    }
+
+    bool HW_UART_DMA_IsFinished()
+    {
+        return false;
+    }
+
 
     static void internal_setup_stop_mode(bool stdby)
     {

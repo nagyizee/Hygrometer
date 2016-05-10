@@ -225,6 +225,7 @@
     #define HW_LED_On()         do {    } while (0)
 #endif
 
+    #define HW_Set_UART_pin()   do {  IO_PORT_COMM_TX->BSRR = IO_OUT_COMM_TX; } while (0)
     #define HW_PSens_IRQ()      ( IO_PORT_SENS_IRQ->IDR & IO_IN_SENS_IRQ )
     #define HW_Charge_Detect()  ( IO_PORT_CHARGE->IDR & IO_IN_CHARGE )
 
@@ -258,6 +259,7 @@
     #define DMACH_DISP          1       
     #define DMACH_EE            2
     #define DMACH_SENS          3
+    #define DMACH_UART          4
 
     void HW_DMA_Init( uint32 dma_ch );
     void HW_DMA_Uninit( uint32 dma_ch );
@@ -265,6 +267,13 @@
     void HW_DMA_Receive( uint32 dma_ch, const uint8 *ptr, uint32 size );
 
     uint32 HW_ADC_GetBattery(void); // NOTE!!! call this only if ADC isn't running with DMA bulk mode
+
+    void HW_UART_Start();
+    void HW_UART_Stop();
+    uint32 HW_UART_SendSingle( uint8 data );
+    uint32 HW_UART_SendMulti( uint8 *data, uint32 size );
+    uint32 HW_UART_SendDMA( uint8 *data, uint32 size );         // this sets up DMA for UART
+    bool HW_UART_DMA_IsFinished();                              // poll this to check if DMA finished transfer - it will reset DMA
 
     void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment
     void HW_Seconds_Restore(void);  // restore the original interrupt interval
