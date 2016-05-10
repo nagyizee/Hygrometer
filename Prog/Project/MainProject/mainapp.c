@@ -114,6 +114,11 @@ void main_entry( uint32 *stack_top )
 
     ui_st = ui_init( NULL );
     */
+
+    HW_UART_Start();
+
+    HW_UART_SendSingle( 'e' );
+
 }
 
 
