@@ -353,6 +353,7 @@ void mainw::HW_wrapper_update_display()
         }
     }
 
+    ui->num_dump->setValue( comlink->cmd_read_data_check_inbuffer() );
     disppwr_redraw_content();
 }
 

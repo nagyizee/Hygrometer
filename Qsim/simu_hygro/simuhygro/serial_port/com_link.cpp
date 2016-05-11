@@ -94,19 +94,108 @@ com_link::com_link()
     sig_data_avail  = false;
     sig_overflow    = false;
 
-    DBG_MESSAGE_CORE1("Core communicaition module started");
+    dataQ = 0;
+    dataMax = 0;
 
-    port = new MSerialPort();
-    connect(port, SIGNAL(hasEvent()), this, SLOT( Serial_GetData()) );
-    connect(port, SIGNAL(bufferOverflow()), this, SLOT( Serial_Overflow()) );
+    port_thread = new QThread();
+    moveToThread( port_thread );
+
+    // thread related connections
+    connect(port_thread, SIGNAL(started()), this, SLOT(pslot_threadstartup()));
+    connect(this, SIGNAL(sig_terminated()), port_thread, SLOT(quit()));
+    connect(this, SIGNAL(sig_terminated()), this, SLOT(deleteLater()));
+    connect(port_thread, SIGNAL(finished()), port_thread, SLOT(deleteLater()));
+
+    connect(this, SIGNAL(sig_connect()), this, SLOT(pslot_connect()) );
+    connect(this, SIGNAL(sig_disconnect()), this, SLOT(pslot_disconnect()) );
+
+    connect(this, SIGNAL(sig_datadump_start()), this, SLOT(pslot_datadump_start()) );
+    connect(this, SIGNAL(sig_datadump_stop()), this, SLOT(pslot_datadump_stop()) );
+
+    port_thread->start();
+
+    DBG_MESSAGE_CORE1("Core communicaition module started");   
 }
 
 com_link::~com_link()
 {
-    delete port;
-    DBG_MESSAGE_CORE1("Core communicaition module exit");
+    int tid = (int)QThread::currentThreadId();
+
+    t_result = 1;
+    emit sig_disconnect();      // disconnect serial port
+    while (t_result == 1)
+        QThread::yieldCurrentThread();
+
+    port_thread->quit();        // exit worker thread
+    port_thread->wait(5000);
+
+    if ( port )
+        delete port;
 }
 
+
+void com_link::pslot_threadstartup()
+{
+    // thread start-up
+
+    // create the port on the worker thread
+    port = new MSerialPort();
+    connect(port, SIGNAL(hasEvent()), this, SLOT( Serial_GetData()) );
+    connect(port, SIGNAL(bufferOverflow()), this, SLOT( Serial_Overflow()) );
+
+}
+
+void com_link::pslot_connect()
+{
+    if (port_opened)
+    {
+        t_result = 0;
+        return;
+    }
+    t_result = OpenCommunication();
+}
+
+void com_link::pslot_disconnect()
+{
+    if (port_opened)
+        CloseCommunication();
+    t_result = 0;
+}
+
+//qqq void com_link::pslot_datadump_start(uint8 *pbuff, uint32 max_size)
+void com_link::pslot_datadump_start()
+{
+    //qqq
+    uint32 max_size = 2222;
+    uint8* pbuff = NULL;
+
+    dataQ = 0;
+    dataMax = max_size;
+    dataBuff = pbuff;
+
+    port->flushInQ();
+
+    while ( dataQ < dataMax )
+    {
+        int sz;
+        sz = port->bytesAvailable();
+        if ( sz )
+        {
+            port->getBytes( (pbuff + dataQ), sz );
+            dataQ += sz;
+        }
+        else
+        {
+            QThread::usleep(1000);   // done for yield
+        }
+    }
+}
+
+void com_link::pslot_datadump_stop()
+{
+    dataMax = 0;
+
+}
 
 
 
@@ -122,8 +211,6 @@ void com_link::Serial_Overflow()
 }
 
 
-
-
 ///////////////////////////////////////////////////////////////////////
 //
 //     Interface routines
@@ -132,28 +219,57 @@ void com_link::Serial_Overflow()
 
 int com_link::cmd_connect()
 {
-    if (port_opened)
-        return 0;
-    return OpenCommunication();
+    t_result = 1;           // start with 1 - modified by worker thread
+    emit sig_connect();
+    while (t_result == 1)
+        QThread::yieldCurrentThread();
+
+    if ( t_result )
+    {
+////        connect(this, SIGNAL(sig_datadump_start(uint8*,uint32)), this, SLOT(pslot_datadump_start(uint8*,uint32)) );
+//        connect(this, SIGNAL(sig_datadump_start()), this, SLOT(pslot_datadump_start()) );
+//        connect(this, SIGNAL(sig_datadump_stop()), this, SLOT(pslot_datadump_stop()) );
+    }
+    return t_result;
 }
 
 int com_link::cmd_disconnect()
 {
-    if (port_opened)
-    {
-        CloseCommunication();
-    }
+    t_result = 1;
+    dataMax = 0;        // stop the data receiving - if any
+    emit sig_disconnect();
+    while (t_result == 1)
+        QThread::yieldCurrentThread();
+
+    return t_result;
+}
+
+int com_link::cmd_read_data_dump_start(uint8 *pbuff, uint32 max_size )
+{
+    if (port_opened == conn_disconnected )
+        return -1;
+    if ( dataMax || (max_size==0) )
+        return -1;
+
+//qqq    emit sig_datadump_start(pbuff, max_size);
+    emit sig_datadump_start();
+    while (dataMax == 0)
+        QThread::yieldCurrentThread();
+
     return 0;
 }
 
-int com_link::cmd_read_data_dump(uint8 *pbuff, uint32 *psize )
+int com_link::cmd_read_data_check_inbuffer()
 {
-    if (port_opened )
-    {
-        return ReadDumpData(pbuff, psize);
-    }
-    else
-        return -1;
+    return dataQ;   // should be atomic
+}
+
+int com_link::cmd_read_data_stop()
+{
+//    emit sig_datadump_stop();
+//    while (dataMax)
+//        QThread::yieldCurrentThread();
+    dataMax = 0;        // stop the data receiving
 }
 
 enum EconnectStatus com_link::is_opened()
@@ -191,7 +307,7 @@ int com_link::OpenCommunication()
 
         comport = "COM" + QString::number(i);
 
-        res = port->openPort( &comport, Baud115200, CS8, SB1, ParityNone, '\r');
+        res = port->openPort( &comport, 614400, CS8, SB1, ParityNone, 0);
         if ( res != 0 )
         {
             continue;
@@ -231,49 +347,4 @@ void com_link::CloseCommunication()
     port->closePort();
     port_opened = conn_disconnected;
 }//END: CloseCommunication
-
-
-
-int com_link::ReadDumpData( uint8 *pbuff, uint32 *psize )
-{
-    int res;
-    int size = *psize;
-    int rsize = 0;
-
-    if ( port_opened == conn_disconnected)
-        return -1;
-
-    port->flushInQ();
-
-    // wait for event character (end of line)
-    int timeout = 1000;
-
-    while ( rsize < size )
-    {
-        int sz;
-        sz = port->bytesAvailable();
-        if ( sz )
-        {
-            port->getBytes( pbuff, sz );
-            rsize += sz;
-            pbuff += sz;
-            timeout = 1000;
-        }
-        else
-        {
-            QThread::usleep(1000);   // done for yield
-            timeout--;
-            if (timeout == 0)
-                break;
-        }
-    }
-
-    if ( timeout == 0)      // no time out - counter still > 0
-    {
-        *psize = rsize;
-        return -1;
-    }
-
-    return 0;
-}
 

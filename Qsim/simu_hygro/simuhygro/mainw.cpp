@@ -550,32 +550,42 @@ void mainw::on_num_temperature_valueChanged(double arg1) { ms_temp = (arg1 * 100
 void mainw::on_num_humidity_valueChanged(double arg1) { ms_hum = (arg1 * 100); }
 void mainw::on_num_pressure_valueChanged(double arg1) { ms_press = (arg1 * 100); }
 
-
-uint8 dumpbuffer[ 256*1024 ];  
+#define MAX_BUFF_SIZE   ( 1024 * 1024 )
+uint8 dumpbuffer[ MAX_BUFF_SIZE ];
 
 void mainw::on_pb_dump_clicked()
 {
     if ( ui->pb_dump->isChecked() )
     {
-        uint32 size = 256*1024;
-
         if ( comlink->cmd_connect() )
             goto _error;
 
-        if ( comlink->cmd_read_data_dump( dumpbuffer, &size ) )
+        if ( comlink->cmd_read_data_dump_start( dumpbuffer, MAX_BUFF_SIZE ) )
             goto _error;
 
+        dump_thread = true;
+    }
+    else if (dump_thread == true)
+    {
         FILE *eefile;
-        eefile = fopen( "dump.dat", "wb" );
+        int size;
+        char filename[64] = "";
+
+        comlink->cmd_read_data_stop();
+        comlink->cmd_disconnect();
+        dump_thread = false;
+
+        size =comlink->cmd_read_data_check_inbuffer();
+
+        strcpy( filename, ui->tb_dump_filename->text().toLatin1() );
+        strcat( filename, ".dmp" );
+
+        eefile = fopen( filename, "wb" );
         if ( eefile == NULL )
             goto _error;
-        fwrite( dumpbuffer, 1, 256*1024, eefile );
+        fwrite( dumpbuffer, 1, size, eefile );
         fclose(eefile);
 
-        comlink->cmd_disconnect();
-    }
-    else if (dump_thread == false)
-    {
         comlink->cmd_disconnect();
     }
     return;

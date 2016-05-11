@@ -281,12 +281,12 @@
      <string>Battery</string>
     </property>
    </widget>
-   <widget class="QSpinBox" name="num_dbg">
+   <widget class="QSpinBox" name="num_dump">
     <property name="geometry">
      <rect>
-      <x>410</x>
-      <y>390</y>
-      <width>51</width>
+      <x>535</x>
+      <y>356</y>
+      <width>60</width>
       <height>21</height>
      </rect>
     </property>
@@ -627,19 +627,57 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>380</y>
+      <y>330</y>
       <width>91</width>
       <height>23</height>
      </rect>
     </property>
     <property name="text">
-     <string>NVRAM dump</string>
+     <string>Serial dump</string>
     </property>
     <property name="checkable">
      <bool>true</bool>
     </property>
     <property name="checked">
      <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="tb_dump_filename">
+    <property name="geometry">
+     <rect>
+      <x>526</x>
+      <y>380</y>
+      <width>81</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>file001</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="num_dbg">
+    <property name="geometry">
+     <rect>
+      <x>410</x>
+      <y>390</y>
+      <width>51</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="frame">
+     <bool>true</bool>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
+    </property>
+    <property name="buttonSymbols">
+     <enum>QAbstractSpinBox::NoButtons</enum>
+    </property>
+    <property name="minimum">
+     <number>-1000000</number>
+    </property>
+    <property name="maximum">
+     <number>1000000</number>
     </property>
    </widget>
   </widget>
