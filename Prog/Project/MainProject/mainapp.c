@@ -118,6 +118,14 @@ void main_entry( uint32 *stack_top )
     HW_UART_Start();
 
     HW_UART_SendSingle( 'e' );
+    
+    {
+        int i;
+        for (i=0x20;i<255;i++)
+        {
+            HW_UART_SendSingle(i);
+        }
+    }
 
 }
 
