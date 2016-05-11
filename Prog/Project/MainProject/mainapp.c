@@ -99,6 +99,17 @@ static inline void ProcessApplication( struct SEventStruct *evmask )
     sys_pwr |= ui_st;
  */
   
+    if ( evmask->key_pressed == KEY_OK )
+    {
+        int i;
+        for (i=0;i<64*1024;i++)
+        {
+            HW_UART_SendSingle(i & 0xff);
+        }
+    }
+    
+  
+  
 }
 
 // Main application entry
@@ -116,17 +127,6 @@ void main_entry( uint32 *stack_top )
     */
 
     HW_UART_Start();
-
-    HW_UART_SendSingle( 'e' );
-    
-    {
-        int i;
-        for (i=0x20;i<255;i++)
-        {
-            HW_UART_SendSingle(i);
-        }
-    }
-
 }
 
 
