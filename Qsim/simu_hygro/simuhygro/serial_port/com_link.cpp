@@ -165,13 +165,10 @@ void com_link::pslot_disconnect()
 //qqq void com_link::pslot_datadump_start(uint8 *pbuff, uint32 max_size)
 void com_link::pslot_datadump_start()
 {
-    //qqq
-    uint32 max_size = 2222;
-    uint8* pbuff = NULL;
+    uint8* pbuff = m_dataBuff;
 
+    dataMax = m_dataMax;
     dataQ = 0;
-    dataMax = max_size;
-    dataBuff = pbuff;
 
     port->flushInQ();
 
@@ -252,6 +249,8 @@ int com_link::cmd_read_data_dump_start(uint8 *pbuff, uint32 max_size )
         return -1;
 
 //qqq    emit sig_datadump_start(pbuff, max_size);
+    m_dataMax = max_size;
+    m_dataBuff = pbuff;
     emit sig_datadump_start();
     while (dataMax == 0)
         QThread::yieldCurrentThread();

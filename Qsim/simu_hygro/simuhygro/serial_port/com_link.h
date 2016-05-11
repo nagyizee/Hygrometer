@@ -67,6 +67,8 @@ private:
     int dataMax;                                // max to read - it is set when receiving task is started
     uint8 *dataBuff;                            // data buffer
 
+    int m_dataMax;
+    uint8 *m_dataBuff;
 
     bool sig_overflow;
     bool sig_data_avail;
