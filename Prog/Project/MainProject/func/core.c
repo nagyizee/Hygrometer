@@ -209,6 +209,83 @@ void internal_DBG_simu_1_cycle()
 }
 
 
+// read-out debug routines
+#ifndef ON_QT_PLATFORM
+#define DBG_READOUT
+#endif
+
+uint32 dbg_readlenght = 0;
+
+static void DBG_recording_start()
+{
+#ifdef DBG_READOUT
+    HW_UART_Start();
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+#endif
+}
+
+static void DBG_recording_01_header( struct SCoreNVreadout *readout, struct SRecTaskInstance *task, struct SRecTaskInternals *func, uint32 eeaddr, uint32 eesize, uint32 buffaddr )
+{
+#ifdef DBG_READOUT
+    if ( task == NULL )
+    {
+        HW_UART_SendSingle(0x55);
+        HW_UART_SendSingle(0x55);
+        HW_UART_SendSingle(0x55);
+        HW_UART_SendSingle(0x55);
+    }
+    HW_UART_SendMulti( (uint8*)readout, sizeof(struct SCoreNVreadout) );
+    if ( task )
+    {
+        HW_UART_SendMulti( (uint8*)task, sizeof(struct SRecTaskInstance) );
+        HW_UART_SendMulti( (uint8*)func, sizeof(struct SRecTaskInternals) );
+    }
+    HW_UART_SendMulti( (uint8*)(&eeaddr), sizeof(uint32) );
+    HW_UART_SendMulti( (uint8*)(&eesize), sizeof(uint32) );
+    HW_UART_SendMulti( (uint8*)(&buffaddr), sizeof(uint32) );
+#endif
+}
+
+static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint8 flipbuff, uint8 shifted )
+{
+#ifdef DBG_READOUT
+    uint32 buffaddr = (uint32)buff;
+    HW_UART_SendSingle(0xAA);                           // header for read data
+    HW_UART_SendSingle(0xAA);
+    HW_UART_SendSingle(0xAA);
+    HW_UART_SendSingle( (flipbuff << 4) | shifted );    // it was a flipped buffer, is data shifted
+    HW_UART_SendMulti( (uint8*)(&buffaddr), sizeof(uint32) );     // address of the processed buffer
+    HW_UART_SendMulti( buff, lenght );
+#endif
+}
+
+static void DBG_recording_03_end( struct SCoreNVreadout *readout )
+{
+#ifdef DBG_READOUT
+    HW_UART_SendSingle(0x66);
+    HW_UART_SendSingle(0x66);
+    HW_UART_SendSingle(0x66);
+    HW_UART_SendSingle(0x66);
+    HW_UART_SendMulti( (uint8*)readout, sizeof(struct SCoreNVreadout) );
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_Stop();
+#endif
+}
+
+static void DBG_recording_exception()
+{
+#ifdef DBG_READOUT
+    HW_UART_SendMulti( "DISP", 4 );
+#endif
+}
+
+
 static void internal_clear_monitoring(void)
 {
     uint32 i;
@@ -1151,6 +1228,7 @@ static inline void local_recording_readout( void )
             wbuff = workbuff + WB_OFFS_FLIP1;
         else
             wbuff = workbuff + WB_OFFS_FLIP2;
+        DBG_recording_02_readbuffer( wbuff, dbg_readlenght, core.readout.flipbuff, shifted );
 
         // put the DMA to work if there is more data to be read from NVRAM
         if ( core.readout.to_read )
@@ -1163,12 +1241,15 @@ static inline void local_recording_readout( void )
             {
                 eeprom_read( ee_addr, ee_len, workbuff + WB_OFFS_FLIP2, true );        // read to F2, F1 will be processed below
                 core.readout.flipbuff = 1;
+                DBG_recording_01_header( &core.readout, NULL, NULL, ee_addr, ee_len, (uint32)(workbuff + WB_OFFS_FLIP2) );
             }
             else
             {
                 eeprom_read( ee_addr, ee_len, workbuff + WB_OFFS_FLIP1, true );        // read to F1, F2 will be processed below
                 core.readout.flipbuff = 0;
+                DBG_recording_01_header( &core.readout, NULL, NULL, ee_addr, ee_len, (uint32)(workbuff + WB_OFFS_FLIP2) );
             }
+            dbg_readlenght = ee_len;
         }
         else
             finished = true;
@@ -1183,6 +1264,7 @@ static inline void local_recording_readout( void )
 
         if ( finished )
         {
+            DBG_recording_03_end( &core.readout );
             core.vstatus.int_op.f.graph_ok = 1;
             core.vstatus.int_op.f.op_recread = 0;
         }
@@ -2072,6 +2154,8 @@ uint8* core_op_monitoring_tendencyval2pixels( struct STendencyBuffer *tend, enum
     int dn_lim;
     int temp;
 
+    DBG_recording_exception();
+
     // if no tendency graph or only one value - fill with uniform values
     if ( tend->c < 2 )
     {
@@ -2295,6 +2379,8 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
 
     core.vstatus.int_op.f.graph_ok = 0;                             // data is being processed - clear the graph ok flag
 
+    DBG_recording_start();
+
     {
         uint32 ee_addr;
         uint32 ee_size;
@@ -2346,6 +2432,8 @@ int core_op_recording_read_request( uint32 task_idx, uint32 smpl_depth, uint32 l
 
         // calculate the memory address and size and advance the read pointers
         ee_addr = internal_recording_read_calculate_next_step( length, &ee_size );
+        DBG_recording_01_header( &core.readout, &core.nvrec.task[task_idx], &core.nvrec.func[task_idx], ee_addr, ee_size, (uint32)(workbuff + WB_OFFS_FLIP1) );
+        dbg_readlenght = ee_size;
 
         // start the read operation
         while ( eeprom_is_operation_finished() == false );      // check if wake-up is done (if was the case)
@@ -2406,6 +2494,8 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     int low;
 
     int i;
+
+    DBG_recording_exception();
 
     if ( (core.vstatus.int_op.f.graph_ok == 0) ||               // if no raw graph data is read 
          ( ((1<<(param-1)) & core.readout.taks_elem) == 0)  )   // or current param is not part of raw data set
@@ -2541,6 +2631,8 @@ uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param,
     uint16 *buff;
     uint32 ptr;
     uint32 offs = 0;
+
+    DBG_recording_exception();
 
     switch ( avgminmax )
     {
