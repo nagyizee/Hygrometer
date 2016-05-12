@@ -111,7 +111,7 @@
     // fOsc = 16MHz, - to get 1ms we need 16000 clock cycles
     #define SYSTEM_T_10MS_COUNT     10               // 10ms is 10 timer events
     #define SYSTEM_MAX_TICK         (16000 - 1)      // timer ticks for 1ms
-    #define DISPLAY_FREQ            (8000 - 1)       // timer ticks for 500us
+    #define DISPLAY_FREQ            (4000 - 1)       // timer ticks for 250us
     #define BUZZER_FREQ             1776             // obtaining 9kHz
 
     #define TIMER_SYSTEM            TIM15               // used as system timer

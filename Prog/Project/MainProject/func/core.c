@@ -138,9 +138,6 @@ static uint8    workbuff[ WB_SIZE ];
 static uint32   RTCclock;           // user level RTC clock - when entering in core loop with 0.5sec event the RTC clock is copied, and this value is used till the next call
 
 
-extern void DispHAL_ISR_Poll(void);
-
-
     void TimerSysIntrHandler(void)
     {
         // !!!!!!! IMPORTANT NOTE !!!!!!!!
@@ -161,7 +158,6 @@ extern void DispHAL_ISR_Poll(void);
                 events.timer_tick_10ms = 1;
                 counter = 0;
             }
-            DispHAL_ISR_Poll();
         }
 
     }//END: Timer1IntrHandler

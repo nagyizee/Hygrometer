@@ -104,11 +104,11 @@ struct SBeep
 
                     if ( keys_strokepause[pctr] == 0 )
                     {
-                        if ( pctr < 4 )             // - for <,>,^,v keys generate the repeated key_press, and set repetition counter for 80ms
+                        if ( pctr < 4 )             // - for <,>,^,v keys generate the repeated key_press, and set repetition counter for 60ms
                         {
                             evt->key_pressed |= (1 << pctr);
                             evt->key_event = 1;
-                            keys_strokepause[pctr]  = 8;
+                            keys_strokepause[pctr]  = 6;
                         }
                         else if ( pctr > 4 )        // - for the Esc, Mode - generate the long_press event
                         {

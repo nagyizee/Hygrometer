@@ -40,6 +40,7 @@
 
 extern void TimerSysIntrHandler(void);
 extern void TimerRTCIntrHandler(void);
+extern void DispHAL_ISR_Poll(void);
 extern void DispHAL_ISR_DMA_Complete(void);
 extern void CoreADC_ISR_Complete(void);
 extern void Core_ISR_PretriggerCompleted(void);
@@ -257,6 +258,13 @@ void TIM1_BRK_TIM15_IRQHandler(void)
     DBG_PIN_SYSTIM_EXIT;
     DBG_EXIT_2;
 }
+
+
+void TIM1_TRG_COM_TIM17_IRQHandler(void)
+{
+    DispHAL_ISR_Poll();
+}
+
 
 void RTC_IRQHandler(void)
 {

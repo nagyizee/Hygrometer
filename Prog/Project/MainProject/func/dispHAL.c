@@ -118,7 +118,7 @@ static void disp_spi_take_over( void )
     hal.status.spi_owner = 1;
 
     // init SPI port
-    HW_SPI_interface_init( SPI_PORT_DISP, SPI_BaudRatePrescaler_4);     // gives 4MHz
+    HW_SPI_interface_init( SPI_PORT_DISP, SPI_BaudRatePrescaler_2);     // gives 8MHz
 
     // init the DMA for TX
     HW_DMA_Uninit( DMACH_DISP );            // for refresh
@@ -150,8 +150,8 @@ static void disp_spi_release( void )
 #define GREY_FIELD_MAIN     0x01            // main graphic content - display is updated
 #define GREY_FIELD_SEC      0x02            // secondary graphic content from gflip buffer - only region is updated 
 
-#define GREY_LIM_TOFLIP     19              // 20ms - main content - 20ms 
-#define GREY_LIM_TOMAIN     28              // 30ms - grey content - 10ms  => ~30fps
+#define GREY_LIM_TOFLIP     76              // 20ms - main content - 20ms 
+#define GREY_LIM_TOMAIN     112             // 30ms - grey content - 10ms  => ~30fps
 
 
 ///   18 - 27:  -- small line (brighter), fast scan
@@ -224,19 +224,19 @@ static bool disp_isr_internal_run_cmd_sequence( void )
         switch ( hal.send.cmd_ptr[1] )
         {
             case CSPEC_DLY50:
-                hal.send.tmr = 20;     // 5 ms timeout
+                hal.send.tmr = 40;     // 5 ms timeout
                 break;
             case CSPEC_RESET:           // assert reset signal
                 HW_Chip_Disp_Reset();
-                hal.send.tmr = 1;       // 250us timeout
+                hal.send.tmr = 2;       // 250us timeout
                 break;
             case CSPEC_VPOFF:
                 HW_PWR_Disp_Off();
-                hal.send.tmr = 200;    // 50ms timeout. This is needed for capacitors to be discharged
+                hal.send.tmr = 400;    // 50ms timeout. This is needed for capacitors to be discharged
                 break;
             case CSPEC_VPON:
                 HW_PWR_Disp_On();
-                hal.send.tmr = 20;    // 5ms timeout. Chargepump normally starts at 450us (measurd)
+                hal.send.tmr = 40;    // 5ms timeout. Chargepump normally starts at 450us (measurd)
                 break;
             case CSPEC_UMEM:
                 disp_isr_internal_run_update_gmem();
@@ -272,6 +272,9 @@ static bool disp_isr_internal_run_cmd_sequence( void )
 
 void DispHAL_ISR_Poll(void)
 {
+    HW_LED_On();
+    TIMER_DISPLAY->SR = (uint16)~TIM_FLAG_Update;
+
     if ( hal.send.tmr )
     {
         hal.send.tmr--;
@@ -381,7 +384,10 @@ static int disp_internal_launch_onoff_sequence( bool on )
     isr_busy = true;
     disp_isr_internal_run_cmd_sequence( );      // run the command sequence
     __enable_interrupt();
+
+    TIM_Cmd( TIMER_DISPLAY, ENABLE);
     hal.status.busy = 1;
+
     return 0;
 }
 
@@ -402,7 +408,10 @@ static int disp_internal_update_gmem( void )
     disp_isr_internal_run_cmd_sequence( );  // run the command sequence
     isr_busy = true;
     __enable_interrupt();
+
+    TIM_Cmd( TIMER_DISPLAY, ENABLE);
     hal.status.busy = 1;
+
     return 0;
 }
 
@@ -426,7 +435,10 @@ static int disp_internal_update_contrast( void )
     disp_isr_internal_run_cmd_sequence( );  // run the command sequence
     isr_busy = true;
     __enable_interrupt();
+
+    TIM_Cmd( TIMER_DISPLAY, ENABLE);
     hal.status.busy = 1;
+
     return 0;
 }
 
@@ -491,6 +503,7 @@ void DispHal_ToFlipBuffer( void )
 
     if ( isr_grey_on == GREY_OFF )
     {
+        TIM_Cmd( TIMER_DISPLAY, ENABLE);
         isr_grey_on = GREY_FIELD_MAIN;
     }
 }
@@ -637,6 +650,8 @@ uint32 DispHAL_App_Poll(void)
     {
         return SYSSTAT_DISP_BUSY;
     }
+
+    TIMER_DISPLAY->CR1 &= (uint16_t)(~((uint16_t)TIM_CR1_CEN));     // disable display timer if no activity
     return PM_DOWN;
 }
 

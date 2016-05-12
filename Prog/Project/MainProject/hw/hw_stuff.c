@@ -254,8 +254,10 @@ extern void SetSysClock(void);
 
         // Clear update interrupt bit
         TIM_ClearITPendingBit( TIMER_SYSTEM, TIM_FLAG_Update );
+        TIM_ClearITPendingBit( TIMER_DISPLAY, TIM_FLAG_Update );
         // Enable update interrupt
         TIM_ITConfig( TIMER_SYSTEM, TIM_FLAG_Update, ENABLE );
+        TIM_ITConfig( TIMER_DISPLAY, TIM_FLAG_Update, ENABLE );
 
         NVIC_InitStructure.NVIC_IRQChannel              = TIMER_SYSTEM_IRQ;
         NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 4;
@@ -268,7 +270,7 @@ extern void SetSysClock(void);
         NVIC_Init( &NVIC_InitStructure );
 
         // stop timer counter when debugging, keep core alive when debugging in stop/sleep mode
-        DBGMCU_Config( DBGMCU_I2C1_SMBUS_TIMEOUT | DBGMCU_TIM15_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
+        DBGMCU_Config( DBGMCU_I2C1_SMBUS_TIMEOUT | DBGMCU_TIM15_STOP | DBGMCU_TIM17_STOP | DBGMCU_SLEEP | DBGMCU_STOP , ENABLE );         // stop only the system timer
 
         // Enable timer counting
         TIM_Cmd( TIMER_SYSTEM, ENABLE);
