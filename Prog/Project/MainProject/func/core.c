@@ -249,7 +249,7 @@ static void DBG_recording_01_header( struct SCoreNVreadout *readout, struct SRec
 #endif
 }
 
-static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint8 flipbuff, uint8 shifted )
+static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint32 flipbuff, uint32 shifted )
 {
 #ifdef DBG_READOUT
     uint32 buffaddr = (uint32)buff;
@@ -265,6 +265,7 @@ static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint8 flipb
 static void DBG_recording_03_end( struct SCoreNVreadout *readout )
 {
 #ifdef DBG_READOUT
+    uint32 cksum;
     HW_UART_SendSingle(0x66);
     HW_UART_SendSingle(0x66);
     HW_UART_SendSingle(0x66);
@@ -273,6 +274,9 @@ static void DBG_recording_03_end( struct SCoreNVreadout *readout )
     HW_UART_SendSingle(0xFF);
     HW_UART_SendSingle(0xFF);
     HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    cksum = HW_UART_get_Checksum();
+    HW_UART_SendMulti( (uint8*)cksum, sizeof(uint32) );
     HW_UART_SendSingle(0xFF);
     HW_UART_Stop();
 #endif
@@ -723,7 +727,7 @@ static void local_recording_task_start( uint32 task_idx )
 }
 
 
-static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 smp_proc, bool shifted )
+static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 smp_proc, uint32 shifted )
 {
     // Do not try to optimize this - it should work as quick as possible
     int i;
@@ -753,13 +757,13 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                     if ( shifted )
                     {   
                         val = ( ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;    // [xxxx tttt][tttt tttt]
-                        shifted = false;
+                        shifted = 0;
                         wbuff += 2;
                     }
                     else
                     {
                         val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;      // [tttt tttt][tttt xxxx]
-                        shifted = true;
+                        shifted = 1;
                         wbuff += 1;
                     }
                     // save
@@ -842,7 +846,7 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                         val1 = ( ( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
                         val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) ) << 4;
                         val3 = ( ( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff) << 4;
-                        shifted = false;
+                        shifted = 0;
                         wbuff += 5;
                     }
                     else
@@ -850,7 +854,7 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
                         val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;        // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
                         val2 = ( ( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff) << 4;
                         val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ) << 4; 
-                        shifted = true;
+                        shifted = 1;
                         wbuff += 4;
                     }
                     // convert to 16bit and save
@@ -883,7 +887,7 @@ static inline void internal_recording_read_process_simple( uint8 *wbuff, uint32 
     core.readout.raw_ptr += smp_proc;
 }
 
-static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint32 smp_proc, bool shifted, bool last )
+static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint32 smp_proc, uint32 shifted, bool last )
 {
     int i;
     uint32 disp_ptr;
@@ -916,13 +920,13 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                     if ( shifted )
                     {   
                         val = (( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;    // [xxxx tttt][tttt tttt]
-                        shifted = false;
+                        shifted = 0;
                         wbuff += 2;
                     }
                     else
                     {
                         val = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;      // [tttt tttt][tttt xxxx]
-                        shifted = true;
+                        shifted = 1;
                         wbuff += 1;
                     }
 
@@ -1075,7 +1079,7 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         val1 = (( ((uint32)(wbuff[0]) << 8) | wbuff[1] ) & 0x0fff) << 4;   // [xxxx tttt][tttt tttt][hhhh hhhh][hhhh pppp][pppp pppp]
                         val2 = ( ((uint32)(wbuff[2]) << 4) | (wbuff[3] >> 4) ) << 4;
                         val3 = (( ((uint32)(wbuff[3]) << 8) | wbuff[4] ) & 0x0fff) << 4;
-                        shifted = false;
+                        shifted = 0;
                         wbuff += 5;
                     }
                     else
@@ -1083,7 +1087,7 @@ static inline void internal_recording_read_process_minmaxavg( uint8 *wbuff, uint
                         val1 = ( ((uint32)(wbuff[0]) << 4) | (wbuff[1] >> 4) ) << 4;       // [tttt tttt][tttt hhhh][hhhh hhhh][pppp pppp][pppp xxxx]
                         val2 = (( ((uint32)(wbuff[1]) << 8) | wbuff[2] ) & 0x0fff) << 4;
                         val3 = ( ((uint32)(wbuff[3]) << 4) | (wbuff[4] >> 4) ) << 4; 
-                        shifted = true;
+                        shifted = 1;
                         wbuff += 4;
                     }
 
@@ -1182,9 +1186,9 @@ uint32 internal_recording_read_calculate_next_step( uint32 length, uint32 *ee_si
 
     ee_addr = core.readout.task_elsizeX2 * core.readout.to_ptr;
     if ( ee_addr & 0x01 )
-        core.readout.shifted = true;
+        core.readout.shifted = 1;
     else
-        core.readout.shifted = false;
+        core.readout.shifted = 0;
     ee_addr = ( ee_addr >> 1 ) + core.readout.task_offs;
 
     // calculate the length to be read - it should be the minimum bw. start_smpl -> wrap point  and  F1/F2 buffer size (256 bytes)
@@ -1219,7 +1223,7 @@ static inline void local_recording_readout( void )
         uint8 *wbuff;
         uint32 smp_proc;
         bool finished = false;
-        bool shifted;
+        uint32 shifted;
 
         // prerequisites for data processing
         smp_proc = core.readout.to_process;         // sample points read from memory

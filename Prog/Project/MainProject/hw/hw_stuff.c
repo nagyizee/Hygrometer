@@ -8,7 +8,8 @@ extern void SetSysClock(void);
     static volatile uint32 rtc_next_alarm = 0;
     static volatile uint32 btn_press = 0;
     static volatile bool uart_set = false;
-
+    static volatile uint32 uart_cksum = 0;
+    #define UART_CKSUM_MAGICNR  0xAABBCCDD;
     
     static inline bool local_is_rtc_alarm( void )    
     {
@@ -595,11 +596,12 @@ extern void SetSysClock(void);
         //       115200bps at 16MHz, OS8=1  -> 17.361 baud  -> 277.77:  0x116 -> 0x110 + 0x03 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
         //       614400bps at 16MHz, OS8=1  -> 3.255 baud   -> 52.08:   0x034 -> 0x030 + 0x02 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
         //       921600bps at 16MHz, OS8=1  -> 2.17 baud    -> 34.72:   0x023 -> 0x020 + 0x01 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
-        UART_PORT_COMM->BRR = 0x032;      // look in USART_Init() for calculation
+        UART_PORT_COMM->BRR = 0x113;      // look in USART_Init() for calculation
 
         // start the UART peripheral
         UART_PORT_COMM->CR1 |= CR1_UE_Set;
         uart_set = true;
+        uart_cksum = UART_CKSUM_MAGICNR;
     }
 
     void HW_UART_Stop()
@@ -624,6 +626,7 @@ extern void SetSysClock(void);
 
     static void internal_uart_sendsingle( uint8 data )
     {
+        uart_cksum = uart_cksum + data + ( ((1 - data)&0xff) << 16 );
         while ( (UART_PORT_COMM->SR & USART_FLAG_TXE) == 0 );       // wait prew. transmit
         UART_PORT_COMM->DR = data;
     }
@@ -660,6 +663,15 @@ extern void SetSysClock(void);
         return false;
     }
 
+    uint32 HW_UART_get_Checksum()
+    {
+        return uart_cksum;
+    }
+
+    uint32 HW_UART_reset_Checksum()
+    {
+        uart_cksum = UART_CKSUM_MAGICNR;
+    }
 
     static void internal_setup_stop_mode(bool stdby)
     {

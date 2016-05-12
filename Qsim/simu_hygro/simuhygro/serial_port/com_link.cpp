@@ -306,7 +306,7 @@ int com_link::OpenCommunication()
 
         comport = "COM" + QString::number(i);
 
-        res = port->openPort( &comport, 614400, CS8, SB1, ParityNone, 0);
+        res = port->openPort( &comport, 115200 , CS8, SB1, ParityNone, 0);      // 614400
         if ( res != 0 )
         {
             continue;
