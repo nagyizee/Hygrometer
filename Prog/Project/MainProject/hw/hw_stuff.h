@@ -275,7 +275,7 @@
     uint32 HW_UART_SendDMA( uint8 *data, uint32 size );         // this sets up DMA for UART
     bool HW_UART_DMA_IsFinished();                              // poll this to check if DMA finished transfer - it will reset DMA
     uint32 HW_UART_get_Checksum();
-    uint32 HW_UART_reset_Checksum();
+    void HW_UART_reset_Checksum();
 
     void HW_Seconds_Start(void);    // set up RTC 1 second interrupt for period beginning from this moment
     void HW_Seconds_Restore(void);  // restore the original interrupt interval

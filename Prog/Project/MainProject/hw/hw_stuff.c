@@ -566,11 +566,11 @@ extern void SetSysClock(void);
     }
 
 
-#define CR1_UE_Set                ((uint16_t)0x2000)  /*!< USART Enable Mask */
-#define CR2_STOP_CLEAR_Mask       ((uint16_t)0xC0FF)
-#define CR1_CLEAR_Mask            ((uint16_t)0xE9F3)
-#define CR1_OVER8_Set             ((u16)0x8000)  /* USART OVER8 mode Enable Mask */
-#define CR3_CLEAR_Mask            ((uint16_t)0xFCFF)  /*!< USART CR3 Mask */
+#define UART_CR1_UE_Set                ((uint16_t)0x2000)  /*!< USART Enable Mask */
+#define UART_CR2_STOP_CLEAR_Mask       ((uint16_t)0xC0FF)
+#define UART_CR1_CLEAR_Mask            ((uint16_t)0xE9F3)
+#define UART_CR1_OVER8_Set             ((u16)0x8000)  /* USART OVER8 mode Enable Mask */
+#define UART_CR3_CLEAR_Mask            ((uint16_t)0xFCFF)  /*!< USART CR3 Mask */
 
     void HW_UART_Start()
     {
@@ -588,9 +588,9 @@ extern void SetSysClock(void);
         GPIO_InitStructure.GPIO_Pin = IO_OUT_COMM_TX;           // both on GPIOA port, set them together
         GPIO_Init( IO_PORT_COMM_TX, &GPIO_InitStructure );
 
-        UART_PORT_COMM->CR2 = (uint16_t)( (UART_PORT_COMM->CR2 & CR2_STOP_CLEAR_Mask) | ( USART_Clock_Disable | USART_CPOL_Low | USART_CPHA_1Edge | USART_LastBit_Disable ) );
-        UART_PORT_COMM->CR1 = (uint16_t)( (UART_PORT_COMM->CR1 & CR1_CLEAR_Mask) | USART_WordLength_8b | USART_Parity_No | USART_Mode_Rx | USART_Mode_Tx | CR1_OVER8_Set );
-        UART_PORT_COMM->CR3 = (uint16_t)( (UART_PORT_COMM->CR3 & CR3_CLEAR_Mask) | USART_HardwareFlowControl_None );
+        UART_PORT_COMM->CR2 = (uint16_t)( (UART_PORT_COMM->CR2 & UART_CR2_STOP_CLEAR_Mask) | ( USART_Clock_Disable | USART_CPOL_Low | USART_CPHA_1Edge | USART_LastBit_Disable ) );
+        UART_PORT_COMM->CR1 = (uint16_t)( (UART_PORT_COMM->CR1 & UART_CR1_CLEAR_Mask) | USART_WordLength_8b | USART_Parity_No | USART_Mode_Rx | USART_Mode_Tx | UART_CR1_OVER8_Set );
+        UART_PORT_COMM->CR3 = (uint16_t)( (UART_PORT_COMM->CR3 & UART_CR3_CLEAR_Mask) | USART_HardwareFlowControl_None );
         // set baud rate
         // 208 - 115200bps at 24MHz, OS8=0  -> 13.021 baud                     -> 208.336  ( 16fp4 )
         //       115200bps at 16MHz, OS8=1  -> 17.361 baud  -> 277.77:  0x116 -> 0x110 + 0x03 ( 16fp4..3 ) (bit 3 = 0, fractional is 3bit)
@@ -599,7 +599,7 @@ extern void SetSysClock(void);
         UART_PORT_COMM->BRR = 0x113;      // look in USART_Init() for calculation
 
         // start the UART peripheral
-        UART_PORT_COMM->CR1 |= CR1_UE_Set;
+        UART_PORT_COMM->CR1 |= UART_CR1_UE_Set;
         uart_set = true;
         uart_cksum = UART_CKSUM_MAGICNR;
     }
@@ -617,7 +617,7 @@ extern void SetSysClock(void);
         HW_Set_UART_pin();
 
         uart_set = false;
-        UART_PORT_COMM->CR1 &= ~CR1_UE_Set;
+        UART_PORT_COMM->CR1 &= ~UART_CR1_UE_Set;
 
         // disable UART
         RCC_APB1PeriphClockCmd(UART_APB_COMM, DISABLE);
@@ -668,7 +668,7 @@ extern void SetSysClock(void);
         return uart_cksum;
     }
 
-    uint32 HW_UART_reset_Checksum()
+    void HW_UART_reset_Checksum()
     {
         uart_cksum = UART_CKSUM_MAGICNR;
     }

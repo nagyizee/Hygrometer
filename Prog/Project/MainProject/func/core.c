@@ -215,6 +215,7 @@ void internal_DBG_simu_1_cycle()
 #endif
 
 uint32 dbg_readlenght = 0;
+uint32 temp = 0;
 
 static void DBG_recording_start()
 {
@@ -252,12 +253,12 @@ static void DBG_recording_01_header( struct SCoreNVreadout *readout, struct SRec
 static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint32 flipbuff, uint32 shifted )
 {
 #ifdef DBG_READOUT
-    uint32 buffaddr = (uint32)buff;
+    temp = (uint32)buff;
     HW_UART_SendSingle(0xAA);                           // header for read data
     HW_UART_SendSingle(0xAA);
     HW_UART_SendSingle(0xAA);
     HW_UART_SendSingle( (flipbuff << 4) | shifted );    // it was a flipped buffer, is data shifted
-    HW_UART_SendMulti( (uint8*)(&buffaddr), sizeof(uint32) );     // address of the processed buffer
+    HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );     // address of the processed buffer
     HW_UART_SendMulti( buff, lenght );
 #endif
 }
@@ -265,7 +266,7 @@ static void DBG_recording_02_readbuffer( uint8 *buff, uint32 lenght, uint32 flip
 static void DBG_recording_03_end( struct SCoreNVreadout *readout )
 {
 #ifdef DBG_READOUT
-    uint32 cksum;
+    
     HW_UART_SendSingle(0x66);
     HW_UART_SendSingle(0x66);
     HW_UART_SendSingle(0x66);
@@ -275,8 +276,8 @@ static void DBG_recording_03_end( struct SCoreNVreadout *readout )
     HW_UART_SendSingle(0xFF);
     HW_UART_SendSingle(0xFF);
     HW_UART_SendSingle(0xFF);
-    cksum = HW_UART_get_Checksum();
-    HW_UART_SendMulti( (uint8*)cksum, sizeof(uint32) );
+    temp = HW_UART_get_Checksum();
+    HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );
     HW_UART_SendSingle(0xFF);
     HW_UART_Stop();
 #endif

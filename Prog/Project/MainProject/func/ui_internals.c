@@ -227,7 +227,6 @@ static void internal_graphdisp_putvalue( uint32 xpoz, uint32 ypoz, enum Etextsty
 
 static inline void internal_graphdisp_cursor_details(void)
 {
-    uint8 *text = (grf_values + 3*WB_DISPPOINT);        // shift with 3x disp points for empty work buffer
     timestruct tm;
     datestruct dt;
     uint32 smpl1;
@@ -309,8 +308,6 @@ static void internal_graphdisp_putcursor( uint32 c1, uint32 c2, bool disp_val )
 
 static void internal_graphdisp_elemselect( uint32 selected )
 {
-    uint32 elements;
-
     uibm_put_bitmap( 21, 1, BMP_ICO_REGST_TASK1 + ui.m_return );
 
     switch (core.nvrec.task[ui.m_return].task_elems )
