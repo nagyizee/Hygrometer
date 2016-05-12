@@ -211,7 +211,7 @@ void internal_DBG_simu_1_cycle()
 
 // read-out debug routines
 #ifndef ON_QT_PLATFORM
-#define DBG_READOUT
+//  #define DBG_READOUT
 #endif
 
 uint32 dbg_readlenght = 0;
@@ -278,7 +278,10 @@ static void DBG_recording_03_end( struct SCoreNVreadout *readout )
     HW_UART_SendSingle(0xFF);
     temp = HW_UART_get_Checksum();
     HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );
-    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xCC);
+    HW_UART_SendSingle(0xCC);
+    HW_UART_SendSingle(0xCC);
+    HW_UART_SendSingle(0xCC);
     HW_UART_Stop();
 #endif
 }

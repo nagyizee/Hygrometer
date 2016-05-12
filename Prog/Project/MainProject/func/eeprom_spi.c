@@ -106,7 +106,7 @@
         volatile uint32 status;
         // Deselect the EEprom: Chip Select high
         HW_Chip_EEProm_Disable();
-        HW_SPI_interface_init( SPI_PORT_EE, SPI_BaudRatePrescaler_2);   // set up SPI interface
+        HW_SPI_interface_init( SPI_PORT_EE,/*SPI_BaudRatePrescaler_2*/ SPI_BaudRatePrescaler_4);   // set up SPI interface
         HW_DMA_Init( DMACH_EE );
 
         internal_set_write_enable( false );                             // clear the write enable
