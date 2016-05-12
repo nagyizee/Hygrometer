@@ -55,7 +55,12 @@ static void local_ui_set_shutdown_state(void)
     DispHAL_Display_Off();
     ui.pwr_dispdim = true;
     ui.pwr_dispoff = true;
-    ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
+
+    if ( core.vstatus.ui_cmd & CORE_UISTATE_CHARGING )
+        ui.pwr_state = SYSSTAT_UI_ON;       // in charging state don't mark UI pwr off
+    else
+        ui.pwr_state = SYSSTAT_UI_PWROFF;   // mark UI down
+
 }
 
 void internal_get_regtask_set_from_ui(struct SRecTaskInstance *task)
@@ -1274,7 +1279,8 @@ void uist_startup( struct SEventStruct *evmask )
     if ( uist_apply_newstate() )
         return;
 
-    if ( ui.m_substate == 0 )
+    if ( (ui.m_substate == 0) &&                                    // timeout reached
+         ((core.vstatus.ui_cmd & CORE_UISTATE_CHARGING) == 0 ) )    // no charging
     {
         // no pwr.on long press, timed out - power down
         ui.pwr_state = SYSSTAT_UI_PWROFF;
@@ -1875,6 +1881,7 @@ void uist_mainwindowgraph( struct SEventStruct *evmask )
                 ui.m_state = UI_STATE_SETWINDOW;
                 ui.m_setstate = UI_SET_GraphSelect;
                 ui.m_substate = UI_SUBST_ENTRY;
+                ui.m_return = ui.m_return+1;
                 return;
             }
             else
@@ -1927,12 +1934,12 @@ uint32 ui_init( struct SCore *instance )
     ui.pwr_state = SYSSTAT_UI_PWROFF;
     core_cmd = core.vstatus.ui_cmd;
 
-    if ( core_cmd &= CORE_UISTATE_START_LONGPRESS )
+    if ( (core_cmd & CORE_UISTATE_START_LONGPRESS) ||
+         (core_cmd & CORE_UISTATE_CHARGING ) )
     {
         ui.m_state = UI_STATE_STARTUP;
         ui.pwr_state = SYSSTAT_UI_ON;
     }
-
 
     return ui.pwr_state;
 }//END: ui_init

@@ -790,7 +790,10 @@ static inline void uiel_control_pushbutton_display( struct Suiel_control_pushbut
         if ( handle->type != uicnt_hollow )
             Graphic_Rectangle( handle->xpoz+1, handle->ypoz+1, xe-1, ye-1 );
         else
+        {
+            uigrf_rounded_rect( handle->xpoz+1, handle->ypoz+1, xe-1, ye-1, 0, false, 0);
             uigrf_rounded_rect( handle->xpoz, handle->ypoz, xe, ye, 1, false, 0);
+        }
     }
     else
     {

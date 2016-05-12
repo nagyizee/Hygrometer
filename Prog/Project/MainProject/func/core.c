@@ -1666,9 +1666,10 @@ static inline void local_poll_aux_operations(void)
             core.vstatus.ui_cmd &= ~CORE_UISTATE_LOW_BATTERY;
             core.vstatus.ui_cmd |= CORE_UISTATE_CHARGING;
         }
-        else if ( core.measure.battery < 5 )        // 3.25V treshold or below and no charge
+        else
         {
-            core.vstatus.ui_cmd |= CORE_UISTATE_LOW_BATTERY;
+            if ( core.measure.battery < 5 )        // 3.25V treshold or below and no charge
+                core.vstatus.ui_cmd |= CORE_UISTATE_LOW_BATTERY;
             core.vstatus.ui_cmd &= ~CORE_UISTATE_CHARGING;
         }
 
@@ -2979,9 +2980,6 @@ uint32 core_pwr_getstate(void)
         if ( core.vstatus.int_op.f.op_recsave || core.vstatus.int_op.f.op_recread )
             return SYSSTAT_CORE_BULK;
     }
-
-    if ( HW_Charge_Detect() )           // TODO - do this properly
-        return SYSSTAT_CORE_RUN_FULL;
 
     return pwr;
 }
