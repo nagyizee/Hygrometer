@@ -1780,8 +1780,13 @@ void core_set_clock_counter( uint32 counter )
     __disable_interrupt();
     RTCctr = counter;
     RTCclock = counter;
+    
+    RTC_WaitForSynchro();
+    RTC_WaitForLastTask();
     RTC_SetCounter( RTCctr );
-    RTC_SetAlarm( RTCctr + 1 );
+    RTC_WaitForLastTask();
+    RTC_SetAlarm( RTCctr + 2 );
+    RTC_WaitForLastTask();
     __enable_interrupt();
 
     // reshedule
