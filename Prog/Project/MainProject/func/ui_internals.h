@@ -36,6 +36,7 @@
 
         UI_SET_SetupMenu,                       // device setup menu
         UI_SET_SetupDisplay,                    // setup display
+        UI_SET_SetupTime,                       // setup time and date
     };
 
 
@@ -162,6 +163,12 @@
         struct Suiel_control_numeric    grey[3];        // grayscale setup  [0] - display update rate   [1] - frame all   [2] - frame grey
     };
 
+    struct SUISetupTime
+    {
+        struct Suiel_control_time       time;
+        struct Suiel_control_time       date;
+    };
+
     union UUIstatusParams
     {
         // main window stuff
@@ -178,7 +185,8 @@
 
         struct Suiel_dropdown_menu  setMenu;
         struct SUISetupDisplay      setDisplay;
-        
+        struct SUISetupTime         setTime;
+
     };
 
 
@@ -304,6 +312,7 @@
     void ui_call_setmenu_action( int context, void *pval );
     void ui_call_setdisplay_brightness( int context, void *pval );
     void ui_call_setdisplay_greysetup( int context, void *pval );
+    void ui_call_settime_action( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

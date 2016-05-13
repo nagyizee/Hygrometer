@@ -1605,6 +1605,15 @@ static void local_sensor_reschedule_all(void)
     local_check_first_scheduled_op();
 }
 
+static void local_monitoring_reschedule(void)
+{
+    core.nv.op.sens_rd.moni.sch_moni_temp  = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_temp );
+    core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_hygro );
+    core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_press );
+    core.nv.op.sens_rd.moni.clk_last_day = RTCclock / DAY_TICKS;
+    core.nv.op.sens_rd.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
+}
+
 
 static void local_nvfast_load_struct(void)
 {
@@ -1767,12 +1776,36 @@ uint32 core_restart_rtc_tick(void)
 
 void core_set_clock_counter( uint32 counter )
 {
+    // setup RTC clock
     __disable_interrupt();
     RTCctr = counter;
-    HW_SetRTC( RTCctr );
+    RTCclock = counter;
+    RTC_SetCounter( RTCctr );
     RTC_SetAlarm( RTCctr + 1 );
-    //TBD if something needs to be done for alarm setup/etc.
     __enable_interrupt();
+
+    // reshedule
+    local_sensor_reschedule_all();
+
+    if ( core.nv.op.op_flags.b.op_monitoring )
+        local_monitoring_reschedule();
+
+    if ( core.nv.op.op_flags.b.op_recording && core.vstatus.int_op.f.nv_rec_initted )
+    {
+        int i;
+        for ( i=0; i<STORAGE_RECTASK; i++ )
+        {
+            if ( core.nvrec.running & (1<<i) )
+            {
+                local_recording_task_start( i );        // this basically reschedules the read
+                core.nvrec.dirty = 1;
+            }
+        }
+    }
+
+    // time is set up - clear the flags
+    core.vstatus.ui_cmd &= ~CORE_UISTATE_SET_DATETIME;
+    core.nf.status.b.first_start = 0;
 }
 
 
@@ -2039,11 +2072,7 @@ void core_op_monitoring_switch( bool enable )
     else if ( core.nv.op.op_flags.b.op_monitoring == 0 )
     {
         internal_clear_monitoring();
-        core.nv.op.sens_rd.moni.sch_moni_temp  = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_temp );
-        core.nv.op.sens_rd.moni.sch_moni_hygro = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_hygro );
-        core.nv.op.sens_rd.moni.sch_moni_press = RTCclock + 2 * core_utils_timeunit2seconds( core.nv.setup.tim_tend_press );
-        core.nv.op.sens_rd.moni.clk_last_day = RTCclock / DAY_TICKS;
-        core.nv.op.sens_rd.moni.clk_last_week = (RTCclock + DAY_TICKS) / WEEK_TICKS;
+        local_monitoring_reschedule();
         core.nv.op.op_flags.b.op_monitoring = 1;
         local_sensor_reschedule_all();
     }

@@ -240,7 +240,12 @@
     struct Suiel_control_time
     {
         uint32 ID;                  // element ID
-        timestruct time;            // time
+        union
+        {
+            timestruct clock;       // clock ( hour / minutes / seconds )
+            datestruct dmy;         // day / mounth / year
+        } time;
+
         uint16 xpoz;                // start coordinate
         uint16 ypoz;                // - uses the upper-left corner, text will be displayed at +2 pixels on x and y
         uint16 xend;                // time box width
@@ -249,6 +254,7 @@
         uint8 swidth;               // spacer width
         uint8 minute_only;          // if 1 then 99:59 format (mm:ss)  and if 0 then 99:59:59 format
         uint8 textstyle;            // font used for display
+        uint8 dmy;                  // if 1: day/mounth/year more,  if 0: hour/minutes/seconsd  edit
 
         uiel_callback   call_Vchange;   // value changed callback
         uiel_callback   call_Esc;       // Esc button (non-editing)
@@ -274,10 +280,10 @@
     int uiel_dropdown_menu_add_item( struct Suiel_dropdown_menu *handle, char *element );
 
     // move to right in sliding menu
-    void uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle );
+    bool uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle );
 
     // move to left in sliding menu
-    void uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle );
+    bool uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle );
 
     // set the menu index
     void uiel_dropdown_menu_set_index( struct Suiel_dropdown_menu *handle, unsigned int index );
@@ -369,13 +375,13 @@
 
     /// TIME DISPLAY
 
-    void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int ypoz, bool minute_only, enum Etextstyle style );
+    void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int ypoz, bool dmy, bool minute_only, enum Etextstyle style );
 
     void uiel_control_time_set_callback( struct Suiel_control_time *handle, enum EUIelCallTime select, int context, uiel_callback func );
 
-    void uiel_control_time_set_time( struct Suiel_control_time *handle, timestruct time );
+    void uiel_control_time_set_time( struct Suiel_control_time *handle, void *time );
 
-    void uiel_control_time_get_time( struct Suiel_control_time *handle, timestruct *time );
+    void uiel_control_time_get_time( struct Suiel_control_time *handle, void *time );
 
 
 

@@ -33,6 +33,16 @@ void uist_change_state( enum EUIStates m_state, enum EUISetupSelect set_state, b
 uint32 internal_regtaskmem_maxlenght( struct SRecTaskInstance task );
 
 
+static void internal_pwrmngm_reset_inactivities( uint32 ctr )
+{
+    if ( core.nv.setup.pwr_stdby )
+        ui.pwr_sched_dim        = ctr + core.nv.setup.pwr_stdby;
+    if ( core.nv.setup.pwr_disp_off )
+        ui.pwr_sched_dispoff    = ctr + core.nv.setup.pwr_disp_off;
+    if ( core.nv.setup.pwr_off )
+        ui.pwr_sched_pwroff     = ctr + core.nv.setup.pwr_off;
+}
+
 static void local_uist_display_init(void)
 {
     if ( ui.pwr_dispinit == false )
@@ -929,6 +939,9 @@ void ui_call_graphdisp_menu_action( int context, void *pval )
                 goto _enter_details;
             else if ( val == 1 )                        // "zoom select"
             {
+                if ( core.nvrec.func[ui.m_return].c < WB_DISPPOINT )
+                    return;
+
                 ui.p.grDisp.d_state &= ~GRSTATE_MASK;
                 ui.p.grDisp.d_state |= GRSTATE_SELECT_ZOOM;
                 ui.p.grDisp.view_cursor2 = ui.p.grDisp.view_cursor1;
@@ -1003,6 +1016,9 @@ void ui_call_setmenu_action( int context, void *pval )
         case 0:         // display setup
             uist_change_state( UI_STATE_NONE, UI_SET_SetupDisplay, true );
             return;
+        case 3:         // time setup
+            uist_change_state( UI_STATE_NONE, UI_SET_SetupTime, true );
+            return;
     }
 }
 
@@ -1030,8 +1046,6 @@ static int internal_setdisplay_esc(int context)
 
 void ui_call_setdisplay_brightness( int context, void *pval )
 {
-    int val = *((int*)pval);
-
     if ( internal_setdisplay_esc(context) )
         return;
     
@@ -1077,8 +1091,6 @@ void ui_call_setdisplay_brightness( int context, void *pval )
 
 void ui_call_setdisplay_greysetup( int context, void *pval )
 {
-    int val = *((int*)pval);
-
     if ( internal_setdisplay_esc(context) )
         return;
 
@@ -1125,7 +1137,33 @@ void ui_call_setdisplay_greysetup( int context, void *pval )
     }
 }
 
+// ---- time setup menu
 
+void ui_call_settime_action( int context, void *pval )
+{
+    datestruct date;
+    timestruct time;
+    uint32 clock;
+
+    if ( context == 0xff )      // ESC
+    {   
+        uist_change_state( UI_STATE_NONE, UI_SET_SetupMenu, true );
+        return;
+    }
+
+    // edit finished
+    uiel_control_time_get_time( &ui.p.setTime.time, (void*)&time );
+    uiel_control_time_get_time( &ui.p.setTime.date, (void*)&date );
+
+    // set clock
+    clock = utils_convert_date_2_counter( &date, &time );
+    core_set_clock_counter( clock );
+
+    // reschedule UI power management
+    internal_pwrmngm_reset_inactivities( clock );
+
+    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL | RDRW_STATUSBAR;
+}
 
 
 // Popup window default callback
@@ -1327,12 +1365,7 @@ static inline void ui_power_management( struct SEventStruct *evmask )
         ui.pwr_sched_dispoff = CORE_SCHED_NONE;
         ui.pwr_sched_pwroff = CORE_SCHED_NONE;
         // reset inactivity counter
-        if ( core.nv.setup.pwr_stdby )
-            ui.pwr_sched_dim        = crt_rtc + core.nv.setup.pwr_stdby;
-        if ( core.nv.setup.pwr_disp_off )
-            ui.pwr_sched_dispoff    = crt_rtc + core.nv.setup.pwr_disp_off;
-        if ( core.nv.setup.pwr_off )
-            ui.pwr_sched_pwroff     = crt_rtc + core.nv.setup.pwr_off;
+        internal_pwrmngm_reset_inactivities( crt_rtc );
 
         // for the case when UI was shut down - ony longpress on pwr/mode button is allowed
         // if key activity detected (most probably from pwr/mode - because evnets are set up for this only) then start up in

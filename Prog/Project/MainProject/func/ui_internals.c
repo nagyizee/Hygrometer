@@ -1198,6 +1198,18 @@ static inline void uist_draw_setup_display( int redraw_type )
 }
 
 
+static inline void uist_draw_setup_time( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uigrf_text( 15, 28 + 0*12, uitxt_small, "time:" );
+        uigrf_text( 15, 28 + 1*12, uitxt_small, "date:" );
+
+        uist_internal_disp_all_with_focus();
+    }
+}
+
+
 ////////////////////////////////////////////////////
 //
 //   UI status dependent window setups
@@ -1577,6 +1589,35 @@ static inline void uist_setview_setup_display(void)
     ui.ui_elem_nr = 5;
 }
 
+static inline void uist_setview_setup_time(void)
+{
+    int i;
+    ui.focus = 1;
+
+    uint32 clock;
+    datestruct date;
+    timestruct time;
+
+    clock = core_get_clock_counter();
+    utils_convert_counter_2_hms( clock, &time.hour, &time.minute, &time.second );
+    utils_convert_counter_2_ymd( clock, &date.year, &date.mounth, &date.day );
+
+    uiel_control_time_init( &ui.p.setTime.time, 50, 27, false, false, uitxt_smallbold );
+    uiel_control_time_init( &ui.p.setTime.date, 40, 27 + 12, true, false, uitxt_smallbold );
+    uiel_control_time_set_time( &ui.p.setTime.time, (void*)&time );
+    uiel_control_time_set_time( &ui.p.setTime.date, (void*)&date );
+
+    ui.ui_elems[0] = &ui.p.setTime.time;
+    ui.ui_elems[1] = &ui.p.setTime.date;
+    ui.ui_elem_nr = 2;
+
+    for (i=0; i<2; i++)
+    {
+        uiel_control_time_set_callback( ui.ui_elems[i], UICtime_Esc, 0xff, ui_call_settime_action );
+        uiel_control_time_set_callback( ui.ui_elems[i], UICtime_EditDone, i, ui_call_settime_action );
+    }
+}
+
 
 static void local_drawwindow_common_op( int redraw_type )
 {
@@ -1673,6 +1714,7 @@ void uist_drawview_setwindow( int redraw_type )
 
             case UI_SET_SetupMenu:      uist_draw_setupmenu(redraw_type); break;
             case UI_SET_SetupDisplay:   uist_draw_setup_display(redraw_type); break;
+            case UI_SET_SetupTime:      uist_draw_setup_time(redraw_type); break;
         }
     }
 
@@ -1804,6 +1846,7 @@ void uist_setupview_setwindow( bool reset )
         case UI_SET_GraphSelect:    uist_setview_graphselect(); break;
         case UI_SET_SetupMenu:      uist_setview_setupmenu(); break;
         case UI_SET_SetupDisplay:   uist_setview_setup_display(); break;
+        case UI_SET_SetupTime:      uist_setview_setup_time(); break;
     }
 }
 

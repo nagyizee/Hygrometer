@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "graphic_lib.h"
 #include "ui_elements.h"
+#include "utilities.h"
 
 
 /********************************************************
@@ -52,11 +53,11 @@
 #define ELEM_EDIT_BLINK_TIME        25      // 250ms
 #define ELEM_EDIT_LONGPRESS_TIME    50      // 500ms
 
-uint32 int_focus = 0;       // internal focus selection
+uint32 int_focus = 0;       // internal focus selection. 0 - means no internal focus, 1 -> n internal focus locations
 
 static inline void uiel_control_checkbox_toggle( struct Suiel_control_checkbox *handle );
-
-
+static void internal_time_reset_digit( struct Suiel_control_time *handle );
+static void uiel_control_edit_reset_digit( struct Suiel_control_edit *handle );
 
 
 static inline bool internal_control_numeric_OK( struct Suiel_control_numeric *handle )
@@ -71,13 +72,23 @@ static inline bool internal_control_numeric_OK( struct Suiel_control_numeric *ha
 
 static inline bool internal_control_edit_OK( struct Suiel_control_edit *handle )
 {
-    int_focus ^= 0x80;
+    if ( int_focus == 0 )
+        int_focus = 1;
+    else
+        int_focus = 0;
     return true;
 }
 
 static inline bool internal_control_time_OK( struct Suiel_control_time *handle )
 {
-    int_focus ^= 0x80;
+    if ( int_focus == 0 )
+        int_focus = 1;
+    else
+    {
+        int_focus = 0;
+        if ( handle->call_EditDone )
+            handle->call_EditDone( handle->ccont_EditDone, (void*)&handle->time );
+    }
     return true;
 }
 
@@ -135,15 +146,27 @@ static inline bool internal_control_numeric_ESC( struct Suiel_control_numeric *h
 
 static inline bool internal_control_edit_ESC( struct Suiel_control_edit *handle )
 {
-
-    // TBI
+    if ( int_focus )
+    {
+        int_focus = 0;
+        return true;
+    }
+    else if ( handle->call_Esc )
+        handle->call_Esc( handle->ccont_Esc, (void*)&handle->content );
     return false;
 }
 
 static inline bool internal_control_time_ESC( struct Suiel_control_time *handle )
 {
-
-    // TBI
+    if ( int_focus )
+    {
+        int_focus = 0;
+        if ( handle->call_EditDone )
+            handle->call_EditDone( handle->ccont_EditDone, (void*)&handle->time );
+        return true;
+    }
+    else if ( handle->call_Esc )
+        handle->call_Esc( handle->ccont_Esc, (void*)&handle->time );
     return false;
 }
 
@@ -200,6 +223,10 @@ static inline void internal_control_list_longEsc( struct Suiel_control_list *han
 
 static inline void internal_control_edit_longEsc( struct Suiel_control_edit *handle )
 {
+    if ( int_focus )
+    {
+        uiel_control_edit_reset_digit(handle);
+    }
     if ( handle->call_EscLong )
     {
         if ( handle->type == uiedit_numeric )
@@ -215,10 +242,10 @@ static inline void internal_control_edit_longEsc( struct Suiel_control_edit *han
 
 static inline void internal_control_time_longEsc( struct Suiel_control_time *handle )
 {
-    if ( handle->call_EscLong )
-    {
+    if ( int_focus )
+        internal_time_reset_digit(handle);
+    else if ( handle->call_EscLong )
         handle->call_EscLong( handle->ccont_EscLong, (void*)&handle->time );
-    }
 }
 
 static inline void internal_control_numeric_longEsc( struct Suiel_control_numeric *handle )
@@ -370,7 +397,7 @@ static inline void uiel_dropdown_menu_display( struct Suiel_dropdown_menu *handl
 }
 
 // move to right in sliding menu
-void uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle )
+bool uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle )
 {
     handle->elem_crt++;
     if (handle->elem_crt >= handle->elem_total )
@@ -388,10 +415,11 @@ void uiel_dropdown_menu_set_next( struct Suiel_dropdown_menu *handle )
         handle->moffs++;
     }
 
+    return true;
 }
 
 // move to left in sliding menu
-void uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle )
+bool uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle )
 {
     if (handle->elem_crt > 0 )
     {
@@ -407,6 +435,7 @@ void uiel_dropdown_menu_set_prew( struct Suiel_dropdown_menu *handle )
         if ( handle->call_Vchange )
             handle->call_Vchange( handle->ccont_Vchange, (void*)&val );
     }
+    return true;
 }
 
 // set the menu index
@@ -917,12 +946,6 @@ static inline void uiel_control_numeric_display( struct Suiel_control_numeric *h
         Graphic_PutPixel( xend, handle->ypoz, -1 );
         Graphic_PutPixel( handle->xpoz, yend, -1 );
         Graphic_PutPixel( xend, yend, -1 );
-
-        if ( int_focus )
-        {
-            Graphic_SetColor( -1 );
-            Graphic_FillRectangle( handle->xpoz, handle->ypoz, xend, yend, -1 );
-        }
     }
     else
     {
@@ -1103,7 +1126,13 @@ static void uiel_control_edit_incdec_internal_send_valch_callback( struct Suiel_
     }
 }
 
-static void uiel_control_edit_inc( struct Suiel_control_edit *handle )
+static void uiel_control_edit_focus_move(struct Suiel_control_edit *handle, bool increment)
+{
+
+}
+
+
+static bool uiel_control_edit_inc( struct Suiel_control_edit *handle )
 {
     if ( (int_focus & 0x80) == 0 )
     {
@@ -1144,10 +1173,11 @@ static void uiel_control_edit_inc( struct Suiel_control_edit *handle )
 
         uiel_control_edit_incdec_internal_send_valch_callback( handle );
     }
+    return false;       // fix this
 }
 
 
-static void uiel_control_edit_dec( struct Suiel_control_edit *handle )
+static bool uiel_control_edit_dec( struct Suiel_control_edit *handle )
 {
     if ( (int_focus & 0x80) == 0 )
     {
@@ -1188,11 +1218,12 @@ static void uiel_control_edit_dec( struct Suiel_control_edit *handle )
 
         uiel_control_edit_incdec_internal_send_valch_callback(handle);
     }
+    return false;       // fix this
 }
 
 static void uiel_control_edit_reset_digit( struct Suiel_control_edit *handle )
 {
-    if ( (int_focus & 0x80) == 0 )
+    if ( int_focus == 0 )
         return;
 
     int index = handle->chars - (int_focus & 0x1f);
@@ -1261,98 +1292,185 @@ static inline void uiel_control_edit_display( struct Suiel_control_edit *handle,
 
 
 
-/// EDIT BOX
+/// TIME BOX
 
-static void internal_time_incdec( struct Suiel_control_time *handle, bool increment )
+static void internal_time_focus_move( struct Suiel_control_time *handle, bool increment )
 {
-    if ( int_focus & 0x80 )     // selected for editing
+    if ( increment == true )
     {
-        switch ( int_focus & 0x1f)
+        if ( ((int_focus < 3) && ( (handle->minute_only == false) || (handle->dmy) )) ||
+             ((int_focus < 2) && (handle->minute_only == true))    )
+            int_focus++;
+    } 
+    else if ( int_focus > 1 )
+        int_focus--;
+}
+
+
+static bool internal_time_incdec( struct Suiel_control_time *handle, bool increment )
+{
+    bool adjust_days = false;
+
+    if ( int_focus )     // selected for editing
+    {
+        switch ( int_focus )
         {
-        case 1:     // seconds
+        case 1:     // seconds / days
             if (increment )
             {
-                handle->time.second++;
-                if ( handle->time.second == 60 )
-                    handle->time.second = 0;
-            }
-            else
-            {
-                if ( handle->time.second == 0 )
-                    handle->time.second = 59;
-                else
-                    handle->time.second--;
-            }
-            break;
-        case 2:
-            if (increment)
-            {
-                handle->time.minute++;
-                if ( ((handle->time.minute == 60) && (handle->minute_only == false)) ||
-                     ((handle->time.minute == 100) && (handle->minute_only))            )
-                    handle->time.minute = 0;
-            }
-            else
-            {
-                if ( handle->time.minute == 0 )
+                if ( handle->dmy )
                 {
-                    if ( handle->minute_only )
-                        handle->time.minute = 99;
-                    else
-                        handle->time.minute = 59;
+                    handle->time.dmy.day++;
+                    if ( handle->time.dmy.day > utils_maximum_days_in_mounth( &handle->time.dmy ) )
+                        handle->time.dmy.day = 1;
                 }
                 else
-                    handle->time.minute--;
+                {
+                    handle->time.clock.second++;
+                    if ( handle->time.clock.second == 60 )
+                        handle->time.clock.second = 0;
+                }
+            }
+            else    // decrement
+            {
+                if ( handle->dmy )
+                {
+                    if ( handle->time.dmy.day == 1 )
+                        handle->time.dmy.day = utils_maximum_days_in_mounth( &handle->time.dmy );
+                    else
+                        handle->time.dmy.day--;
+                }
+                else
+                {
+                    if ( handle->time.clock.second == 0 )
+                        handle->time.clock.second = 59;
+                    else
+                        handle->time.clock.second--;
+                }
             }
             break;
-        case 3:
-            if (increment )
+        case 2:     // minutes / mounths
+            if (increment)
             {
-                handle->time.hour++;
-                if ( handle->time.hour == 20 )
-                    handle->time.hour = 0;
-            }
-            else
-            {
-                if ( handle->time.hour == 0 )
-                    handle->time.hour = 19;
+                if ( handle->dmy )
+                {
+                    handle->time.dmy.mounth++;
+                    if ( handle->time.dmy.mounth > 12 )
+                        handle->time.dmy.mounth = 1;
+                    adjust_days = true;
+                }
                 else
-                    handle->time.hour--;
+                {
+                    handle->time.clock.minute++;
+                    if ( ((handle->time.clock.minute == 60) && (handle->minute_only == false)) ||
+                         ((handle->time.clock.minute == 100) && (handle->minute_only))            )
+                        handle->time.clock.minute = 0;
+                }
+            }
+            else    // decrement
+            {
+                if ( handle->dmy )
+                {
+                    if ( handle->time.dmy.mounth == 1 )
+                        handle->time.dmy.mounth = 12;
+                    else
+                        handle->time.dmy.mounth--;
+
+                    adjust_days = true;
+                }
+                else
+                {
+                    if ( handle->time.clock.minute == 0 )
+                    {
+                        if ( handle->minute_only )
+                            handle->time.clock.minute = 99;
+                        else
+                            handle->time.clock.minute = 59;
+                    }
+                    else
+                        handle->time.clock.minute--;
+                }
+            }
+            break;
+        case 3:     // hours / years
+            if ( increment )
+            {
+                if ( handle->dmy )
+                {
+                    handle->time.dmy.year++;
+                    if ( handle->time.dmy.year > YEAR_END )
+                        handle->time.dmy.year = YEAR_START;
+                    adjust_days = true;
+                }
+                else
+                {
+                    handle->time.clock.hour++;
+                    if ( handle->time.clock.hour == 24 )
+                        handle->time.clock.hour = 0;
+                }
+            }
+            else    // decrease
+            {
+                if ( handle->dmy )
+                {
+                    if ( handle->time.dmy.year == YEAR_START )
+                        handle->time.dmy.year = YEAR_END - 1;
+                    else
+                        handle->time.dmy.year--;
+                    adjust_days = true;
+                }
+                else
+                {
+                    if ( handle->time.clock.hour == 0 )
+                        handle->time.clock.hour = 23;
+                    else
+                        handle->time.clock.hour--;
+                }
             }
             break;
         }
 
+        if ( adjust_days && (handle->time.dmy.day > utils_maximum_days_in_mounth( &handle->time.dmy )) )
+        {
+            handle->time.dmy.day = utils_maximum_days_in_mounth( &handle->time.dmy );
+        }
+        
         if ( handle->call_Vchange )
             handle->call_Vchange( handle->ccont_Vchange, (void*)&handle->time );
 
+        return true;
     }
-    else                    // select digit
-    {
-        if ( increment == true )
-        {
-            if ( ((int_focus < 3) && (handle->minute_only == false)) ||
-                 ((int_focus < 2) && (handle->minute_only == true))    )
-                int_focus++;
-        } else if ( int_focus > 1 )
-            int_focus--;
-    }
+
+    return false;
 }
 
 static void internal_time_reset_digit( struct Suiel_control_time *handle )
 {
-    if ( (int_focus & 0x80) == 0 )
+    if ( int_focus == 0 )
         return;
 
-    if ( (int_focus & 0x1f) == 1 )
-        handle->time.second = 0;
-    else if ( (int_focus & 0x1f) == 2 )
-        handle->time.minute = 0;
+    if ( handle->dmy )
+    {
+        if ( int_focus == 1 )
+            handle->time.dmy.day = 1;
+        else if ( int_focus == 2 )
+            handle->time.dmy.mounth = 1;
+        else
+            handle->time.dmy.year = YEAR_START;
+    }
     else
-        handle->time.hour = 0;
+    {
+        if ( int_focus == 1 )
+            handle->time.clock.second = 0;
+        else if ( int_focus == 2 )
+            handle->time.clock.minute = 0;
+        else
+            handle->time.clock.hour = 0;
+    }
 }
 
 
-void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int ypoz, bool minute_only, enum Etextstyle style )
+void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int ypoz, bool dmy, bool minute_only, enum Etextstyle style )
 {
     uint32 w_d;
     uint32 w_s;
@@ -1367,17 +1485,23 @@ void uiel_control_time_init( struct Suiel_control_time *handle, int xpoz, int yp
     handle->xpoz = (uint16)xpoz;
     handle->ypoz = (uint16)ypoz;
     handle->yend = ypoz + Gtext_GetCharacterHeight() + 2;
+    handle->dmy = dmy;
 
-    w_d = Gtext_GetCharacterWidth('0') + 1;
-    w_s = Gtext_GetCharacterWidth(':') + 1;
+    w_d = Gtext_GetCharacterWidth('0') + 2;
+    if ( dmy )
+        w_s = Gtext_GetCharacterWidth('-') + 1;
+    else
+        w_s = Gtext_GetCharacterWidth(':') + 1;
 
     handle->dwidth = (uint8)w_d;
     handle->swidth = (uint8)w_s;
 
-    if ( minute_only )
-        handle->xend = xpoz + 4 * w_d + w_s + 2;
+    if ( dmy )
+        handle->xend = xpoz + ( 4 + 3 + 2 ) * w_d + w_s * 2 + 2;
+    else if ( minute_only )
+        handle->xend = xpoz + (4) * w_d + w_s + 2;
     else
-        handle->xend = xpoz + 6 * w_d + 2 * w_s + 2;
+        handle->xend = xpoz + (6) * w_d + 2 * w_s + 2;
 }
 
 void uiel_control_time_set_callback( struct Suiel_control_time *handle, enum EUIelCallTime select, int context, uiel_callback func )
@@ -1403,20 +1527,42 @@ void uiel_control_time_set_callback( struct Suiel_control_time *handle, enum EUI
     }
 }
 
-void uiel_control_time_set_time( struct Suiel_control_time *handle, timestruct time )
+void uiel_control_time_set_time( struct Suiel_control_time *handle, void *time )
 {
-    handle->time = time;
+    if ( handle->dmy )
+        handle->time.dmy = *((datestruct*)time);
+    else
+        handle->time.clock = *((timestruct*)time);
 }
 
 
-void uiel_control_time_get_time( struct Suiel_control_time *handle, timestruct *time )
+void uiel_control_time_get_time( struct Suiel_control_time *handle, void *time )
 {
-    *time = handle->time;
+    datestruct *dmy;
+    timestruct *tm;
+
+    dmy = (datestruct*)time;
+    tm = (timestruct*)time;
+
+    if ( handle->dmy )
+        *dmy = handle->time.dmy;
+    else
+        *tm = handle->time.clock;
 }
 
 static inline void uiel_control_time_display( struct Suiel_control_time *handle, bool focus )
 {
-    uigrf_puttime( handle->xpoz+2, handle->ypoz+2, (enum Etextstyle)handle->textstyle, 1, handle->time, handle->minute_only, true );
+    if ( handle->dmy )
+    {
+        Graphic_SetColor(0);
+        Graphic_FillRectangle( handle->xpoz, handle->ypoz, handle->xend, handle->yend, 0 );
+        uigrf_putdate( handle->xpoz+2, handle->ypoz+2, (enum Etextstyle)handle->textstyle, 1, handle->time.dmy, true, true );
+    }
+    else
+    {
+        uigrf_puttime( handle->xpoz+2, handle->ypoz+2, (enum Etextstyle)handle->textstyle, 1, handle->time.clock, handle->minute_only, true );
+    }
+
     if ( focus )
     {
         if ( (handle->ID & ELEM_IN_FOCUS) == 0 )
@@ -1436,34 +1582,43 @@ static inline void uiel_control_time_display( struct Suiel_control_time *handle,
         {
             int xf;
             int xff;
-            int offset = 0;
 
-            if ( handle->minute_only == false )
-                offset += handle->dwidth * 2 + handle->swidth;
+            if ( handle->dmy )
+            {
+                switch ( int_focus )
+                {
+                    case 1:                                                 // days
+                        xf = handle->swidth * 2 + handle->dwidth * 7 + 1;
+                        xff = xf + handle->dwidth * 2;
+                        break;  
+                    case 2:                                                 // mounths
+                        xf = handle->dwidth * 4 + handle->swidth + 1;
+                        xff = xf + handle->dwidth * 3;
+                        break;                                          
+                    case 3:                                                 // years
+                        xf = 1; 
+                        xff = handle->dwidth * 4 + 1;
+                        break;                                              
+                }
+            }
+            else
+            {
+                int offset = 1;
 
-            switch ( int_focus & 0x1f )
-            {
-                case 1:     // seconds
-                    xf = offset + handle->dwidth * 2 + handle->swidth;
-                    break;
-                case 2:     // minutes
-                    xf = offset;
-                    break;
-                case 3:     // hours
-                    xf = 0;
-                    break;
+                if ( handle->minute_only == false )
+                    offset += handle->dwidth * 2 + handle->swidth;
+
+                switch ( int_focus )
+                {
+                    case 1: xf = offset + handle->dwidth * 2 + handle->swidth; break;   // seconds
+                    case 2: xf = offset; break;                                         // minutes
+                    case 3: xf = 1; break;                                              // hours
+                }   
+                xff = xf + handle->dwidth * 2;
             }
-            xff = xf + handle->dwidth * 2 + 2;
-            if ( int_focus & 0x80 )     // edit element
-            {
-                Graphic_SetColor( -1 );
-                Graphic_FillRectangle( handle->xpoz + xf, handle->ypoz + 1, handle->xpoz + xff, handle->yend - 1, -1 );
-            }
-            else                            // select element
-            {
-                Graphic_SetColor( 1 );
-                Graphic_Rectangle( handle->xpoz + xf, handle->ypoz + 1, handle->xpoz + xff, handle->yend - 1 );
-            }
+
+            Graphic_SetColor( -1 );
+            Graphic_FillRectangle( handle->xpoz + xf, handle->ypoz + 1, handle->xpoz + xff, handle->yend - 1, -1 );
         }
     }
     else
@@ -1519,51 +1674,62 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
             evmask->key_pressed &= ~KEY_OK;     // delete the keypress event for the upper layer as it is captured by this layer
         }
 
-        // Up and Down are captured for any element in focus and have immediate action
         {
-            if ( handle_ID == ELEM_ID_DROPDOWN_MENU )
+            bool int_process = false;
+
+            if ( evmask->key_pressed & KEY_UP )
             {
-                if ( evmask->key_pressed & KEY_UP )
+                switch ( handle_ID )
                 {
-                    uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle );
+                    case ELEM_ID_EDIT:           int_process = uiel_control_edit_inc( (struct Suiel_control_edit *)handle ); break;
+                    case ELEM_ID_TIME:           int_process = internal_time_incdec( (struct Suiel_control_time *)handle, true ); break;
+                    case ELEM_ID_DROPDOWN_MENU:  int_process = uiel_dropdown_menu_set_prew( (struct Suiel_dropdown_menu *)handle ); break;
+                }
+                if ( int_process )      // key is internally processed
+                {
                     changed = true;
                     evmask->key_pressed &= ~KEY_UP;     // delete the keypress event for the upper layer as it is captured by this layer
                 }
-                else if ( evmask->key_pressed & KEY_DOWN )
+            }
+            else if ( evmask->key_pressed & KEY_DOWN )
+            {
+                switch ( handle_ID )
                 {
-                    uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle );
+                    case ELEM_ID_EDIT:          int_process = uiel_control_edit_dec( (struct Suiel_control_edit *)handle ); break;
+                    case ELEM_ID_TIME:          int_process = internal_time_incdec( (struct Suiel_control_time *)handle, false ); break;
+                    case ELEM_ID_DROPDOWN_MENU: int_process = uiel_dropdown_menu_set_next( (struct Suiel_dropdown_menu *)handle ); break;
+                }
+                if ( int_process )
+                {
                     changed = true;
                     evmask->key_pressed &= ~KEY_DOWN;     // delete the keypress event for the upper layer as it is captured by this layer
                 }
             }
-            else
+            else if ( evmask->key_pressed & KEY_RIGHT )
             {
-                if ( evmask->key_pressed & KEY_RIGHT )
+                switch ( handle_ID )
                 {
-                    switch ( handle_ID )
-                    {
-                        case ELEM_ID_NUMERIC:       uiel_control_numeric_inc( (struct Suiel_control_numeric *)handle ); break;
-                        case ELEM_ID_EDIT:          uiel_control_edit_inc( (struct Suiel_control_edit *)handle ); break;
-                        case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, true ); break;
-                        case ELEM_ID_LIST:          uiel_control_list_set_next( (struct Suiel_control_list *)handle); break;
-                        case ELEM_ID_DROPDOWN_MENU:  break;
-                    }
-                    changed = true;
-                    evmask->key_pressed &= ~KEY_RIGHT;     // delete the keypress event for the upper layer as it is captured by this layer
+                    case ELEM_ID_NUMERIC:       uiel_control_numeric_inc( (struct Suiel_control_numeric *)handle ); break;
+                    case ELEM_ID_EDIT:          uiel_control_edit_focus_move( (struct Suiel_control_edit *)handle, false ); break;
+                    case ELEM_ID_TIME:          internal_time_focus_move( (struct Suiel_control_time *)handle, false ); break;
+                    case ELEM_ID_LIST:          uiel_control_list_set_next( (struct Suiel_control_list *)handle); break;
+                    case ELEM_ID_DROPDOWN_MENU:  break;
                 }
-                else if ( evmask->key_pressed & KEY_LEFT )
+                changed = true;
+                evmask->key_pressed &= ~KEY_RIGHT;     // delete the keypress event for the upper layer as it is captured by this layer
+            }
+            else if ( evmask->key_pressed & KEY_LEFT )
+            {
+                switch ( handle_ID )
                 {
-                    switch ( handle_ID )
-                    {
-                        case ELEM_ID_NUMERIC:       uiel_control_numeric_dec( (struct Suiel_control_numeric *)handle ); break;
-                        case ELEM_ID_EDIT:          uiel_control_edit_dec( (struct Suiel_control_edit *)handle ); break;
-                        case ELEM_ID_TIME:          internal_time_incdec( (struct Suiel_control_time *)handle, false ); break;
-                        case ELEM_ID_LIST:          uiel_control_list_set_prew( (struct Suiel_control_list *)handle); break;
-                        case ELEM_ID_DROPDOWN_MENU:  break;
-                    }
-                    changed = true;
-                    evmask->key_pressed &= ~KEY_LEFT;     // delete the keypress event for the upper layer as it is captured by this layer
+                    case ELEM_ID_NUMERIC:       uiel_control_numeric_dec( (struct Suiel_control_numeric *)handle ); break;
+                    case ELEM_ID_EDIT:          uiel_control_edit_focus_move( (struct Suiel_control_edit *)handle, true ); break;
+                    case ELEM_ID_TIME:          internal_time_focus_move( (struct Suiel_control_time *)handle, true ); break;
+                    case ELEM_ID_LIST:          uiel_control_list_set_prew( (struct Suiel_control_list *)handle); break;
+                    case ELEM_ID_DROPDOWN_MENU:  break;
                 }
+                changed = true;
+                evmask->key_pressed &= ~KEY_LEFT;     // delete the keypress event for the upper layer as it is captured by this layer
             }
         }
 
@@ -1589,7 +1755,7 @@ bool ui_element_poll( void *handle, struct SEventStruct *evmask )
                 case ELEM_ID_TIME:          changed = internal_control_time_ESC( (struct Suiel_control_time *)handle ); break;
                 case ELEM_ID_LIST:          changed = internal_control_list_ESC( (struct Suiel_control_list *)handle ); break;
                 case ELEM_ID_CHECKBOX:      changed = internal_control_checkbox_ESC( (struct Suiel_control_checkbox *)handle ); break; 
-                case ELEM_ID_PUSHBUTTON:   changed = internal_control_pbutton_ESC( (struct Suiel_control_pushbutton *)handle ); break;
+                case ELEM_ID_PUSHBUTTON:    changed = internal_control_pbutton_ESC( (struct Suiel_control_pushbutton *)handle ); break;
                 case ELEM_ID_DROPDOWN_MENU: changed = internal_control_menu_ESC( (struct Suiel_dropdown_menu *)handle ); break;
             }
 
