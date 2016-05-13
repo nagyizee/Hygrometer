@@ -163,6 +163,8 @@ volatile bool   isr_op_finished = false;
 volatile bool   isr_busy = false;
 volatile uint32 isr_grey_on = GREY_OFF;     // 0 - not active, 1,2 - main image, 3 - grey image
 volatile uint32 isr_grey_ctr = 0;
+volatile uint32 isr_grey_toflip;
+volatile uint32 isr_grey_tomain;
 
 // !!!! NOTE !!!! this routine is used inside ISR, make sure to protect by interrupt disable if it is called from application !!!!
 static void disp_isr_internal_setup_display_page_command( void )
@@ -298,7 +300,7 @@ void DispHAL_ISR_Poll(void)
             bool upd_disp = false;
             if ( isr_grey_on == GREY_FIELD_MAIN )       // main field active
             {
-                if ( isr_grey_ctr >= GREY_LIM_TOFLIP )  // reached the flip point
+                if ( isr_grey_ctr >= isr_grey_toflip )  // reached the flip point
                 {
                     isr_grey_on = GREY_FIELD_SEC;
                     // launch partial display update with the grey data
@@ -307,10 +309,10 @@ void DispHAL_ISR_Poll(void)
             }
             else
             {
-                if ( isr_grey_ctr >= GREY_LIM_TOMAIN )  // reached point where main display content should be displayed
+                if ( isr_grey_ctr >= isr_grey_tomain )  // reached point where main display content should be displayed
                 {
                     isr_grey_on = GREY_FIELD_MAIN;
-                    isr_grey_ctr = isr_grey_ctr % GREY_LIM_TOMAIN;
+                    isr_grey_ctr = isr_grey_ctr % isr_grey_tomain;
                     // launch complete display redraw
                     upd_disp = true;
                 }
@@ -452,6 +454,8 @@ static int disp_internal_update_contrast( void )
 uint32 DispHAL_Init(uint8 *Gmem)
 {
     memset( (void*)(&hal), 0, sizeof(hal) );
+    isr_grey_toflip = GREY_LIM_TOFLIP;
+    isr_grey_tomain = GREY_LIM_TOMAIN;
 
     HW_PWR_Disp_Off();
     HW_Chip_Disp_Disable();
@@ -516,6 +520,14 @@ void DispHal_ClearFlipBuffer( void )
     isr_grey_on = GREY_OFF;
     hal.status.gmem_dirty = 1;
 }
+
+void DispHal_GreySetup( uint32 rate, uint32 all, uint32 grey )
+{
+    isr_grey_toflip = grey;
+    isr_grey_tomain = all;
+    TIMER_DISPLAY->ARR = rate;
+}
+
 
 int DispHAL_Display_On( void )
 {

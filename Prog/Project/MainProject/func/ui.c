@@ -38,6 +38,7 @@ static void local_uist_display_init(void)
     if ( ui.pwr_dispinit == false )
     {
         Graphics_Init( NULL, NULL );
+        DispHal_GreySetup( core.nv.setup.grey_disprate, core.nv.setup.grey_frame_all, core.nv.setup.grey_frame_grey );
         DispHAL_Display_On( );
         DispHAL_SetContrast( core.nv.setup.disp_brt_on );
         ui.pwr_state = SYSSTAT_UI_ON;
@@ -983,6 +984,150 @@ _reset_display:
 }
 
 
+// ---- Setup menu
+
+// ---- menu itself
+
+void ui_call_setmenu_action( int context, void *pval )
+{
+    // context 0 -> OK,  1 -> Esc
+    int val = *((int*)pval);
+
+    if ( context == 1 )
+    {
+        uist_change_state( UI_STATE_MODE_SELECT, UI_SET_NONE, true );
+        return;
+    }
+    switch ( val )
+    {
+        case 0:         // display setup
+            uist_change_state( UI_STATE_NONE, UI_SET_SetupDisplay, true );
+            return;
+    }
+}
+
+
+// ---- display menu
+static int internal_setdisplay_esc(int context)
+{
+    if (context & 0x30)     // not an ESC
+        return 0;
+
+    core.nv.setup.disp_brt_on = uiel_control_numeric_get( &ui.p.setDisplay.bright[0] );
+    core.nv.setup.disp_brt_dim = uiel_control_numeric_get( &ui.p.setDisplay.bright[1] );
+
+    core.nv.setup.grey_disprate = uiel_control_numeric_get( &ui.p.setDisplay.grey[0] );
+    core.nv.setup.grey_frame_all = uiel_control_numeric_get( &ui.p.setDisplay.grey[1] );
+    core.nv.setup.grey_frame_grey = uiel_control_numeric_get( &ui.p.setDisplay.grey[2] );
+
+    DispHAL_SetContrast( core.nv.setup.disp_brt_on );
+    DispHal_GreySetup( core.nv.setup.grey_disprate, core.nv.setup.grey_frame_all, core.nv.setup.grey_frame_grey );
+    DispHal_ClearFlipBuffer();
+    uist_change_state( UI_STATE_NONE, UI_SET_SetupMenu, true );
+    return 1;
+}
+
+
+void ui_call_setdisplay_brightness( int context, void *pval )
+{
+    int val = *((int*)pval);
+
+    if ( internal_setdisplay_esc(context) )
+        return;
+    
+    if ( context & 0x20 )       // long esc - defaults
+    {
+        context &= ~0x20;
+        if ( context == 0 )
+            uiel_control_numeric_set( &ui.p.setDisplay.bright[0], core.nv.setup.disp_brt_on );
+        else
+            uiel_control_numeric_set( &ui.p.setDisplay.bright[1], core.nv.setup.disp_brt_dim );
+        return;
+    }
+    else
+    {
+        int brt_max;
+        int brt_dim;
+        context &= 0x01;
+
+        brt_max = uiel_control_numeric_get( &ui.p.setDisplay.bright[0] );
+        brt_dim = uiel_control_numeric_get( &ui.p.setDisplay.bright[1] );
+
+        if ( context )          // dimmed
+        {   
+            DispHAL_SetContrast( brt_dim );
+            if ( brt_dim > brt_max )
+            {
+                uiel_control_numeric_set( &ui.p.setDisplay.bright[0], brt_dim );
+                ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+            }
+        }
+        else
+        {
+            DispHAL_SetContrast( brt_max );
+            if ( brt_max < brt_dim )
+            {
+                uiel_control_numeric_set( &ui.p.setDisplay.bright[1], brt_max );
+                ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+            }
+        }
+    }
+
+}
+
+void ui_call_setdisplay_greysetup( int context, void *pval )
+{
+    int val = *((int*)pval);
+
+    if ( internal_setdisplay_esc(context) )
+        return;
+
+    if ( context & 0x20 )       // long esc - defaults
+    {
+        context &= ~0x20;
+        if ( context == 0 )
+            uiel_control_numeric_set( &ui.p.setDisplay.grey[0], core.nv.setup.grey_disprate );
+        else if ( context == 1 )
+            uiel_control_numeric_set( &ui.p.setDisplay.grey[1], core.nv.setup.grey_frame_all );
+        else
+            uiel_control_numeric_set( &ui.p.setDisplay.grey[2], core.nv.setup.grey_frame_grey );
+        return;
+    }
+    else
+    {
+        uint32 g_rate;
+        uint32 g_all;
+        uint32 g_grey;
+        context &= 0x03;
+
+        g_rate = uiel_control_numeric_get( &ui.p.setDisplay.grey[0] );
+        g_all = uiel_control_numeric_get( &ui.p.setDisplay.grey[1] );
+        g_grey = uiel_control_numeric_get( &ui.p.setDisplay.grey[2] );
+
+        if ( context != 0 )                 // control the timing
+        {           
+            if ( context == 1 )             // all frame length setup
+            {
+                if ( g_grey > g_all )
+                {
+                    uiel_control_numeric_set( &ui.p.setDisplay.grey[2], g_all );
+                    ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+                }
+            }
+            else if ( g_all < g_grey )      // grey frame lenght setup
+            {
+                uiel_control_numeric_set( &ui.p.setDisplay.grey[1], g_grey );
+                ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL;
+            }
+        }
+
+        DispHal_GreySetup( g_rate, g_all, g_grey );
+    }
+}
+
+
+
+
 // Popup window default callback
 
 void ui_call_popup_default( int context, void *pval )
@@ -1040,6 +1185,7 @@ static void uist_update_display( int disp_update )
                 case UI_STATE_MAIN_GAUGE: uist_drawview_mainwindow( disp_update & RDRW_ALL ); break;
                 case UI_STATE_SETWINDOW:  uist_drawview_setwindow( disp_update & RDRW_ALL ); break;
                 case UI_STATE_POPUP:      uist_drawview_popup( disp_update & RDRW_ALL ); break;
+                case UI_STATE_MODE_SELECT:uist_drawview_modeselect( disp_update & RDRW_ALL ); break;
 
             }
         }
@@ -1083,7 +1229,11 @@ static int uist_timebased_updates( struct SEventStruct *evmask )
                 }
                 break;
             case UI_STATE_MODE_SELECT:
-                break;
+                if ( evmask->timer_tick_05sec )
+                {
+                    update |= RDRW_UI_DYNAMIC;
+                }
+
         }
     
         if ( evmask->timer_tick_05sec )
@@ -1151,6 +1301,12 @@ static void uist_infocus_generic_key_processing( struct SEventStruct *evmask )
                     uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[0], core.nv.setup.tim_tend_temp );
                     uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[1], core.nv.setup.tim_tend_hygro );
                     uiel_control_list_set_index( &ui.p.swQuickSw.m_rates[2], core.nv.setup.tim_tend_press );
+                    break;
+                case UI_SET_SetupDisplay:
+                    if ( ui.focus == 2 )    // for dimmed - setup dimmed value
+                        DispHAL_SetContrast( uiel_control_numeric_get( &ui.p.setDisplay.bright[1] ));
+                    else
+                        DispHAL_SetContrast( core.nv.setup.disp_brt_on );
                     break;
             }
         }
@@ -1547,6 +1703,14 @@ void uist_opmodeselect( struct SEventStruct *evmask )
             ui.m_return = 1;
             return;
         }
+        if ( evmask->key_pressed & KEY_OK )
+        {
+            ui.m_state = UI_STATE_SETWINDOW;
+            ui.m_setstate = UI_SET_SetupMenu;
+            ui.m_substate = UI_SUBST_ENTRY;
+            ui.m_return = 0;
+            return;
+        }
         if ( evmask->key_longpressed & KEY_MODE )
         {
             uist_goto_shutdown();
@@ -1595,11 +1759,13 @@ void uist_setwindow( struct SEventStruct *evmask )
         // power button activated
         if ( evmask->key_longpressed & KEY_MODE )
         {
+            DispHal_ClearFlipBuffer();
             uist_goto_shutdown();
             return;
         }
         if ( evmask->key_released & KEY_MODE )
         {
+            DispHal_ClearFlipBuffer();
             ui.m_state = UI_STATE_MODE_SELECT;
             ui.m_substate = UI_SUBST_ENTRY;
             return;

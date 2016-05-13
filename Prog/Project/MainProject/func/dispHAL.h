@@ -31,6 +31,9 @@
     // clear the flip buffer, disabling the grayscale displaying
     void DispHal_ClearFlipBuffer( void );
 
+    // setup greyscale parameters
+    void DispHal_GreySetup( uint32 rate, uint32 all, uint32 grey );
+
 
     // Called by application to tell when it finished drawing and display can be updated
     void DispHAL_UpdateScreen( void );

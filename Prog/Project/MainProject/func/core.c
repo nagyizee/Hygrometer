@@ -1875,6 +1875,12 @@ int core_setup_reset( bool save )
     setup->tim_tend_hygro = ut_30sec;
     setup->tim_tend_press = ut_10min;
 
+    setup->graph_mm_global = 0;
+
+    setup->grey_disprate = 4000;
+    setup->grey_frame_all = 112;
+    setup->grey_frame_grey = 76;
+
     local_initialize_core_operation();
     local_initialize_recording();
 

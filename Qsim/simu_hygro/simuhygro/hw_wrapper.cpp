@@ -856,6 +856,11 @@ void DispHal_ClearFlipBuffer()
     dispgrey = false;
 }
 
+void DispHal_GreySetup( uint32 rate, uint32 all, uint32 grey )
+{
+
+}
+
 int  DispHAL_Display_On( void )
 {
     dispon = true;

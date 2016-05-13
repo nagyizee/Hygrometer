@@ -38,6 +38,7 @@ extern struct SCore core;
 
 const char c_menu_graph_main_nozoom[]            = { "info select zoom_to" };
 const char c_menu_graph_main_zoom[]              = { "info select pan zoom_out zoom_to" };
+const char c_menu_setup_menu[]                   = { "display sound alarms time power debug" };
 
 const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
 
@@ -396,6 +397,12 @@ static void uist_mainwindow_statusbar( int rdrw )
                         break;
                     case UI_SET_GraphSelect:
                         uigrf_text( 15, 3, uitxt_smallbold, "Graph Select:");
+                        break;
+                    case UI_SET_SetupMenu:
+                        uigrf_text( 15, 3, uitxt_smallbold, "Setup Menu:");
+                        break;
+                    case UI_SET_SetupDisplay:
+                        uigrf_text( 15, 3, uitxt_smallbold, "Set Display:");
                         break;
                 }
         }
@@ -1154,6 +1161,42 @@ static inline void uist_draw_graphselect( int redraw_type )
 }
 
 
+static inline void uist_draw_setupmenu( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        uist_internal_disp_all_with_focus();
+    }
+}
+
+
+static inline void uist_draw_setup_display( int redraw_type )
+{
+    if ( redraw_type & RDRW_UI_CONTENT_ALL )
+    {
+        // draw grey components
+        Graphic_SetColor(1);
+        Graphic_FillRectangle(0, 16, 70, 63, 1);
+        Graphic_SetColor(0);
+        Graphic_Rectangle( 2, 18, 68, 60 );
+        Graphic_FillRectangle(105, 16, 110, 63, 0);
+        DispHal_ToFlipBuffer();
+
+        // draw white components
+        Graphic_FillRectangle(0, 16, 70, 63, 0); 
+
+        uigrf_text( 8, 28 + 0*12, uitxt_small, "full pwr:" );
+        uigrf_text( 8, 28 + 1*12, uitxt_small, "dimmed:" );
+
+        uigrf_text( 75, 27 + 0*10, uitxt_micro, "scan t:" );
+        uigrf_text( 75, 27 + 1*10, uitxt_micro, "t frame:" );
+        uigrf_text( 75, 27 + 2*10, uitxt_micro, "t grey:" );
+
+
+        uist_internal_disp_all_with_focus();
+    }
+}
+
 
 ////////////////////////////////////////////////////
 //
@@ -1483,6 +1526,58 @@ static inline void uist_setview_graphselect(void)
 }
 
 
+static inline void uist_setview_setupmenu(void)
+{   
+    ui.focus = 1;
+
+    uiel_dropdown_menu_init(&ui.p.setMenu, 20, 107, 16, 63 );
+    uist_internal_setup_menu( &ui.p.setMenu, c_menu_setup_menu );
+
+    uiel_dropdown_menu_set_index( &ui.p.setMenu, ui.m_return );
+    uiel_dropdown_menu_set_callback( &ui.p.setMenu, UICmenu_OK, 0, ui_call_setmenu_action );
+    uiel_dropdown_menu_set_callback( &ui.p.setMenu, UICmenu_Esc, 1, ui_call_setmenu_action );
+    ui.ui_elem_nr = 1;
+    ui.ui_elems[0] = &ui.p.setMenu;
+}
+
+static inline void uist_setview_setup_display(void)
+{
+    int i;
+    ui.focus = 1;
+
+    for ( i=0; i<2; i++ )
+    {
+        uiel_control_numeric_init( &ui.p.setDisplay.bright[i], 0, 64, 1, 45, 27 + i*12, 2, 0, uitxt_smallbold );
+        if ( i == 0 )
+            uiel_control_numeric_set( &ui.p.setDisplay.bright[i], core.nv.setup.disp_brt_on );
+        else
+            uiel_control_numeric_set( &ui.p.setDisplay.bright[i], core.nv.setup.disp_brt_dim );
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.bright[i], UICnum_Vchange, i | 0x10, ui_call_setdisplay_brightness );
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.bright[i], UICnum_EscLong, i | 0x20, ui_call_setdisplay_brightness );
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.bright[i], UICnum_Esc,     i       , ui_call_setdisplay_brightness );
+
+        ui.ui_elems[i] = &ui.p.setDisplay.bright[i];
+    }
+
+    uiel_control_numeric_init( &ui.p.setDisplay.grey[0], 3200, 4800, 5, 108, 25 + 0*10, 4, 0, uitxt_micro );
+    uiel_control_numeric_set( &ui.p.setDisplay.grey[0], core.nv.setup.grey_disprate );
+    uiel_control_numeric_init( &ui.p.setDisplay.grey[1], 20, 200, 1, 108, 25 + 1*10, 3, 0, uitxt_micro );
+    uiel_control_numeric_set( &ui.p.setDisplay.grey[1], core.nv.setup.grey_frame_all );
+    uiel_control_numeric_init( &ui.p.setDisplay.grey[2], 20, 200, 1, 108, 25 + 2*10, 3, 0, uitxt_micro );
+    uiel_control_numeric_set( &ui.p.setDisplay.grey[2], core.nv.setup.grey_frame_grey );
+    for ( i=0; i<3; i++ )
+    {
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.grey[i], UICnum_Vchange, i | 0x10, ui_call_setdisplay_greysetup );
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.grey[i], UICnum_EscLong, i | 0x20, ui_call_setdisplay_greysetup );
+        uiel_control_numeric_set_callback( &ui.p.setDisplay.grey[i], UICnum_Esc,     i       , ui_call_setdisplay_greysetup );
+
+        ui.ui_elems[i+2] = &ui.p.setDisplay.grey[i];
+    }
+
+    ui.ui_elem_nr = 5;
+}
+
+
 static void local_drawwindow_common_op( int redraw_type )
 {
     // if all the content should be redrawn
@@ -1508,9 +1603,30 @@ void uist_drawview_modeselect( int redraw_type )
 {
     local_drawwindow_common_op( redraw_type );
     
-    if ( redraw_type & RDRW_UI_CONTENT_ALL )
-    {
+    if ( redraw_type & RDRW_UI_CONTENT )
         uibm_put_bitmap( 0, 16, BMP_MAIN_SELECTOR );
+    
+    if ( redraw_type & RDRW_UI_DYNAMIC )
+    {
+        uint32 clock;
+        clock = core_get_clock_counter();
+
+        uibm_put_bitmap( 0, 16, BMP_MAIN_SELECTOR );
+
+        timestruct tm;
+        datestruct dt;
+        utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, NULL );
+        utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
+
+        uigrf_putnr( 71, 16, uitxt_micro, dt.year, 4, 0, false );
+        uigrf_text( 92, 16, uitxt_micro, "week" );
+        uigrf_putnr( 110, 16, uitxt_micro, 23, 2, 0, false );
+        uigrf_text( 71, 24, uitxt_micro, "Batt:" );
+        uigrf_putnr( 92, 24, uitxt_micro, core.measure.battery, 3, 0, false );
+        Gtext_PutChar('%');
+        uigrf_putfixpoint( 110, 24, uitxt_micro, core.measure.battery + 320, 3, 2, 0, false );
+        Gtext_PutChar('V');
+
     }
 }
 
@@ -1554,6 +1670,9 @@ void uist_drawview_setwindow( int redraw_type )
             case UI_SET_RegTaskSet:     uist_draw_setwindow_regtask_set(redraw_type); break;
             case UI_SET_RegTaskMem:     uist_draw_setwindow_regtask_mem(redraw_type); break;
             case UI_SET_GraphSelect:    uist_draw_graphselect(redraw_type); break;
+
+            case UI_SET_SetupMenu:      uist_draw_setupmenu(redraw_type); break;
+            case UI_SET_SetupDisplay:   uist_draw_setup_display(redraw_type); break;
         }
     }
 
@@ -1683,6 +1802,8 @@ void uist_setupview_setwindow( bool reset )
         case UI_SET_RegTaskSet:     uist_setview_setwindow_regtask_set(); break;
         case UI_SET_RegTaskMem:     uist_setview_setwindow_regtask_mem(); break;
         case UI_SET_GraphSelect:    uist_setview_graphselect(); break;
+        case UI_SET_SetupMenu:      uist_setview_setupmenu(); break;
+        case UI_SET_SetupDisplay:   uist_setview_setup_display(); break;
     }
 }
 

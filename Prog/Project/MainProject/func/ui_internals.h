@@ -34,7 +34,8 @@
         UI_SET_RegTaskSet,                      // set up registering task
         UI_SET_RegTaskMem,                      // set up registering task recording lenght and memory repartization
 
-
+        UI_SET_SetupMenu,                       // device setup menu
+        UI_SET_SetupDisplay,                    // setup display
     };
 
 
@@ -155,6 +156,12 @@
         struct Suiel_control_numeric    lenght;     // sequence 
     };
 
+    struct SUISetupDisplay
+    {
+        struct Suiel_control_numeric    bright[2];      // display brightness  [0] - max   [1] - dimmed
+        struct Suiel_control_numeric    grey[3];        // grayscale setup  [0] - display update rate   [1] - frame all   [2] - frame grey
+    };
+
     union UUIstatusParams
     {
         // main window stuff
@@ -169,8 +176,9 @@
         struct SUISetRegTaskSet     swRegTaskSet;
         struct SUISetRegTaskMemory  swRegTaskMem;
 
-
-
+        struct Suiel_dropdown_menu  setMenu;
+        struct SUISetupDisplay      setDisplay;
+        
     };
 
 
@@ -292,6 +300,10 @@
 
     void ui_call_graphdisp_unit_select( int context, void *pval );
     void ui_call_graphdisp_menu_action( int context, void *pval );
+    
+    void ui_call_setmenu_action( int context, void *pval );
+    void ui_call_setdisplay_brightness( int context, void *pval );
+    void ui_call_setdisplay_greysetup( int context, void *pval );
 
     // routines
     void uist_drawview_modeselect( int redraw_type );

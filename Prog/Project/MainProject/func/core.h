@@ -162,6 +162,10 @@
         uint8                   tim_tend_press;     // for pressure
 
         uint8                   graph_mm_global;    // 1 if global min/max used for vertical scaling, 0 if local (zoomed) min/max is used for vertical scaling
+
+        uint16                  grey_disprate;      // 4000 for 100Hz
+        uint8                   grey_frame_all;
+        uint8                   grey_frame_grey;    
     };
 
     union UCoreOperationFlags

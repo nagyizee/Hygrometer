@@ -120,6 +120,7 @@ void DispHAL_UpdateScreen();
 void DispHAL_ISR_Poll();
 void DispHal_ToFlipBuffer();
 void DispHal_ClearFlipBuffer();
+void DispHal_GreySetup( uint32 rate, uint32 all, uint32 grey );
 void CoreADC_ISR_Complete();
 void Core_ISR_PretriggerCompleted();
 
