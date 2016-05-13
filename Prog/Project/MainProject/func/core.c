@@ -1618,7 +1618,7 @@ static void local_monitoring_reschedule(void)
 static void local_nvfast_load_struct(void)
 {
     core.nf.status.val = BKP_ReadBackupRegister( BKP_DR2 );
-    core.nf.next_schedule = BKP_ReadBackupRegister( BKP_DR3 ) | ((uint32)(BKP_ReadBackupRegister( BKP_DR4 )) << 8);
+    core.nf.next_schedule = BKP_ReadBackupRegister( BKP_DR3 ) | ((uint32)(BKP_ReadBackupRegister( BKP_DR4 )) << 16);
 
     core.measure.measured.temperature = BKP_ReadBackupRegister( BKP_DR5 );
     core.measure.measured.rh = BKP_ReadBackupRegister( BKP_DR6 );
@@ -2031,7 +2031,7 @@ void core_nvfast_save_struct(void)
 {
     BKP_WriteBackupRegister( BKP_DR2, core.nf.status.val );
     BKP_WriteBackupRegister( BKP_DR3, core.nf.next_schedule & 0xffff );
-    BKP_WriteBackupRegister( BKP_DR4, (core.nf.next_schedule >> 8) & 0xffff );
+    BKP_WriteBackupRegister( BKP_DR4, (core.nf.next_schedule >> 16) & 0xffff );
 
     // save the measured temperature and dewpoint because we need them independently from each-other after start-up for calculations
     BKP_WriteBackupRegister( BKP_DR5, core.measure.measured.temperature );
