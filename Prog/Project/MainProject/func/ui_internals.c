@@ -1661,6 +1661,8 @@ static void local_drawwindow_common_op( int redraw_type )
 //
 ////////////////////////////////////////////////////
 
+const char day_of_week[][4] = { "Mon", "Tue", "Wen", "Thu", "Fri", "Sat", "Sun" };
+
 void uist_drawview_modeselect( int redraw_type )
 {
     local_drawwindow_common_op( redraw_type );
@@ -1680,8 +1682,11 @@ void uist_drawview_modeselect( int redraw_type )
         utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, &tm.second );
         utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
 
-        uigrf_putdate(71, 16, uitxt_micro, 1, dt, true, true );
-        uigrf_puttime(71, 24, uitxt_micro, 1, tm, false, false );
+        uigrf_text( 70, 16, uitxt_micro, day_of_week[ utils_day_of_week(clock) ] );
+        uigrf_putdate(85, 16, uitxt_micro, 1, dt, true, true );
+        uigrf_text( 70, 24, uitxt_micro, "W" );
+        uigrf_putnr( 74, 24, uitxt_micro, utils_week_of_year(clock) + 1, 2, '0', false );
+        uigrf_puttime(93, 24, uitxt_micro, 1, tm, false, false );
     }
 }
 
