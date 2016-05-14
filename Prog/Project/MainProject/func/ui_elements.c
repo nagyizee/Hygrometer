@@ -75,14 +75,23 @@ static inline bool internal_control_edit_OK( struct Suiel_control_edit *handle )
     if ( int_focus == 0 )
         int_focus = 1;
     else
+    {
         int_focus = 0;
+        if ( handle->call_EditDone )
+            handle->call_EditDone( handle->ccont_EditDone, (void*)&handle->content );
+    }
     return true;
 }
 
 static inline bool internal_control_time_OK( struct Suiel_control_time *handle )
 {
     if ( int_focus == 0 )
-        int_focus = 1;
+    {
+        if ( handle->dmy || (handle->minute_only == false) )
+            int_focus = 3;
+        else
+            int_focus = 2;
+    }
     else
     {
         int_focus = 0;
@@ -149,6 +158,8 @@ static inline bool internal_control_edit_ESC( struct Suiel_control_edit *handle 
     if ( int_focus )
     {
         int_focus = 0;
+        if ( handle->call_EscLong )     // exiting from internal focus with ESC means revert to original
+            handle->call_EscLong( handle->ccont_EscLong, (void*)&handle->content );
         return true;
     }
     else if ( handle->call_Esc )
@@ -161,8 +172,8 @@ static inline bool internal_control_time_ESC( struct Suiel_control_time *handle 
     if ( int_focus )
     {
         int_focus = 0;
-        if ( handle->call_EditDone )
-            handle->call_EditDone( handle->ccont_EditDone, (void*)&handle->time );
+        if ( handle->call_EscLong )     // exiting from internal focus with ESC means revert to original
+            handle->call_EscLong( handle->ccont_EscLong, (void*)&handle->time );
         return true;
     }
     else if ( handle->call_Esc )
@@ -1296,6 +1307,17 @@ static inline void uiel_control_edit_display( struct Suiel_control_edit *handle,
 
 static void internal_time_focus_move( struct Suiel_control_time *handle, bool increment )
 {
+    if ( int_focus == 0 )
+    {
+        if ( increment )
+            int_focus = 1;
+        else if ( handle->dmy || (handle->minute_only == false) )
+            int_focus = 3;
+        else
+            int_focus = 2;
+        return;
+    }
+
     if ( increment == true )
     {
         if ( ((int_focus < 3) && ( (handle->minute_only == false) || (handle->dmy) )) ||

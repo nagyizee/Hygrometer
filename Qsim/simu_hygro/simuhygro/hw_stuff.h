@@ -173,6 +173,7 @@ void HW_Buzzer_Off(void);
 
 uint32 RTC_GetCounter(void);
 void RTC_SetAlarm(uint32);
+void RTC_WaitForSynchro(void);
 void RTC_SetCounter(uint32 RTCctr);
 void HW_SetRTC_NextAlarm( uint32 alarm );
 

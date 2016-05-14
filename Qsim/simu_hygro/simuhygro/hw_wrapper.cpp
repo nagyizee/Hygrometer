@@ -171,6 +171,11 @@ void RTC_SetAlarm(uint32 value)
     pClass->RTCalarm = value;
 }
 
+void RTC_WaitForSynchro(void)
+{
+
+}
+
 void RTC_SetCounter(uint32 RTCctr)
 {
     pClass->RTCcounter = RTCctr;

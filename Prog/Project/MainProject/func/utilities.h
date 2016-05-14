@@ -28,6 +28,12 @@ void utils_convert_counter_2_ymd( uint32 counter, uint16 *pyear, uint8 *pmounth,
 // convert date and time to counter. Time can be ommited (NULL) - it puts 00:00:00 in that case
 uint32 utils_convert_date_2_counter( datestruct *date, timestruct *time );
 
+uint32 utils_day_of_week( uint32 counter );
+
+uint32 utils_week_of_year( uint32 counter );
+
+
+
 uint32 utils_maximum_days_in_mounth( datestruct *pdate );
 
 

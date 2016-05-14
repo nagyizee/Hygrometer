@@ -335,6 +335,15 @@ static void internal_graphdisp_elemselect( uint32 selected )
         Graphic_Rectangle( 35, 1, 49, 9 );
 }
 
+static void internal_statusbar_print_batt_info(void)
+{
+    Graphic_SetColor(0);
+    Graphic_FillRectangle( 100, 0, 119, 14, 0 );
+    uigrf_putnr( 100, 1, uitxt_micro, core.measure.battery, 3, 0, false );
+    Gtext_PutChar('%');
+    uigrf_putfixpoint( 100, 8, uitxt_micro, core.measure.battery + 320, 3, 2, 0, false );
+    Gtext_PutChar('V');
+}
 
 static void uist_mainwindow_statusbar( int rdrw )
 {
@@ -347,7 +356,11 @@ static void uist_mainwindow_statusbar( int rdrw )
     clock = core_get_clock_counter();
 
     if ( rdrw & RDRW_BATTERY)
+    {
         uigrf_draw_battery(120, 0, core.measure.battery );
+        if ( ui.m_state == UI_STATE_MODE_SELECT )
+            internal_statusbar_print_batt_info();
+    }
 
     if ( ui.m_state == UI_STATE_MAIN_GRAPH )  // skip status bar drawing for graph view
         return;
@@ -408,6 +421,7 @@ static void uist_mainwindow_statusbar( int rdrw )
         }
 
         // draw time
+        if ( ui.m_state != UI_STATE_MODE_SELECT )
         {
             timestruct tm;
             datestruct dt;
@@ -416,6 +430,9 @@ static void uist_mainwindow_statusbar( int rdrw )
             uigrf_puttime( 92, 0, uitxt_small, 1, tm, true, false );
             uigrf_putdate( 93, 9, uitxt_micro, 1, dt, false, true );
         }
+        else
+            internal_statusbar_print_batt_info();
+
 
         // draw activity
         {
@@ -437,15 +454,18 @@ static void uist_mainwindow_statusbar( int rdrw )
     }
 
     // clock blink
-    if ( clock & 0x01 )
+    if ( ui.m_state != UI_STATE_MODE_SELECT )
     {
-        Graphic_PutPixel( 104, 2, 1 );
-        Graphic_PutPixel( 104, 5, 1 );
-    }
-    else
-    {
-        Graphic_PutPixel( 104, 2, 0 );
-        Graphic_PutPixel( 104, 5, 0 );
+        if ( clock & 0x01 )
+        {
+            Graphic_PutPixel( 104, 2, 1 );
+            Graphic_PutPixel( 104, 5, 1 );
+        }
+        else
+        {
+            Graphic_PutPixel( 104, 2, 0 );
+            Graphic_PutPixel( 104, 5, 0 );
+        }
     }
 }
 
@@ -1614,7 +1634,8 @@ static inline void uist_setview_setup_time(void)
     for (i=0; i<2; i++)
     {
         uiel_control_time_set_callback( ui.ui_elems[i], UICtime_Esc, 0xff, ui_call_settime_action );
-        uiel_control_time_set_callback( ui.ui_elems[i], UICtime_EditDone, i, ui_call_settime_action );
+        uiel_control_time_set_callback( ui.ui_elems[i], UICtime_EditDone, 0xee, ui_call_settime_action );
+        uiel_control_time_set_callback( ui.ui_elems[i], UICtime_EscLong, i, ui_call_settime_action );
     }
 }
 
@@ -1656,18 +1677,11 @@ void uist_drawview_modeselect( int redraw_type )
 
         timestruct tm;
         datestruct dt;
-        utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, NULL );
+        utils_convert_counter_2_hms( clock, &tm.hour, &tm.minute, &tm.second );
         utils_convert_counter_2_ymd( clock, &dt.year, &dt.mounth, &dt.day );
 
-        uigrf_putnr( 71, 16, uitxt_micro, dt.year, 4, 0, false );
-        uigrf_text( 92, 16, uitxt_micro, "week" );
-        uigrf_putnr( 110, 16, uitxt_micro, 23, 2, 0, false );
-        uigrf_text( 71, 24, uitxt_micro, "Batt:" );
-        uigrf_putnr( 92, 24, uitxt_micro, core.measure.battery, 3, 0, false );
-        Gtext_PutChar('%');
-        uigrf_putfixpoint( 110, 24, uitxt_micro, core.measure.battery + 320, 3, 2, 0, false );
-        Gtext_PutChar('V');
-
+        uigrf_putdate(71, 16, uitxt_micro, 1, dt, true, true );
+        uigrf_puttime(71, 24, uitxt_micro, 1, tm, false, false );
     }
 }
 

@@ -107,6 +107,32 @@ uint32 utils_maximum_days_in_mounth( datestruct *pdate )
 }
 
 
+uint32 utils_day_of_week( uint32 counter )
+{
+    uint32 dow;
+
+    dow = (counter >> 1) / (3600*24);       // gives back the days;
+    dow = (dow + WEEK_START) % 7;
+    return dow;                             // return 0 based value (0 means monday)
+}
+
+uint32 utils_week_of_year( uint32 counter )
+{
+    uint32 woy;
+    uint32 days_yearstart;
+    uint32 days_thisday;
+
+    days_thisday = (counter >> 1) / (3600*24);          // total days till this day
+
+    // calculate the start day of this year ( yearX_Ian_01 )
+    woy = (days_thisday * 100 + 99) / 36525;            // calculate the year 
+    days_yearstart = ((woy * 36525) / 100);             // days till beginning of this year - the rounding takes care of leap year +1 day addition
+
+    days_thisday = (days_thisday + WEEK_START) / 7;         // this amount of weeks till the current day
+    days_yearstart = ( days_yearstart + WEEK_START ) / 7;   // this amount of weeks till the current year
+    woy = days_thisday - days_yearstart;
+    return woy;
+}
 
 
 

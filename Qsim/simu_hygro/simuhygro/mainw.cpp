@@ -50,6 +50,8 @@ void test_date(void)
     uint16 year;
     datestruct date = {0, };
     timestruct time = {0, };
+    uint32 dayofweek = WEEK_START;
+    uint32 weekofyear = 0;
 
     datestruct c_date = {0, };
     timestruct c_time = {0, };
@@ -90,6 +92,13 @@ void test_date(void)
                     if ( c_time.hour == 24 )
                     {
                         c_time.hour = 0;
+                        dayofweek++;
+                        if ( (dayofweek % 7) == 0 )
+                        {
+                            weekofyear++;
+                        }
+                        dayofweek %= 7;
+
                         c_date.day++;
                         if ( internal_is_mounth_over( c_date ) )
                         {
@@ -98,6 +107,7 @@ void test_date(void)
                             if ( c_date.mounth == 13 )
                             {
                                 c_date.mounth = 1;
+                                weekofyear = 0;
                                 c_date.year++;
                             }
                         }
@@ -117,6 +127,16 @@ void test_date(void)
         }
 
         if ( (date_ctr & 0xfffffffe) != utils_convert_date_2_counter( &date, &time ) )
+        {
+            printf("Error at %d", date_ctr );
+        }
+
+        if ( dayofweek != utils_day_of_week(date_ctr) )
+        {
+            printf("Error at %d", date_ctr );
+        }
+
+        if ( weekofyear != utils_week_of_year(date_ctr) )
         {
             printf("Error at %d", date_ctr );
         }
@@ -231,7 +251,7 @@ mainw::mainw(QWidget *parent) :
     qsrand(0x64892354);
 
 
-    //test_date();
+//    test_date();
 }
 
 mainw::~mainw()

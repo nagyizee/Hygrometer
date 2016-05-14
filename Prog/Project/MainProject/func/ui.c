@@ -1011,6 +1011,8 @@ void ui_call_setmenu_action( int context, void *pval )
         uist_change_state( UI_STATE_MODE_SELECT, UI_SET_NONE, true );
         return;
     }
+
+    ui.m_return = val;
     switch ( val )
     {
         case 0:         // display setup
@@ -1151,16 +1153,29 @@ void ui_call_settime_action( int context, void *pval )
         return;
     }
 
-    // edit finished
-    uiel_control_time_get_time( &ui.p.setTime.time, (void*)&time );
-    uiel_control_time_get_time( &ui.p.setTime.date, (void*)&date );
+    if ( context == 0xee )      // OK - edit finished
+    {
+        // edit finished
+        uiel_control_time_get_time( &ui.p.setTime.time, (void*)&time );
+        uiel_control_time_get_time( &ui.p.setTime.date, (void*)&date );
 
-    // set clock
-    clock = utils_convert_date_2_counter( &date, &time );
-    core_set_clock_counter( clock );
+        // set clock
+        clock = utils_convert_date_2_counter( &date, &time );
+        core_set_clock_counter( clock );
 
-    // reschedule UI power management
-    internal_pwrmngm_reset_inactivities( clock );
+        // reschedule UI power management
+        internal_pwrmngm_reset_inactivities( clock );
+    }
+    else
+    {
+        clock = core_get_clock_counter();
+        utils_convert_counter_2_hms(clock, &time.hour, &time.minute, &time.second );
+        utils_convert_counter_2_ymd(clock, &date.year, &date.mounth, &date.day );
+        if ( context )
+            uiel_control_time_set_time( &ui.p.setTime.date, (void*)&date );
+        else
+            uiel_control_time_set_time( &ui.p.setTime.time, (void*)&time );
+    }
 
     ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL | RDRW_STATUSBAR;
 }
