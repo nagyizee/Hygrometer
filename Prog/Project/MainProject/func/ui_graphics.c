@@ -574,7 +574,7 @@ void grf_setup_font( enum Etextstyle style, int color, int backgnd )
 
 
 
-void uigrf_text( int x, int y, enum Etextstyle style, char *text )
+void uigrf_text( int x, int y, enum Etextstyle style, const char *text )
 {
     grf_setup_font( style, 1, 0 );
     Gtext_SetCoordinates( x, y );

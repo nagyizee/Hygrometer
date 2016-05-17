@@ -48,7 +48,7 @@
 
     void uigrf_rounded_rect( int x1, int y1, int x2, int y2, int color, bool fill, int bgnd ); 
 
-    void uigrf_text( int x, int y, enum Etextstyle style, char *text );
+    void uigrf_text( int x, int y, enum Etextstyle style, const char *text );
     void uigrf_text_inv( int x, int y, enum Etextstyle style, char *text );
 
     void uigrf_text_mono( int x, int y, enum Etextstyle style, char *text, bool specialdot );

@@ -321,16 +321,39 @@ static void local_update_battery()
     core.measure.battery = (uint8)((battery * 100) / VBAT_DIFF);     
 }
 
-static int local_calculate_dewpoint( uint32 temp, uint32 rh )
+static uint16 local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p_abs_hum )
 {
+    // TODO: optimize this, currently it executes in 524us
 
-    return 0;
-}
+    #define CT_A    6.116441        // constant set for -20*C <--> + 50*C with max error 0.08%
+    #define CT_m    7.591386        //
+    #define CT_Tn   240.7263        // 
+    #define CT_C    2.16679         //
 
-static int local_calculate_abs_humidity( uint32 temp, uint32 rh )
-{
+    double Pw;
+    double Td; 
+    double T;
+    uint16 result;
 
-    return 0;
+    T =  ( ( ((int)temp * 100) >> TEMP_FP ) - 4000 ) / 100.0;
+    rh = ((rh * 100) >> RH_FP);
+    Pw = ( CT_A * (rh / 100.0) * pow( 10, ((CT_m * T) / (T + CT_Tn)) ) ) / 100.0;
+    Td = CT_Tn / (  (CT_m / log10(Pw/CT_A)) - 1 );
+
+    if ( Td < -39.99 )
+        Td = 39.99;
+
+    if ( p_abs_hum )
+    {
+        //  A = C · Pw/T 
+        double Abs;
+
+        Abs = (CT_C * Pw * 100) / (T + 273.15);
+        *p_abs_hum = (uint32)(Abs * 100);
+    }
+
+    result = (uint16)((Td + 40.0) * (1<< TEMP_FP));
+    return result;
 }
 
 static void local_minmax_compare_and_update( uint32 entry, uint32 value )
@@ -1332,8 +1355,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
         local_recording_all_pushdata( ss_rh, rh );
     }
 
-    dew = local_calculate_dewpoint( core.measure.measured.temperature, rh );
-    abs = local_calculate_abs_humidity( core.measure.measured.temperature, rh );
+    dew = local_calculate_dewpoint_abshum( core.measure.measured.temperature, rh, &abs );
     rh = ((rh * 100) >> RH_FP);     // calculate the x100 % value from 16FP8
 
     // temperature is provided in 16fp9 + 40*C
@@ -1397,7 +1419,7 @@ static inline void local_process_pressure_sensor_result( uint32 press )
 
     if ( core.nv.op.op_flags.b.op_recording )
     {
-        local_recording_all_pushdata( ss_pressure, (pr_filt >> 4) );
+        local_recording_all_pushdata( ss_pressure, convert_press_20fp2_16bit(pr_filt) );
     }
 
     // store the measurement and create max/min
@@ -2705,7 +2727,7 @@ uint16 core_op_recording_get_buf_value( uint32 cursor, enum ESensorSelect param,
 int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint32 minim )
 {
     int val;
-
+/*
   val = (int) (  ( 1 - cos((i*PI2FP12)/(float)(smpl_day << 12)) ) *                                   // ( 1-cos(x*2pi/sday)) *
                    (  diff  *  ( cos( (i*PI2FP12)/(float)( (smpl_day << 12) * 10 ) ) + 1 )   /  4 )  ); // (vmax - vmin) *  cos(x*2pi/sday*10)+1  / 4
 
@@ -2714,8 +2736,8 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
         val = 0;
     if ( val > 0xffff )
         val = 0xffff;
+*/
 
-/*
     if ( diff == (( 128 - 0 ) << TEMP_FP) )
     {
         val = ( i & 0xFF );
@@ -2730,7 +2752,7 @@ int internal_dbgfill_calculate_points( int i, uint32 smpl_day, uint32 diff, uint
     }
 
     val = val << 4;
-*/
+
     return val;
 }
 
