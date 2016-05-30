@@ -115,6 +115,17 @@ private:
     com_link  *comlink;
     QThread   *comlink_thread;
 
+    struct SInvalSimu
+    {
+        bool initted = false;
+
+        double sens[3];         // sensor values
+        double sdiff[3];        // sensor difference bw. steps
+        int    steps_todo[3];   // how many steps till the next value
+
+    } inval;
+
+
     void dispsim_mem_clean();
     void disppwr_mem_clean();
 
@@ -166,6 +177,7 @@ public:
 
 private:
     void Application_MainLoop( bool tick );
+    void InputValSimulation( void );
     void CPULoopSimulation( bool tick );
     void CPUWakeUpOnEvent( bool pwrbtn );
     void pwrdisp_add_pwr_state( enum EPowerMode mode );

@@ -221,7 +221,6 @@ mainw::mainw(QWidget *parent) :
     ms_hum = 56.7;
     ms_press = 1013.25;
 
-
     dbg_shed_sens_temp = 1;
     dbg_shed_sens_rh = 1;
     dbg_shed_sens_press = 1;
@@ -269,6 +268,54 @@ void mainw::setup_graphic( graph_disp *_graph )
 /////////////////////////////////////////////////////////////
 //  Main app. simulation
 /////////////////////////////////////////////////////////////
+
+double SIMUVAL_DIFF[]  = { 20.0, 60.0, 90.0  };     // differences over the floor values
+double SIMUVAL_FLOOR[] = { 12.0, 30.0, 950.0 };     // floor values
+
+int    SIMUIV_MIN[]     = { 1000, 1000, 5000 };         // minimum intervals for value change
+int    SIMUIV_STRETCH[] = { 600000, 600000, 600000, };  // maximum strech bw. value changes
+
+void mainw::InputValSimulation(void)
+{
+    // executed at system tick (1ms)
+    int i;
+    double diff;
+    if ( inval.initted == false )
+    {
+        inval.sens[0] = ui->num_temperature->value();
+        inval.sens[1] = ui->num_humidity->value();
+        inval.sens[2] = ui->num_pressure->value();
+
+        for (i=0; i<3; i++)
+        {
+            inval.steps_todo[i] = 0;
+        }
+
+        inval.initted = true;
+    }
+
+    for (i=0; i<3; i++)
+    {
+        if ( inval.steps_todo[i] == 0 )
+        {
+            // start of a new value set
+            int steps;
+
+            diff = ( qrand() * SIMUVAL_DIFF[i] ) / RAND_MAX + SIMUVAL_FLOOR[i];
+            steps = ( (uint64)qrand() * SIMUIV_STRETCH[i] ) / RAND_MAX + SIMUIV_MIN[i];
+
+            inval.steps_todo[i] = steps;
+            inval.sdiff[i] = (diff - inval.sens[i]) / steps;
+        }
+        else
+        {
+            inval.sens[i] += inval.sdiff[i];
+            inval.steps_todo[i]--;
+        }
+    }
+}
+
+
 struct SEventStruct ev;
 
 void mainw::Application_MainLoop( bool tick )
@@ -289,7 +336,7 @@ void mainw::CPULoopSimulation( bool tick )
 {
     int simuspeed[] = { TICKS_TO_SIMULATE / 10, TICKS_TO_SIMULATE / 8, TICKS_TO_SIMULATE / 6, TICKS_TO_SIMULATE / 4, TICKS_TO_SIMULATE / 2,
                                                             TICKS_TO_SIMULATE,
-                        TICKS_TO_SIMULATE * 3 / 2, TICKS_TO_SIMULATE * 5 / 2, TICKS_TO_SIMULATE *5, TICKS_TO_SIMULATE * 10, TICKS_TO_SIMULATE * 50 };
+                        TICKS_TO_SIMULATE * 3 / 2, TICKS_TO_SIMULATE * 5 / 2, TICKS_TO_SIMULATE *5, TICKS_TO_SIMULATE * 10, TICKS_TO_SIMULATE * 120 };
     int i;
     int j;
     int tosim;
@@ -311,6 +358,11 @@ void mainw::CPULoopSimulation( bool tick )
 
     for (i=0; i<(tick ? tosim : 1); i++)            // maintain this for loop for timing consistency
     {
+        if ( ui->cb_simu_val->isChecked() )
+            InputValSimulation();
+        else
+            inval.initted = false;
+
         // process application loop
         if ( (PwrMode == pm_sleep) || (PwrMode == pm_full) )
         {

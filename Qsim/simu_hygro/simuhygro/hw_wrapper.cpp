@@ -360,6 +360,14 @@ void mainw::HW_wrapper_update_display()
 
     ui->num_dump->setValue( comlink->cmd_read_data_check_inbuffer() );
     disppwr_redraw_content();
+
+    if ( inval.initted )
+    {
+        ui->num_temperature->setValue(inval.sens[0]);
+        ui->num_humidity->setValue(inval.sens[1]);
+        ui->num_pressure->setValue(inval.sens[2]);
+    }
+        
 }
 
 
@@ -390,7 +398,7 @@ int mainw::HW_wrapper_get_humidity()
 
 int mainw::HW_wrapper_get_pressure()
 {
-    return ms_press << 2;
+    return (int)(ui->num_pressure->value() * 400);
 }
 
 void mainw::HW_wrapper_Beep( int op )
