@@ -321,7 +321,7 @@ static void local_update_battery()
     core.measure.battery = (uint8)((battery * 100) / VBAT_DIFF);     
 }
 
-static uint16 local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p_abs_hum )
+static void local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p_abs_hum, uint32 *p_dew )
 {
     // TODO: optimize this, currently it executes in 524us
 
@@ -331,17 +331,12 @@ static uint16 local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p
     #define CT_C    2.16679         //
 
     double Pw;
-    double Td; 
     double T;
     uint16 result;
 
     T =  ( ( ((int)temp * 100) >> TEMP_FP ) - 4000 ) / 100.0;
     rh = ((rh * 100) >> RH_FP);
     Pw = ( CT_A * (rh / 100.0) * pow( 10, ((CT_m * T) / (T + CT_Tn)) ) ) / 100.0;
-    Td = CT_Tn / (  (CT_m / log10(Pw/CT_A)) - 1 );
-
-    if ( Td < -39.99 )
-        Td = 39.99;
 
     if ( p_abs_hum )
     {
@@ -349,11 +344,18 @@ static uint16 local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p
         double Abs;
 
         Abs = (CT_C * Pw * 100) / (T + 273.15);
-        *p_abs_hum = (uint32)(Abs * 100);
+        *p_abs_hum = (uint32)(Abs * 100);               // return x100 g/mm3
     }
 
-    result = (uint16)((Td + 40.0) * (1<< TEMP_FP));
-    return result;
+    if ( p_dew )
+    {
+        double Td; 
+
+        Td = CT_Tn / (  (CT_m / log10(Pw/CT_A)) - 1 );
+        if ( Td < -39.99 )
+            Td = 39.99;
+        *p_dew = (uint16)((Td + 40.0) * (1<< TEMP_FP)); // return temperature in 6fp9+40*C
+    }
 }
 
 static void local_minmax_compare_and_update( uint32 entry, uint32 value )
@@ -454,6 +456,84 @@ inline static void internal_recording_get_minmax_from_raw( uint32 taks_elem, enu
             }
             break;
     }
+}
+
+static void internal_recording_normalize_temp_minmax( uint32 *pvalmin, uint32 *pvalmax, uint32 *phigh, uint32 *plow )
+{
+    uint32 valmin;
+    uint32 valmax;
+    int val;                    
+
+    valmin = *pvalmin;
+    valmax = *pvalmax;
+
+    if ( valmin == 0 )
+        valmin = 1;
+    if ( valmax == 0xffff )
+        valmax = 0xfffe;
+
+    val = core_utils_temperature2unit( valmin, core.nv.setup.show_unit_temp );
+    if (val < 0)
+        *plow = val / 100 - 1;
+    else
+        *plow = val / 100;
+    val = core_utils_temperature2unit( valmax, core.nv.setup.show_unit_temp );
+    if (val < 0)
+        *phigh = val / 100;
+    else
+        *phigh = val / 100 + 1;
+
+    *pvalmin = core_utils_unit2temperature( (*plow)*100, core.nv.setup.show_unit_temp );
+    *pvalmax = core_utils_unit2temperature( (*phigh)*100, core.nv.setup.show_unit_temp );
+}
+
+static inline uint32 internal_recording_prepare( uint32 *pvalmin, uint32 *pvalmax, uint32 *phigh, uint32 *plow )
+{
+    uint16 *tbuff;      // buffer for thermo
+    uint16 *hbuff;      // buffer for hygro
+    uint16 *newbuff;
+    uint32 points = 0;
+    uint32 valmin = 0xffff;
+    uint32 valmax = 0x0000;
+    uint16 value;
+
+    int i;
+
+    if ( core.readout.total_read > WB_DISPPOINT )
+        points = WB_DISPPOINT;                          // display all the disp points
+    else
+        points = core.readout.total_read;               // display only the points read out
+
+    newbuff = (uint16*)(workbuff + WB_OFFS_FLIP2);      // hold the results in the flip buffer 2
+    tbuff = (uint16*)(workbuff + WB_OFFS_TEMP_AVG);
+    hbuff = (uint16*)(workbuff + WB_OFFS_RH_AVG);
+
+    for (i=0; i<points; i++)
+    {
+        if ( core.nv.setup.show_unit_hygro == hu_dew )
+            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], NULL, value );
+        else
+            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], value, NULL );
+        if ( valmin > value )
+            valmin = value;
+        if ( valmax < value )
+            valmax = value;
+    }
+
+    if ( core.nv.setup.show_unit_hygro == hu_dew )                                  // dew point
+        internal_recording_normalize_temp_minmax( &valmin, &valmax, phigh, plow );
+    else                                                                            // abs. humidity
+    {
+        *plow = valmin / 100;
+        *phigh = valmax / 100 + 1;
+
+        valmin = ((*plow) * 100);
+        valmax = ((*phigh) * 100);
+    }
+
+    *pvalmin = valmin;
+    *pvalmax = valmax;
+    return points;
 }
 
 
@@ -1355,7 +1435,7 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
         local_recording_all_pushdata( ss_rh, rh );
     }
 
-    dew = local_calculate_dewpoint_abshum( core.measure.measured.temperature, rh, &abs );
+    local_calculate_dewpoint_abshum( core.measure.measured.temperature, rh, &abs, &dew );
     rh = ((rh * 100) >> RH_FP);     // calculate the x100 % value from 16FP8
 
     // temperature is provided in 16fp9 + 40*C
@@ -2555,10 +2635,11 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     // high and low values are integer values in converted units
     uint32 valmin;
     uint32 valmax;
-    uint16 *rbuff;
+    uint16 *rbuff;      // read buffer
 
     int high;
     int low;
+    uint32 to_process;
 
     int i;
 
@@ -2574,40 +2655,23 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
         return workbuff;
     }
 
-    // calculate the high and low values
-    internal_recording_get_minmax_from_raw( core.readout.taks_elem, param, &valmin, &valmax );
+    // calculate the high and low values - except for dew point and abs. humidity - because those are calculated here
+    if ( (param != ss_rh) || (core.nv.setup.show_unit_hygro == hu_rh) )
+        internal_recording_get_minmax_from_raw( core.readout.taks_elem, param, &valmin, &valmax );
 
     // normalize the upper and lower limits
     switch ( param )
     {
         case ss_thermo:
             {
-                int val;                    // TODO: optimize this with the one from internal_graphdisp_putcursor()
-
-                if ( valmin == 0 )
-                    valmin = 1;
-                if ( valmax == 0xffff )
-                    valmax = 0xfffe;
-
-                val = core_utils_temperature2unit( valmin, core.nv.setup.show_unit_temp );
-                if (val < 0)
-                    low = val / 100 - 1;
-                else
-                    low = val / 100;
-                val = core_utils_temperature2unit( valmax, core.nv.setup.show_unit_temp );
-                if (val < 0)
-                    high = val / 100;
-                else
-                    high = val / 100 + 1;
-
-                valmin = core_utils_unit2temperature( low*100, core.nv.setup.show_unit_temp );
-                valmax = core_utils_unit2temperature( high*100, core.nv.setup.show_unit_temp );
-
+                internal_recording_normalize_temp_minmax( &valmin, &valmax, &high, &low );
                 rbuff  = (uint16*)(workbuff + WB_OFFS_TEMP);
             }
             break;
         case ss_rh:
+            if ( core.nv.setup.show_unit_hygro == hu_rh )
             {   
+                // do this only for RH
                 low = ((valmin * 100) >> RH_FP) / 100;
                 high = ((valmax * 100) >> RH_FP) / 100 + 1;
 
@@ -2630,38 +2694,45 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
             break;
     }
 
-    *phigh = high;
-    *plow = low;
+    if ( (param == ss_rh) && (core.nv.setup.show_unit_hygro != hu_rh) )
+    {
+        to_process = internal_recording_prepare( &valmin, &valmax, phigh, plow );
+        rbuff  = (uint16*)(workbuff + WB_OFFS_FLIP2);                               // rbuff is the 2nd flip buffer
+    }
+    else
+    {
+        *phigh = high;
+        *plow = low;
+        if ( valmin == valmax )
+            valmax++;                           // should not happen, but never knows ...
+        to_process = core.readout.total_read;
+        // rbuff is set up in the switch-case abowe
+    }
 
-    if ( valmin == valmax )
-        valmax++;                           // should not happen, but never knows ...
-
-    if ( core.readout.total_read <= WB_DISPPOINT )
+    if ( to_process <= WB_DISPPOINT )
     {
         // single display graph - just values
-        uint8 *pbuff;
         register uint32 diff;
-        register uint32 vmin;
+        uint8  *pbuff;          // pixel buffer
 
-        vmin = valmin;
         pbuff = workbuff + WB_DISPPOINT*2;   // fill only the averages
         diff = valmax - valmin;
 
-        rbuff += (2 * WB_DISPPOINT);        // move the raw buffer pointer to the averages only ( note the rbuff is *uint16)
+        rbuff += (2 * WB_DISPPOINT);         // move the raw buffer pointer to the averages only ( note the rbuff is *uint16)
 
-        if ( core.readout.total_read < WB_DISPPOINT )
+        if ( to_process < WB_DISPPOINT )
         {
             // fill constant line for undefined data
-            for ( i=0; i<(WB_DISPPOINT-core.readout.total_read); i++ )
+            for ( i=0; i<(WB_DISPPOINT-to_process); i++ )
             {
-                *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+                *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - valmin) * 48) / diff ));
                 pbuff++;
             }
         }
         // fill the graph points
-        for ( i=0; i<core.readout.total_read; i++ )
+        for ( i=0; i<to_process; i++ )
         {
-            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - valmin) * 48) / diff ));
             rbuff++;
             pbuff++;
         }
@@ -2672,18 +2743,16 @@ uint8* core_op_recording_calculate_pixels( enum ESensorSelect param, int *phigh,
     else
     {
         // double display graph - avg values + min/max set
-        uint8 *pbuff;
         register uint32 diff;
-        register uint32 vmin;
+        uint8  *pbuff;          // pixel buffer
 
-        vmin = valmin;
         diff = valmax - valmin;
 
         // fill minimums/maximums/averages - just go through all the raw data memory
         pbuff = workbuff;
         for ( i=0; i<(WB_DISPPOINT*3); i++ )
         {
-            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - vmin) * 48) / diff ));
+            *pbuff = (uint8)( 64 - ( 1 + (((uint32)(*rbuff) - valmin) * 48) / diff ));
             rbuff++;
             pbuff++;
         }
