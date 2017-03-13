@@ -31,7 +31,7 @@
     #define CORE_RECMEM_PAGESIZE 1024
     #define CORE_RECMEM_MAXPAGE  255        // 255*1024 bytes. The first 1024 byte is for setup/etc.
             
-    #define WB_DISPPOINT        110         // graph display point
+    #define WB_DISPPOINT        110         // graph display point (NOTE - always use pair numbers)
 
     #define GET_MM_SET_SELECTOR( value, index )             ( ((value) >> (4*(index))) & 0x0f )
     #define SET_MM_SET_SELECTOR( selector, value, index )   do{  (selector) = ( (selector) & ~(0x0f << (4*(index))) ) | ( ((value) & 0x0f) << (4*(index)) ); } while (0)
@@ -524,7 +524,8 @@
 
     // debug fill feature
     void core_op_recording_dbgfill( uint32 t );
-
+    // debug dump entire NVRAM
+    uint32 core_op_recording_dbgDumpNVRAM(void);
 
 
 #ifdef __cplusplus

@@ -622,7 +622,7 @@ void mainw::on_num_temperature_valueChanged(double arg1) { ms_temp = (arg1 * 100
 void mainw::on_num_humidity_valueChanged(double arg1) { ms_hum = (arg1 * 100); }
 void mainw::on_num_pressure_valueChanged(double arg1) { ms_press = (arg1 * 100); }
 
-#define MAX_BUFF_SIZE   ( 1024 * 1024 )
+#define MAX_BUFF_SIZE   ( 10 * 1024 * 1024 )
 uint8 dumpbuffer[ MAX_BUFF_SIZE ];
 
 void mainw::on_pb_dump_clicked()

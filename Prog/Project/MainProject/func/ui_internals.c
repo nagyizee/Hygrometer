@@ -38,7 +38,7 @@ extern struct SCore core;
 
 const char c_menu_graph_main_nozoom[]            = { "info select zoom_to" };
 const char c_menu_graph_main_zoom[]              = { "info select pan zoom_out zoom_to" };
-const char c_menu_setup_menu[]                   = { "display sound alarms time power debug" };
+const char c_menu_setup_menu[]                   = { "display sound alarms time power dbgDump" };
 
 const char upd_rates[][6]               = { "5 sec",  "10sec",  "30sec",  "1 min",  "2 min",  "5 min",  "10min",  "30min",  "60min" };
 

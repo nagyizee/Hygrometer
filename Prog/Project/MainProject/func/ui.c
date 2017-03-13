@@ -999,6 +999,8 @@ _reset_display:
 
 // ---- Setup menu
 
+const char popup_msg_dbg_dump[] = {"Dump NVRAM content?"};
+
 // ---- menu itself
 
 void ui_call_setmenu_action( int context, void *pval )
@@ -1020,6 +1022,16 @@ void ui_call_setmenu_action( int context, void *pval )
             return;
         case 3:         // time setup
             uist_change_state( UI_STATE_NONE, UI_SET_SetupTime, true );
+            return;
+        case 5:
+            ui.popup.params.line1 = (uint32)popup_msg_dbg_dump;       // need to trick the compiler to not to complain about const type
+            ui.popup.params.line2 = 0;
+            ui.popup.params.line3 = 0;
+            ui.popup.params.style1 = uitxt_small;
+            ui.popup.params.x1 = 4;
+            ui.popup.params.y1 = 12;
+            ui.popup.params.popup_action = uipa_ok_cancel;
+            uist_enter_popup( 0, ui_call_dbgdump_NVram, 0, NULL );
             return;
     }
 }
@@ -1178,6 +1190,15 @@ void ui_call_settime_action( int context, void *pval )
     }
 
     ui.upd_ui_disp |= RDRW_UI_CONTENT_ALL | RDRW_STATUSBAR;
+}
+
+
+void ui_call_dbgdump_NVram( int context, void *pval )
+{
+    // from debug dump popup
+    core_op_recording_dbgDumpNVRAM();
+
+    uist_close_popup();
 }
 
 
@@ -2195,7 +2216,7 @@ uint32 ui_poll( struct SEventStruct *evmask )
                     uist_shutdown_entry();
                     break;
                 case UI_STATE_DBG_INPUTS:
-                    uist_debuginputs_entry();
+                    //uist_debuginputs_entry();
                     break;
             }
         }
@@ -2225,7 +2246,7 @@ uint32 ui_poll( struct SEventStruct *evmask )
                     uist_shutdown( evmask );
                     break;
                 case UI_STATE_DBG_INPUTS:
-                    uist_debuginputs( evmask );
+                    //uist_debuginputs( evmask );
                     break;
             }
         }

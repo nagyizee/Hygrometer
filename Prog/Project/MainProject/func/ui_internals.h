@@ -314,6 +314,8 @@
     void ui_call_setdisplay_greysetup( int context, void *pval );
     void ui_call_settime_action( int context, void *pval );
 
+    void ui_call_dbgdump_NVram( int context, void *pval );
+
     // routines
     void uist_drawview_modeselect( int redraw_type );
     void uist_drawview_mainwindow( int redraw_type );

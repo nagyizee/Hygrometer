@@ -171,6 +171,8 @@
 
     uint32 eeprom_deepsleep()
     {
+        return 0;   // test: disable deepsleep function
+
         if (ee_status == eest_lowpower)
             return 0;
         eeprom_disable();

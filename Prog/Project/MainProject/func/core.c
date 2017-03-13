@@ -121,7 +121,7 @@ static volatile uint32 sec_ctr = 0;
 #define WB_OFFS_P_MAX       (WB_OFFS_P_MIN + WB_DISPPOINT*2)
 #define WB_OFFS_P_AVG       (WB_OFFS_P_MAX + WB_DISPPOINT*2)
 
-#define WB_SIZE             (WB_OFFS_P_AVG + WB_DISPPOINT*2)               // 
+#define WB_SIZE             (WB_OFFS_P_AVG + WB_DISPPOINT*2)     // all of these must be 4byte aligned
 
 
 static uint8    workbuff[ WB_SIZE ];
@@ -208,19 +208,28 @@ void internal_DBG_simu_1_cycle()
 // read-out debug routines
 #ifndef ON_QT_PLATFORM
 //  #define DBG_READOUT
+//  #define DBG_SAVEREC
 #endif
 
 uint32 dbg_readlenght = 0;
-uint32 temp = 0;
+uint32 temp = 0;                // for debugging purposes
+
+static void DBG_sendHeaderPattern( uint8 pattern )
+{
+    #ifndef ON_QT_PLATFORM
+    HW_UART_SendSingle(pattern);
+    HW_UART_SendSingle(pattern);
+    HW_UART_SendSingle(pattern);
+    HW_UART_SendSingle(pattern);
+    #endif
+}
+
 
 static void DBG_recording_start()
 {
 #ifdef DBG_READOUT
     HW_UART_Start();
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
+    DBG_sendHeaderPattern(0xFF);
 #endif
 }
 
@@ -229,10 +238,7 @@ static void DBG_recording_01_header( struct SCoreNVreadout *readout, struct SRec
 #ifdef DBG_READOUT
     if ( task == NULL )
     {
-        HW_UART_SendSingle(0x55);
-        HW_UART_SendSingle(0x55);
-        HW_UART_SendSingle(0x55);
-        HW_UART_SendSingle(0x55);
+        DBG_sendHeaderPattern(0x55);
     }
     HW_UART_SendMulti( (uint8*)readout, sizeof(struct SCoreNVreadout) );
     if ( task )
@@ -263,21 +269,12 @@ static void DBG_recording_03_end( struct SCoreNVreadout *readout )
 {
 #ifdef DBG_READOUT
     
-    HW_UART_SendSingle(0x66);
-    HW_UART_SendSingle(0x66);
-    HW_UART_SendSingle(0x66);
-    HW_UART_SendSingle(0x66);
+    DBG_sendHeaderPattern(0x66);
     HW_UART_SendMulti( (uint8*)readout, sizeof(struct SCoreNVreadout) );
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
-    HW_UART_SendSingle(0xFF);
+    DBG_sendHeaderPattern(0xFF);
     temp = HW_UART_get_Checksum();
     HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );
-    HW_UART_SendSingle(0xCC);
-    HW_UART_SendSingle(0xCC);
-    HW_UART_SendSingle(0xCC);
-    HW_UART_SendSingle(0xCC);
+    DBG_sendHeaderPattern(0xCC);
     HW_UART_Stop();
 #endif
 }
@@ -286,6 +283,69 @@ static void DBG_recording_exception()
 {
 #ifdef DBG_READOUT
     HW_UART_SendMulti( "DISP", 4 );
+#endif
+}
+
+
+static void DBG_recsave_StartUp()
+{
+#ifdef DBG_SAVEREC
+    if ( temp )
+        return;
+
+    HW_UART_Start();
+    HW_UART_reset_Checksum();
+    DBG_sendHeaderPattern(0xAA);
+
+    {
+        int i;
+        for ( i=0; i<4; i++ )
+        {
+            HW_UART_SendMulti( (uint8*)(&core.nvrec.task[i]), sizeof(struct SRecTaskInstance) );
+            HW_UART_SendMulti( (uint8*)(&core.nvrec.func[i]), sizeof(struct SRecTaskInternals) );
+        }
+    }
+
+    temp = 1;       // mark that structures are sent
+#endif
+}
+
+static void DBG_recsave_SensorPrm( enum ESensorSelect sensor, uint32 value )
+{
+#ifdef DBG_SAVEREC
+    DBG_recsave_StartUp();
+    switch ( sensor )
+    {
+        case ss_thermo:     DBG_sendHeaderPattern(0xBB); break;
+        case ss_rh:         DBG_sendHeaderPattern(0xCC); break;
+        case ss_pressure:   DBG_sendHeaderPattern(0xDD); break;
+    }
+    
+    HW_UART_SendMulti( (uint8*)(&value), sizeof(uint32) );
+#endif
+}
+
+static void DBG_recsave_savedata( uint32 task, uint32 ee_addr, uint32 ee_len, uint8 *buff )
+{
+#ifdef DBG_SAVEREC
+    DBG_sendHeaderPattern(0xEE);
+    HW_UART_SendSingle( task );
+    HW_UART_SendSingle( ee_len );
+    HW_UART_SendMulti( (uint8*)(&ee_addr), sizeof(uint32) );
+    HW_UART_SendMulti( buff, ee_len );
+#endif
+}
+
+static void DBG_recsave_close()
+{
+#ifdef DBG_SAVEREC
+    if ( temp == 0 )
+        return;
+
+    temp = HW_UART_get_Checksum();
+    HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );
+    DBG_sendHeaderPattern(0xFF);
+    temp = 0;
 #endif
 }
 
@@ -332,7 +392,6 @@ static void local_calculate_dewpoint_abshum( uint32 temp, uint32 rh, uint32 *p_a
 
     double Pw;
     double T;
-    uint16 result;
 
     T =  ( ( ((int)temp * 100) >> TEMP_FP ) - 4000 ) / 100.0;
     rh = ((rh * 100) >> RH_FP);
@@ -458,7 +517,7 @@ inline static void internal_recording_get_minmax_from_raw( uint32 taks_elem, enu
     }
 }
 
-static void internal_recording_normalize_temp_minmax( uint32 *pvalmin, uint32 *pvalmax, uint32 *phigh, uint32 *plow )
+static void internal_recording_normalize_temp_minmax( uint32 *pvalmin, uint32 *pvalmax, int *phigh, int *plow )
 {
     uint32 valmin;
     uint32 valmax;
@@ -487,7 +546,7 @@ static void internal_recording_normalize_temp_minmax( uint32 *pvalmin, uint32 *p
     *pvalmax = core_utils_unit2temperature( (*phigh)*100, core.nv.setup.show_unit_temp );
 }
 
-static inline uint32 internal_recording_prepare( uint32 *pvalmin, uint32 *pvalmax, uint32 *phigh, uint32 *plow )
+static inline uint32 internal_recording_prepare( uint32 *pvalmin, uint32 *pvalmax, int *phigh, int *plow )
 {
     uint16 *tbuff;      // buffer for thermo
     uint16 *hbuff;      // buffer for hygro
@@ -495,7 +554,7 @@ static inline uint32 internal_recording_prepare( uint32 *pvalmin, uint32 *pvalma
     uint32 points = 0;
     uint32 valmin = 0xffff;
     uint32 valmax = 0x0000;
-    uint16 value;
+    uint32 value;
 
     int i;
 
@@ -505,15 +564,15 @@ static inline uint32 internal_recording_prepare( uint32 *pvalmin, uint32 *pvalma
         points = core.readout.total_read;               // display only the points read out
 
     newbuff = (uint16*)(workbuff + WB_OFFS_FLIP2);      // hold the results in the flip buffer 2
-    tbuff = (uint16*)(workbuff + WB_OFFS_TEMP_AVG);
+    tbuff = (uint16*)(workbuff + WB_OFFS_TEMP_AVG);     // these should be 4byte aligned
     hbuff = (uint16*)(workbuff + WB_OFFS_RH_AVG);
 
     for (i=0; i<points; i++)
     {
         if ( core.nv.setup.show_unit_hygro == hu_dew )
-            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], NULL, value );
+            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], NULL, &value );
         else
-            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], value, NULL );
+            local_calculate_dewpoint_abshum( tbuff[i], hbuff[i], &value, NULL );
         if ( valmin > value )
             valmin = value;
         if ( valmax < value )
@@ -743,7 +802,9 @@ static void local_recording_savedata(void)
             }
             
             // write to the storage
-            eeprom_write( ee_addr + EEADDR_STORAGE + (uint32)core.nvrec.task[i].mempage * CORE_RECMEM_PAGESIZE, pfunc->element, ee_len, false );
+            ee_addr = ee_addr + EEADDR_STORAGE + (uint32)core.nvrec.task[i].mempage * CORE_RECMEM_PAGESIZE;
+            DBG_recsave_savedata( i, ee_addr, ee_len, pfunc->element );
+            eeprom_write( ee_addr, pfunc->element, ee_len, false );
             while ( eeprom_is_operation_finished() == false );
 
             // prepare task for the next aquisition
@@ -1382,6 +1443,8 @@ static inline void local_recording_readout( void )
 static inline void local_process_temp_sensor_result( uint32 temp )
 {
     // temperature is provided in 16fp9 + 40*C
+    DBG_recsave_SensorPrm( ss_thermo, temp );
+
     if ( temp != core.measure.measured.temperature )
     {
         core.measure.measured.temperature = temp;
@@ -1429,6 +1492,8 @@ static inline void local_process_hygro_sensor_result( uint32 rh )
 {
     uint32 dew;     // calculated dew point temperature in 16FP9+40*
     uint32 abs;     // calculated absolute humidity in g/m3*100
+
+    DBG_recsave_SensorPrm( ss_rh, rh );
 
     if ( core.nv.op.op_flags.b.op_recording )
     {
@@ -1493,6 +1558,8 @@ static inline void local_process_pressure_sensor_result( uint32 press )
 {
     // pressure comes in 20fp2 Pa (18bit pascal, 2 fractional)
     uint32 pr_filt;
+
+    DBG_recsave_SensorPrm( ss_pressure, press );
     
     // calculate filtred value
     pr_filt = press;
@@ -2144,6 +2211,7 @@ void core_nvfast_save_struct(void)
     BKP_WriteBackupRegister( BKP_DR5, core.measure.measured.temperature );
     BKP_WriteBackupRegister( BKP_DR6, core.measure.measured.rh );
 
+    DBG_recsave_close();
 
     if ( core.nv.dirty || core.nvrec.dirty )
     {
@@ -2874,6 +2942,69 @@ void core_op_recording_dbgfill( uint32 t )
 }
 
 
+uint32 core_op_recording_dbgDumpNVRAM(void)
+{
+    temp = 0xAABBCCDD;
+#ifndef ON_QT_PLATFORM
+    int i;
+
+    eeprom_enable( true );
+
+    HW_UART_Start();
+    HW_UART_reset_Checksum();
+
+    HW_UART_SendSingle( 0xAA );
+    HW_UART_SendSingle( 0xAA );
+    HW_UART_SendSingle( 0xAA );
+    HW_UART_SendSingle( 0xAA );
+
+    while ( eeprom_is_operation_finished() == false );
+
+    for ( i=0; i<256; i++ )
+    {
+        // Read Flip 1
+        eeprom_read( (i*2)*512, 512, (workbuff + WB_OFFS_FLIP1), true );
+
+        // Send Flip 2 (if not the first)
+        if ( i != 0 )
+            HW_UART_SendMulti( (workbuff + WB_OFFS_FLIP2), 512 );
+
+        // Wait for flip1 to be read
+        while ( eeprom_is_operation_finished() == false );
+
+        // Read Flip 2
+        eeprom_read( (i*2+1)*512, 512, (workbuff + WB_OFFS_FLIP2), true );
+
+        // Send Flip 1
+        HW_UART_SendMulti( (workbuff + WB_OFFS_FLIP1), 512 );
+
+        // Wait for flip2 to be read
+        while ( eeprom_is_operation_finished() == false );
+
+        // if last loop - send flip 2
+        if ( i == 255 )
+            HW_UART_SendMulti( (workbuff + WB_OFFS_FLIP2), 512 );
+    }
+
+    HW_UART_SendSingle( 0xBB );
+    HW_UART_SendSingle( 0xBB );
+    HW_UART_SendSingle( 0xBB );
+    HW_UART_SendSingle( 0xBB );
+
+    temp = HW_UART_get_Checksum();
+    HW_UART_SendMulti( (uint8*)(&temp), sizeof(uint32) );
+
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+    HW_UART_SendSingle(0xFF);
+
+#endif
+    return temp;
+}
+
+
+
 //-------------------------------------------------
 //     main core interface
 //-------------------------------------------------
@@ -3038,6 +3169,7 @@ void core_poll( struct SEventStruct *evmask )
                     if ( core.vstatus.int_op.f.op_sread == 0 )
                         core.vstatus.int_op.f.core_bsy = 0;
                     eeprom_deepsleep();  
+                    DBG_recsave_close();
                 }
                 break;                                  // break the busy loop
             }
